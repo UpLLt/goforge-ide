@@ -1,0 +1,101 @@
+<idea-plugin require-restart="true">
+  <id>dev.goforge.ide</id>
+  <name>GoForge</name>
+  <vendor>GoForge</vendor>
+  <description><![CDATA[
+    Independent Go development tools for the open-source IntelliJ Platform.
+    Uses gopls through LSP4IJ and the Go toolchain for real run/test processes.
+    This development build is not a complete GoLand replacement.
+  ]]></description>
+  <depends>com.intellij.modules.platform</depends>
+  <depends>com.redhat.devtools.lsp4ij</depends>
+  <depends>org.jetbrains.plugins.terminal</depends>
+
+  <extensions defaultExtensionNs="com.intellij">
+    <fileType name="GoForge Go" implementationClass="dev.goforge.language.GoFileType"
+              fieldName="INSTANCE" language="GoForgeGo" extensions="go"/>
+    <lang.parserDefinition language="GoForgeGo" implementationClass="dev.goforge.language.GoParserDefinition"/>
+    <completion.contributor language="GoForgeGo" implementationClass="dev.goforge.debug.GoDebugCompletionContributor" order="first"/>
+    <!-- Retain the LSP4IJ services previously supplied by its TEXT registrations. -->
+    <lang.fileViewProviderFactory language="GoForgeGo"
+              implementationClass="com.redhat.devtools.lsp4ij.features.semanticTokens.viewProvider.LSPSemanticTokensStructurelessFileViewProviderFactory"/>
+    <lang.psiStructureViewFactory language="GoForgeGo"
+              implementationClass="com.redhat.devtools.lsp4ij.features.documentSymbol.LSPDocumentSymbolStructureViewFactory"/>
+    <lang.foldingBuilder language="GoForgeGo"
+              implementationClass="com.redhat.devtools.lsp4ij.features.foldingRange.LSPFoldingRangeBuilder"/>
+    <codeBlockProvider language="GoForgeGo"
+              implementationClass="com.redhat.devtools.lsp4ij.features.codeBlockProvider.LSPCodeBlockProvider"/>
+    <codeInsight.parameterInfo language="GoForgeGo"
+              implementationClass="com.redhat.devtools.lsp4ij.features.signatureHelp.LSPParameterInfoHandler"/>
+    <typeHierarchyProvider language="GoForgeGo"
+              implementationClass="com.redhat.devtools.lsp4ij.features.typeHierarchy.LSPTypeHierarchyProvider"/>
+    <callHierarchyProvider language="GoForgeGo"
+              implementationClass="com.redhat.devtools.lsp4ij.features.callHierarchy.LSPCallHierarchyProvider"/>
+    <applicationService serviceImplementation="dev.goforge.settings.GoForgeSettings"/>
+    <notificationGroup id="GoForge" displayType="BALLOON" isLogByDefault="true"/>
+    <applicationConfigurable id="dev.goforge.settings" displayName="GoForge"
+                             instance="dev.goforge.settings.GoForgeConfigurable"/>
+    <projectConfigurable id="dev.goforge.project.settings" displayName="Go Project"
+                         instance="dev.goforge.settings.GoProjectConfigurable"/>
+    <configurationType implementation="dev.goforge.run.GoRunConfigurationType"/>
+    <runConfigurationProducer implementation="dev.goforge.run.GoRunConfigurationProducer"/>
+    <toolWindow id="Go Coverage" anchor="bottom" factoryClass="dev.goforge.coverage.GoCoverageToolWindowFactory"/>
+    <toolWindow id="HTTP Client" anchor="bottom" factoryClass="dev.goforge.http.HttpClientToolWindowFactory"/>
+    <toolWindow id="Containers" anchor="bottom" factoryClass="dev.goforge.containers.DockerToolWindowFactory"/>
+    <toolWindow id="Go Database" anchor="bottom" factoryClass="dev.goforge.database.DatabaseToolWindowFactory"/>
+    <toolWindow id="Go Remote" anchor="bottom" factoryClass="dev.goforge.remote.GoRemoteToolWindowFactory"/>
+  </extensions>
+
+  <extensions defaultExtensionNs="com.redhat.devtools.lsp4ij">
+    <debugAdapterServer id="goforge.delve" name="GoForge — Delve"
+                        factoryClass="dev.goforge.debug.DelveDebugAdapterFactory">
+      <description><![CDATA[Debug Go packages and tests using Delve. Configure the dlv and go executables in Settings → GoForge.]]></description>
+    </debugAdapterServer>
+    <debugAdapterServer id="goforge.remoteDelve" name="GoForge — Remote Delve (SSH)"
+                        factoryClass="dev.goforge.debug.RemoteDelveDebugAdapterFactory">
+      <description><![CDATA[Debug Go packages, tests, binaries or an existing process on an SSH host. Configure Go Remote → Go debug; source paths are checked and mapped to this project.]]></description>
+    </debugAdapterServer>
+    <server id="goforge.gopls" name="GoForge — gopls"
+            factoryClass="dev.goforge.lsp.GoplsServerFactory">
+      <description><![CDATA[Go language analysis using the Go project's gopls server. Configure executables in Settings → GoForge.]]></description>
+    </server>
+    <fileTypeMapping fileType="GoForge Go" serverId="goforge.gopls" languageId="go"
+                     documentMatcher="dev.goforge.lsp.GoSourceDocumentMatcher"/>
+    <fileNamePatternMapping patterns="go.mod" serverId="goforge.gopls" languageId="go.mod"/>
+    <fileNamePatternMapping patterns="go.work" serverId="goforge.gopls" languageId="go.work"/>
+  </extensions>
+
+  <actions>
+    <action id="GoForge.Refactor" class="dev.goforge.refactor.GoRefactorAction" text="Go Refactor…"
+            description="Preview and apply Go extract, inline and rewrite actions as one undoable edit">
+      <add-to-group group-id="RefactoringMenu" anchor="first"/>
+      <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+    </action>
+    <action id="GoForge.Profiling" class="dev.goforge.run.GoProfilingAction" text="Go Profiling…">
+      <add-to-group group-id="ToolsMenu" anchor="last"/>
+    </action>
+    <action id="GoForge.Database.Open" class="dev.goforge.database.OpenDatabaseAction" text="Go Database">
+      <add-to-group group-id="ToolsMenu" anchor="last"/>
+    </action>
+    <action id="GoForge.Tools" class="dev.goforge.run.GoToolsAction" text="Go Tools…">
+      <add-to-group group-id="ToolsMenu" anchor="last"/>
+    </action>
+    <action id="GoForge.HttpClient" class="dev.goforge.http.OpenHttpClientAction" text="GoForge HTTP Client">
+      <add-to-group group-id="ToolsMenu" anchor="last"/>
+    </action>
+    <action id="GoForge.RunHttpRequest" class="dev.goforge.http.RunHttpRequestAction" text="Send HTTP Request at Caret">
+      <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+    </action>
+    <action id="GoForge.RunCoverage" class="dev.goforge.coverage.RunGoCoverageAction"
+            text="Run Go Coverage" description="Run tests with coverage for the current module's saved files">
+      <add-to-group group-id="RunMenu" anchor="last"/>
+    </action>
+    <action id="GoForge.ClearCoverage" class="dev.goforge.coverage.ClearGoCoverageAction"
+            text="Clear Go Coverage" description="Clear this project's Go coverage results and coloring"/>
+    <action id="GoForge.NewProject" class="dev.goforge.project.NewGoProjectAction"
+            text="New Go Project…" description="Create a local Go module with a runnable example and tests">
+      <add-to-group group-id="NewProjectOrModuleGroup" anchor="first"/>
+      <add-to-group group-id="WelcomeScreen.QuickStart" anchor="first"/>
+    </action>
+  </actions>
+</idea-plugin>

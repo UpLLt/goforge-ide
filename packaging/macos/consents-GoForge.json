@@ -1,0 +1,26 @@
+[
+  {
+    "consentId": "rsch.send.usage.stat",
+    "version": "1.0",
+    "printableName": "Usage telemetry is unavailable in this GoForge distribution",
+    "text": "This GoForge development distribution disables platform usage telemetry collection and reporting. This is product configuration, not a recorded user consent.",
+    "accepted": false,
+    "deleted": true
+  },
+  {
+    "consentId": "eap",
+    "version": "1.0",
+    "printableName": "EAP feedback collection is unavailable in this GoForge distribution",
+    "text": "This product does not enroll users in upstream EAP feedback programs.",
+    "accepted": false,
+    "deleted": true
+  },
+  {
+    "consentId": "ai.data.collection.and.use.policy",
+    "version": "1.0",
+    "printableName": "Upstream AI data collection is unavailable in this GoForge distribution",
+    "text": "This product does not enroll users in upstream AI data collection programs.",
+    "accepted": false,
+    "deleted": true
+  }
+]

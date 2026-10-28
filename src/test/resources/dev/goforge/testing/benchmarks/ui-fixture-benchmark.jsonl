@@ -1,0 +1,12 @@
+{"Time":"2026-10-27T14:36:11.439216+08:00","Action":"start","Package":"example.com/goforge-integrations"}
+{"Time":"2026-10-27T14:36:11.751608+08:00","Action":"output","Package":"example.com/goforge-integrations","Output":"goos: darwin\n"}
+{"Time":"2026-10-27T14:36:11.751836+08:00","Action":"output","Package":"example.com/goforge-integrations","Output":"goarch: arm64\n"}
+{"Time":"2026-10-27T14:36:11.75184+08:00","Action":"output","Package":"example.com/goforge-integrations","Output":"pkg: example.com/goforge-integrations\n"}
+{"Time":"2026-10-27T14:36:11.751847+08:00","Action":"output","Package":"example.com/goforge-integrations","Output":"cpu: Apple M2 Pro\n"}
+{"Time":"2026-10-27T14:36:11.751858+08:00","Action":"run","Package":"example.com/goforge-integrations","Test":"BenchmarkHello"}
+{"Time":"2026-10-27T14:36:11.75186+08:00","Action":"output","Package":"example.com/goforge-integrations","Test":"BenchmarkHello","Output":"=== RUN   BenchmarkHello\n"}
+{"Time":"2026-10-27T14:36:11.751867+08:00","Action":"output","Package":"example.com/goforge-integrations","Test":"BenchmarkHello","Output":"BenchmarkHello\n"}
+{"Time":"2026-10-27T14:36:11.764602+08:00","Action":"output","Package":"example.com/goforge-integrations","Test":"BenchmarkHello","Output":"BenchmarkHello-10    \t 5393762\t         2.325 ns/op\n"}
+{"Time":"2026-10-27T14:36:11.764673+08:00","Action":"output","Package":"example.com/goforge-integrations","Output":"PASS\n"}
+{"Time":"2026-10-27T14:36:11.766011+08:00","Action":"output","Package":"example.com/goforge-integrations","Output":"ok  \texample.com/goforge-integrations\t0.326s\n"}
+{"Time":"2026-10-27T14:36:11.766068+08:00","Action":"pass","Package":"example.com/goforge-integrations","Elapsed":0.327}

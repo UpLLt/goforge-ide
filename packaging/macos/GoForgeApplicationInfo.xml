@@ -1,0 +1,15 @@
+<!-- Original GoForge product metadata. Public Community platform attribution is in THIRD-PARTY-NOTICES.md. -->
+<component xmlns="http://jetbrains.org/intellij/schema/application-info">
+  <version major="0" minor="1" micro="0" suffix="Development"/>
+  <company name="GoForge contributors" shortName="GoForge" url="" copyrightStart="2026"/>
+  <build number="GF-252.28539.97" apiVersion="252.28539.97" date="20261027" majorReleaseDate="20250731"/>
+  <icon svg="/goforge.svg" svg-small="/goforge.svg"/>
+  <icon-eap svg="/goforge.svg" svg-small="/goforge.svg"/>
+  <welcome-screen logo-url="/goforge.svg"/>
+  <names product="GoForge" fullname="GoForge" edition="Development" script="goforge" motto="A local Go development environment"/>
+  <essential-plugin>com.intellij.java</essential-plugin>
+  <essential-plugin>com.intellij.java.ide</essential-plugin>
+  <essential-plugin>com.intellij.modules.json</essential-plugin>
+  <essential-plugin>dev.goforge.ide</essential-plugin>
+  <essential-plugin>com.redhat.devtools.lsp4ij</essential-plugin>
+</component>

@@ -1,0 +1,3 @@
+# Build-time PE resource editor and original GoForge icon renderer; not bundled.
+lief==0.17.6
+Pillow==11.3.0

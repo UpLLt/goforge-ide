@@ -1,0 +1,1500 @@
+{
+  "schema": 1,
+  "files": [
+    {
+      "path": ".gitignore",
+      "sha256": "f0d04b007a372c757bc9cc987b4b6c482fe8d1adba6e209203805a1de964b770",
+      "size": 370
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "size": 11358
+    },
+    {
+      "path": "NOTICE",
+      "sha256": "0df2e99d95d3b3bd0e9d7c01816b6d6ca8e29784fc36f9283e3115a0ec7feb56",
+      "size": 967
+    },
+    {
+      "path": "README.md",
+      "sha256": "411f8a2718f1feb12b9355a8357bb1a4b37c55d44567be9e739884c648a35080",
+      "size": 7585
+    },
+    {
+      "path": "README.zh-CN.md",
+      "sha256": "1de5468e9c45ea3a85385df3338ee983672a967242317dcf15d4ceeb02673e2a",
+      "size": 6629
+    },
+    {
+      "path": "THIRD-PARTY-NOTICES.md",
+      "sha256": "8f91a37af1640fa7f506fd32528a36065801088ad24519fd5fe522a5e3737cf0",
+      "size": 6661
+    },
+    {
+      "path": "build.gradle.kts",
+      "sha256": "8a534d080ba010310f4acfb9012c9b9964da4db0ff072d95460fbf3b2ceb2132",
+      "size": 5622
+    },
+    {
+      "path": "docs/INSTALL.md",
+      "sha256": "9d0dc2352492be0d370cbbb0b87bbc28afff0bd5eb6e9dd97b8de65a90330ea4",
+      "size": 11015
+    },
+    {
+      "path": "docs/KNOWN-LIMITATIONS.md",
+      "sha256": "6b3a1f95876e8d74c2408e23d3b6d2446abdb6017e4615ef2349f8293fbf42df",
+      "size": 7068
+    },
+    {
+      "path": "docs/PUBLIC-RELEASE.md",
+      "sha256": "32f4ff62e26abd4da1f373913a64ff29ba394541193152d6a7dd34fa206daa95",
+      "size": 6740
+    },
+    {
+      "path": "docs/USAGE.md",
+      "sha256": "d30e07dd265de472f30dbd56f1524d64013db679e29add7730ac608618321683",
+      "size": 10192
+    },
+    {
+      "path": "examples/hello-go/go.mod",
+      "sha256": "5e1fcc6c91ac35d8ecf8c4528890349f4bbd0a5ee6dd9cf43b05ad33eb8c9e30",
+      "size": 44
+    },
+    {
+      "path": "examples/hello-go/greeting/greeting.go",
+      "sha256": "6a3184e021aa301c9c556cac28bba607c81a806299a81ecd0f246115562da6b9",
+      "size": 186
+    },
+    {
+      "path": "examples/hello-go/greeting/greeting_test.go",
+      "sha256": "c85346462443332f6e4d0ba2ea7adbc3f0d30903b9847f71e7d360dc47c6bd83",
+      "size": 276
+    },
+    {
+      "path": "examples/hello-go/main.go",
+      "sha256": "77228c8d9428fd52f5295224ab5874c201964e0ade83ec391231c2782b1d3bf6",
+      "size": 299
+    },
+    {
+      "path": "gradle.properties",
+      "sha256": "4b5f686241ceb068649b1140c38dde87188888e5461509ef7b89ae9286251bc7",
+      "size": 174
+    },
+    {
+      "path": "gradle/wrapper/gradle-wrapper.jar",
+      "sha256": "3b8a25775a69158b5ad2b1d17a80a88dc7b40a352a73eb27d06c612a7ce68e98",
+      "size": 48749
+    },
+    {
+      "path": "gradle/wrapper/gradle-wrapper.properties",
+      "sha256": "af4a14d316075e9fe9e90c1628954902d66c0d80fb2219b6cbacd664d008d531",
+      "size": 339
+    },
+    {
+      "path": "gradlew",
+      "sha256": "e01b5c97892572c82405c02b96a3382379100e7d825ce7c48883d95c26928750",
+      "size": 8678
+    },
+    {
+      "path": "gradlew.bat",
+      "sha256": "ad2fac6060c5b929bed15d428e09483e52747d0120874346861ad4ec324af64c",
+      "size": 4798
+    },
+    {
+      "path": "packaging/macos/GoForgeApplicationInfo.xml",
+      "sha256": "362001de57ff5c40a8a7489f952a75c5d751e79c5479e131f6d8459cdd0081f9",
+      "size": 1049
+    },
+    {
+      "path": "packaging/macos/PackageProbe.java",
+      "sha256": "ce052e7b7f4d81ce57893528ffb7c69739b100f6a2e72e081e505c6898e49220",
+      "size": 3103
+    },
+    {
+      "path": "packaging/macos/README.md",
+      "sha256": "041e58b5422ed1520420f7c075ea5caa7b6cbf74f3bb6024d9687fe55e10dac1",
+      "size": 13411
+    },
+    {
+      "path": "packaging/macos/THIRD-PARTY-NOTICES.md",
+      "sha256": "25857cc7bbc174b7fcdb3169b3a3ed54d7188d74740cd23aede38531d65f3cd8",
+      "size": 10593
+    },
+    {
+      "path": "packaging/macos/bundled-plugins.json",
+      "sha256": "8f91393e5d53c4063cfd5f5297d9a4e5c61f369ca9163d1237b35f7e3e5ab5d7",
+      "size": 628
+    },
+    {
+      "path": "packaging/macos/consents-GoForge.json",
+      "sha256": "7b2a468d23fc6130539984108bd0376c43fb3d1ad26aca67ffd928751cc3c198",
+      "size": 965
+    },
+    {
+      "path": "packaging/macos/entitlements.plist",
+      "sha256": "04d5bf298764436b3d739a5eb85398781a225d2c06d04f8297cffe8c96b1bc0c",
+      "size": 557
+    },
+    {
+      "path": "packaging/macos/goforge.svg",
+      "sha256": "615a585401d50415f070b0f33cdaea7041dd43a8010a5e0f1c01a6c9485bdf50",
+      "size": 301
+    },
+    {
+      "path": "packaging/macos/make-icon.swift",
+      "sha256": "6cbf8fd95aece5823922ba630b7f1a5040d96cf62978725d43bce5fb22d2eee3",
+      "size": 1533
+    },
+    {
+      "path": "packaging/release-readiness.json",
+      "sha256": "a8ee140e5e4f0a085c4734444c5cfdc59a85863681d31ec92d7784ce742042ad",
+      "size": 434
+    },
+    {
+      "path": "packaging/windows/README.md",
+      "sha256": "7f7c529c972131381e175a3f0c4d257028137be339883c8a5e6e364005d496b2",
+      "size": 4162
+    },
+    {
+      "path": "packaging/windows/README.txt",
+      "sha256": "542f639ff659342f3ad56884163de5dec20e9d44b5f86b6eeaff30689c40748b",
+      "size": 1058
+    },
+    {
+      "path": "packaging/windows/THIRD-PARTY-NOTICES.md",
+      "sha256": "00b83c414cf0d3b906605e2de1ddb351936df09cd13f219f0bebb0f937b8b2fd",
+      "size": 10822
+    },
+    {
+      "path": "packaging/windows/WindowsPackageProbe.java",
+      "sha256": "15aaf20a4a7c8330b444b2c1475fb20ad8b79b9700d2568816d932c4a1f4e74b",
+      "size": 3220
+    },
+    {
+      "path": "packaging/windows/inputs.json",
+      "sha256": "4b252039a035a2fe320e8bfd51e1733187d61fce166a0e437354f3e5331e60d9",
+      "size": 1225
+    },
+    {
+      "path": "packaging/windows/requirements.txt",
+      "sha256": "665f283b44086a8211ccfbc2b4e667187ae2dbb100a2d4c3c6323303c7d353a7",
+      "size": 109
+    },
+    {
+      "path": "patches/intellij-252-installed-search/EssentialPluginToggleGuard.java",
+      "sha256": "54f0df89a91bf7fff13f5b4c11bbc736f472ae808914485afec874405eff082b",
+      "size": 3215
+    },
+    {
+      "path": "patches/intellij-252-installed-search/EssentialPluginToggleProbe.java",
+      "sha256": "dedc04767bc4cc21b19dd755fe9eb2de3898e6d820400c071d5eb7d2431cb44f",
+      "size": 11080
+    },
+    {
+      "path": "patches/intellij-252-installed-search/InstalledSearchGate.java",
+      "sha256": "9daa141d02a539ebafb1d40186ec032bc3d023bbc1121223ecb7904086181963",
+      "size": 1620
+    },
+    {
+      "path": "patches/intellij-252-installed-search/InstalledSearchGateProbe.java",
+      "sha256": "13ac6e4a638c04a5f284d8c06c278c2848ad8ce0a8a1c4bcda9e897f07e2d8da",
+      "size": 5122
+    },
+    {
+      "path": "patches/intellij-252-installed-search/LICENSE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "size": 11358
+    },
+    {
+      "path": "patches/intellij-252-installed-search/PatchInstalledSearch.java",
+      "sha256": "f7717647104eec6781b21eb07e3ef7e3b76f06da0069a024dbcf1c48b18d0658",
+      "size": 15882
+    },
+    {
+      "path": "patches/intellij-252-installed-search/README.md",
+      "sha256": "56eea968cb6921dc961b6d17bcff88a91d881b8d40b372dd45ef1fa3b293df4a",
+      "size": 10549
+    },
+    {
+      "path": "patches/lsp4ij-0.21.0/LICENSE",
+      "sha256": "721c2da257578bace3332b14d8ea06643d7d26753e7ef25a837b4e904edc0bf5",
+      "size": 14199
+    },
+    {
+      "path": "patches/lsp4ij-0.21.0/README.md",
+      "sha256": "cc88fff9015a72716c29463486b88e0fb9199a76f8bcf8ff18a5c899fffdd8a5",
+      "size": 2008
+    },
+    {
+      "path": "patches/lsp4ij-0.21.0/lifecycle/ExplorerLifecycleProbe.java",
+      "sha256": "0cd44e4e9444e6af96343e9e4c621995c227838c3766b66c405dd0755b56b2f0",
+      "size": 11737
+    },
+    {
+      "path": "patches/lsp4ij-0.21.0/lifecycle/LanguageServerExplorerLifecycleListener.java",
+      "sha256": "1b2c01737b1f5898dddaa4e22bb4202f0e83bddcdf66a94a8c7561e2a9d4ed79",
+      "size": 7382
+    },
+    {
+      "path": "patches/lsp4ij-0.21.0/lifecycle/README.md",
+      "sha256": "6327c9c162e63295a7843d455711df2797e6f356e0dab7c7b58d4428830a7150",
+      "size": 4501
+    },
+    {
+      "path": "patches/lsp4ij-0.21.0/stable-intention-description.patch",
+      "sha256": "7d421ded57d03140669676bd3a7ef2ba200bd89111216e292ccc4ce776271f01",
+      "size": 7446
+    },
+    {
+      "path": "scripts/dev-ide.sh",
+      "sha256": "cc06b8f94c0acff9c71db688f72397c055d769e8a4066a79f856cabe6edc5403",
+      "size": 651
+    },
+    {
+      "path": "scripts/export-public-source.py",
+      "sha256": "9143623ce0810b864abf362ab134cac42c380e4b03f009c53096d103d242f3f7",
+      "size": 7173
+    },
+    {
+      "path": "scripts/package-macos.py",
+      "sha256": "6f2f2ae3aca353b3da4ba1c98fb59a82f5765a9dd74c3a08c36e39cfeaf777e4",
+      "size": 28722
+    },
+    {
+      "path": "scripts/package-windows.py",
+      "sha256": "e2bf163129199ac342bd79acdc374af26dc8c7c01cccd3845bf3fd55a4366847",
+      "size": 22834
+    },
+    {
+      "path": "scripts/patch-installed-plugin-search.py",
+      "sha256": "e1bef0190d49b9165190b6ea4f48412c4767423f23c18469949f2d7b0ca979f4",
+      "size": 9815
+    },
+    {
+      "path": "scripts/patch-lsp4ij-lifecycle.py",
+      "sha256": "f9630f7c15285759d08be853f92283aa91bd7dfba5cb49cc08f7ffc48bab57f6",
+      "size": 7376
+    },
+    {
+      "path": "scripts/patch-lsp4ij-metadata.py",
+      "sha256": "dc863051c92e8779891d6dad0b974e940d303de04ff388dea1c1e2ecab339f63",
+      "size": 6573
+    },
+    {
+      "path": "scripts/prepare-release-sources.py",
+      "sha256": "7e623fde767ce9138cbd7eea51b9537f68ecd4bad0ecdf1d3457f94dfc44040c",
+      "size": 5779
+    },
+    {
+      "path": "scripts/setup-extra-tools.py",
+      "sha256": "0785c7e82e606548b7053a6c353ac60ab608cb04584c37c54939920c74ab86e2",
+      "size": 18035
+    },
+    {
+      "path": "scripts/setup-jdk.py",
+      "sha256": "245c195e24df70ee9cf54c926f834715fd6384b35694352d84fdbde51d0d7265",
+      "size": 2979
+    },
+    {
+      "path": "scripts/setup-tools.sh",
+      "sha256": "aaa937d32532fec2337c104c61696b621be2fdf40740c46f2b8f11034eab4a13",
+      "size": 887
+    },
+    {
+      "path": "scripts/test-package-lsp-textmate.py",
+      "sha256": "1ed6c301e8c14824bb8e708855da1615c02a60e9dbded4ca3ebb7dd263df888e",
+      "size": 3643
+    },
+    {
+      "path": "scripts/test-package-windows.py",
+      "sha256": "3fa05b6aa7f0f95f8649861e2915c2584797a63076fabc861540fca9ff4bea3c",
+      "size": 7594
+    },
+    {
+      "path": "scripts/test-patch-installed-plugin-search.py",
+      "sha256": "2463e338ea20944f2f39817ac98a1640f275919377e0a245db37b888b2a5f71e",
+      "size": 10843
+    },
+    {
+      "path": "scripts/test-patch-lsp4ij-lifecycle.py",
+      "sha256": "4a95315f505defe4ff3ce3c8baf4b5a3555eda241aa24632a1818b8f494122f5",
+      "size": 5658
+    },
+    {
+      "path": "scripts/test-patch-lsp4ij-metadata.py",
+      "sha256": "e11880e432a63934a9734da1b817f941c348704ca1e91d86f2e5f127906a6439",
+      "size": 3391
+    },
+    {
+      "path": "scripts/test-remote-debug-paths.py",
+      "sha256": "c2323a070b0b65cbbef315345544e1d36b2487717e0a66a232524c6d59f99a68",
+      "size": 4864
+    },
+    {
+      "path": "scripts/verify-protocols.py",
+      "sha256": "425f95ecc775b91a87e99f8659142130525a4df582a25789b5d3153626247fdd",
+      "size": 12265
+    },
+    {
+      "path": "scripts/verify-windows-package.py",
+      "sha256": "d24ca0337ddca362aec6bc10d8264b3961f1975f48eb7e505e8834015bf0ab60",
+      "size": 13314
+    },
+    {
+      "path": "settings.gradle.kts",
+      "sha256": "2e0b40ed8eafdc970a3fd7a2eb6665ca5ec141a5157123843397252b8d018a39",
+      "size": 108
+    },
+    {
+      "path": "src/main/java/dev/goforge/containers/ContainerToolTasks.java",
+      "sha256": "74a36a5c172099393d389bb06f5adf25d4cc3b36bdce5a32886760a667648fea",
+      "size": 4535
+    },
+    {
+      "path": "src/main/java/dev/goforge/containers/DevContainerImage.java",
+      "sha256": "454755423c2f6a1440c5da2bd65bb5d666be652e0e0024ca70cea105cbaa76e9",
+      "size": 12811
+    },
+    {
+      "path": "src/main/java/dev/goforge/containers/DevContainerPanel.java",
+      "sha256": "69491831ee31a54a57a35334e8fd1d94be6feaceb97bd13995a761975c2a67a4",
+      "size": 10775
+    },
+    {
+      "path": "src/main/java/dev/goforge/containers/DevContainerPlan.java",
+      "sha256": "6eda2c43f95160311751df4876ce0539990f8994b5579e96d77daf8ad3c07913",
+      "size": 7922
+    },
+    {
+      "path": "src/main/java/dev/goforge/containers/DevContainerSession.java",
+      "sha256": "bc27f9735686c643d5924a8e5ccf16cced890e8645dd47d4e46aad37635fd6fa",
+      "size": 19297
+    },
+    {
+      "path": "src/main/java/dev/goforge/containers/DockerClient.java",
+      "sha256": "121bc781e0269849ae024379ff9810936e4284432f7e323eaab357a9d80cb2a6",
+      "size": 2282
+    },
+    {
+      "path": "src/main/java/dev/goforge/containers/DockerCommands.java",
+      "sha256": "2288656416afe857acd118fea7e43db71b3e3364ad6a0fcdd026f3fb1687dae5",
+      "size": 9315
+    },
+    {
+      "path": "src/main/java/dev/goforge/containers/DockerData.java",
+      "sha256": "1f0a6fe086d32162474506cfe7eb7b2a9182e3c03420c8cd350fc1bb2bd56b99",
+      "size": 3284
+    },
+    {
+      "path": "src/main/java/dev/goforge/containers/DockerFieldsDialog.java",
+      "sha256": "799f9c761e4fb66073ebaf43172ec7ba002b9aa61aab9897cba81fd83251c2ac",
+      "size": 1932
+    },
+    {
+      "path": "src/main/java/dev/goforge/containers/DockerPanel.java",
+      "sha256": "0fe361bdb24d0dcc55d211bc9d8f81703c811861721f03d972b8a3d46cad3cb8",
+      "size": 15061
+    },
+    {
+      "path": "src/main/java/dev/goforge/containers/DockerService.java",
+      "sha256": "514b57573d138a852b78a4cd2c385956c6b8b902ff31ffb61cdf6ff603bc4013",
+      "size": 7393
+    },
+    {
+      "path": "src/main/java/dev/goforge/containers/DockerToolWindowFactory.java",
+      "sha256": "f92e0c83fe2ebd7b7621f7e69c1f1874241c83a07665ea8b375e536a9cbb373a",
+      "size": 952
+    },
+    {
+      "path": "src/main/java/dev/goforge/containers/KubernetesCommands.java",
+      "sha256": "dedf551e1a8ce99edf7adb623c2c2b02b21d5e73f780ee9b0f940fadef219b13",
+      "size": 6322
+    },
+    {
+      "path": "src/main/java/dev/goforge/containers/KubernetesPanel.java",
+      "sha256": "4276d6660904e11cb7666ff2a5683f9c13ea1dd094ddc5380899dd51451743d0",
+      "size": 10882
+    },
+    {
+      "path": "src/main/java/dev/goforge/containers/KubernetesPortForward.java",
+      "sha256": "53b88aa48917028fa6c1a15cb31735867e76e4974052753e78654d2bc9c012ed",
+      "size": 1807
+    },
+    {
+      "path": "src/main/java/dev/goforge/coverage/ClearGoCoverageAction.java",
+      "sha256": "d74b756700e138f0e2e9e6ce559f6dc1b1c0f23a1d29d2efaebece5b14dbaff5",
+      "size": 731
+    },
+    {
+      "path": "src/main/java/dev/goforge/coverage/GoCoverageMarkup.java",
+      "sha256": "56e1ea1091a51876b16d5b4d27f10f9ce6d063fa3a363620a120e52e996e3e31",
+      "size": 4122
+    },
+    {
+      "path": "src/main/java/dev/goforge/coverage/GoCoverageOffsets.java",
+      "sha256": "868cb0d5d759881157e6228c67e5d14475e10f6bf676adc8118b145d85d6dfd1",
+      "size": 4129
+    },
+    {
+      "path": "src/main/java/dev/goforge/coverage/GoCoveragePanel.java",
+      "sha256": "fdeb13fe7c46dbed47551426be91046cdfb1ee4423574e1f41494ab91c0890aa",
+      "size": 6873
+    },
+    {
+      "path": "src/main/java/dev/goforge/coverage/GoCoverageProcess.java",
+      "sha256": "fcc50c4eca27008774888481a730da1566b85a8e8c38d8653d29559cc0ab7205",
+      "size": 6453
+    },
+    {
+      "path": "src/main/java/dev/goforge/coverage/GoCoverageProfile.java",
+      "sha256": "3349cf871865d7e94178b9eb8536c15e9f0698161cab1284ff92aa15a2273d9b",
+      "size": 4723
+    },
+    {
+      "path": "src/main/java/dev/goforge/coverage/GoCoverageRun.java",
+      "sha256": "fa2aa3496b03d9886ef630742da9efab146c3946c4867a39be09208a579a3b65",
+      "size": 8811
+    },
+    {
+      "path": "src/main/java/dev/goforge/coverage/GoCoverageService.java",
+      "sha256": "a26f92185e20b59c895ec8a2959a41902b31fa5548bf2e8f7edeaf4b1761131e",
+      "size": 7479
+    },
+    {
+      "path": "src/main/java/dev/goforge/coverage/GoCoverageSourceMap.java",
+      "sha256": "78e9aee5c887ee885ccd522d2812af0e159b65903826d4c8cceb985071e14e17",
+      "size": 4323
+    },
+    {
+      "path": "src/main/java/dev/goforge/coverage/GoCoverageToolWindowFactory.java",
+      "sha256": "6b176ebc96c32ce999b24cdbf7fa146e7cdedb6496239f665fbf29d609bb5936",
+      "size": 769
+    },
+    {
+      "path": "src/main/java/dev/goforge/coverage/RunGoCoverageAction.java",
+      "sha256": "a434183837b82daaaacfb04c5858bd4bf48ba55bd3e090db710b12238a52b679",
+      "size": 1380
+    },
+    {
+      "path": "src/main/java/dev/goforge/database/DatabaseConnectionDialog.java",
+      "sha256": "666587e0eff2498a9820b78a4bb9468d96c75e61a3f1eb3173d71e0ce9d75a54",
+      "size": 5645
+    },
+    {
+      "path": "src/main/java/dev/goforge/database/DatabaseCsv.java",
+      "sha256": "6675d56fbdcb82e2b61fdd99bc82858a7b994d6ef0f786e023aea914addce68a",
+      "size": 792
+    },
+    {
+      "path": "src/main/java/dev/goforge/database/DatabasePanel.java",
+      "sha256": "2b45fbc8658b764e86873c5bfc806c33d6e48065ba13e2ca42ac32209fd19d56",
+      "size": 20187
+    },
+    {
+      "path": "src/main/java/dev/goforge/database/DatabaseProfile.java",
+      "sha256": "dc1500511c29b015dc6d3063be19fa814d30a93e67b583487de6c4e8eec2665d",
+      "size": 4260
+    },
+    {
+      "path": "src/main/java/dev/goforge/database/DatabaseProfiles.java",
+      "sha256": "72ca49bb6fd95fd099132e5d71c512997718f66f480d325cf5c917abf6b9c1fb",
+      "size": 2646
+    },
+    {
+      "path": "src/main/java/dev/goforge/database/DatabaseRowEditDialog.java",
+      "sha256": "c76d09a0f402da14ce4713c52db4326f8e102777c1e64377986764f0010af634",
+      "size": 2568
+    },
+    {
+      "path": "src/main/java/dev/goforge/database/DatabaseService.java",
+      "sha256": "d02a4246ac6b8bfe583c0f8d6fa09affab0954af24dbef899df44f1ed0a02d78",
+      "size": 10363
+    },
+    {
+      "path": "src/main/java/dev/goforge/database/DatabaseSession.java",
+      "sha256": "d59d516c68d49d4a280a3156cca0c4ad9820c78e16422278d0db93f84a67e603",
+      "size": 22656
+    },
+    {
+      "path": "src/main/java/dev/goforge/database/DatabaseToolWindowFactory.java",
+      "sha256": "2e0f6fdae4fab8680294f674ef7b77df4d7bf9ba370f0773b8963551d0583671",
+      "size": 845
+    },
+    {
+      "path": "src/main/java/dev/goforge/database/OpenDatabaseAction.java",
+      "sha256": "54aee2fc718f44850867fcfa67fe32f86b510ae00dd3a2bf053b0fa961974858",
+      "size": 828
+    },
+    {
+      "path": "src/main/java/dev/goforge/database/SqlCompletion.java",
+      "sha256": "8f183d40e9deeeeebed95f961997d67ad0a5a0805656820060036cf1d5c8ab0a",
+      "size": 9413
+    },
+    {
+      "path": "src/main/java/dev/goforge/database/SqlExplain.java",
+      "sha256": "9e5f365ec7cb4cfe71d8674c8beac031a270afb6b1a4af4815919b75319cc5c0",
+      "size": 1727
+    },
+    {
+      "path": "src/main/java/dev/goforge/database/SqlStatementText.java",
+      "sha256": "c866f9814effff5d91eb96fbc8714754352c80c5095a5584ea027f171bc30953",
+      "size": 3982
+    },
+    {
+      "path": "src/main/java/dev/goforge/database/SqlTokens.java",
+      "sha256": "70bf91f4deedf1670562bc361ded3d5ea5d06feeabb0f242629f3101cd77e4ac",
+      "size": 3987
+    },
+    {
+      "path": "src/main/java/dev/goforge/debug/DelveDebugAdapterDescriptor.java",
+      "sha256": "8fef545e65bf968c1007e240570d4b3ae2cd812f9b062cc12d6dbee92f665f57",
+      "size": 4287
+    },
+    {
+      "path": "src/main/java/dev/goforge/debug/DelveDebugAdapterFactory.java",
+      "sha256": "0620f5a1879e9d117c9acceb9f27c1e5d3be3a744f7dc015a3f62e03c2ae3f56",
+      "size": 3152
+    },
+    {
+      "path": "src/main/java/dev/goforge/debug/GoDebugCompletionContributor.java",
+      "sha256": "8b80ad97d2662f93759095d04cd85130af763ff4e83f025434fc3d300174173f",
+      "size": 3509
+    },
+    {
+      "path": "src/main/java/dev/goforge/debug/GoDebugCompletionEngine.java",
+      "sha256": "ec79deac14c8db43e9160b5d7761380ff0e18cd080ae6ebcc787e67090555a2c",
+      "size": 8725
+    },
+    {
+      "path": "src/main/java/dev/goforge/debug/GoDebugConfigurations.java",
+      "sha256": "e3ecd8fbf317e48fdd91cbc08157c7dea220633fa8ecf0cf3cf154bf5910b434",
+      "size": 2486
+    },
+    {
+      "path": "src/main/java/dev/goforge/debug/GoDebugExpressionFragment.java",
+      "sha256": "449cd73ed3bfb60d8bdac338093a0e9d8df7201d0b0c6afe1502379411c8f0d4",
+      "size": 2104
+    },
+    {
+      "path": "src/main/java/dev/goforge/debug/GoDebuggerEditorsProvider.java",
+      "sha256": "573080456ef4197acaa74b261f205de13d557ccafeb1893a18ec4e16974cb013",
+      "size": 1091
+    },
+    {
+      "path": "src/main/java/dev/goforge/debug/GoRemoteDebugConfigurations.java",
+      "sha256": "ed6ece629502bc4e599adc8614b59f7f6ca5b690716c41101f6650f53b08a773",
+      "size": 2018
+    },
+    {
+      "path": "src/main/java/dev/goforge/debug/RemoteDapConsoleView.java",
+      "sha256": "5df1ebde8e5d312db7e08ec1ea90ffb67ae72d2cdc94af74c745e080201f32e6",
+      "size": 1076
+    },
+    {
+      "path": "src/main/java/dev/goforge/debug/RemoteDapRunConfiguration.java",
+      "sha256": "50fc2afe08fe854b7a8062fb6350c2c8d37e8565c9b10ec839471b5425b4cb62",
+      "size": 1723
+    },
+    {
+      "path": "src/main/java/dev/goforge/debug/RemoteDelveDebugAdapterDescriptor.java",
+      "sha256": "83600bf4076a4789a9794cd9d90cfd49d1f34282f10af02c46e80ffd3db34762",
+      "size": 5504
+    },
+    {
+      "path": "src/main/java/dev/goforge/debug/RemoteDelveDebugAdapterFactory.java",
+      "sha256": "f226658077439dad22dd388817e6e13b3498717c9978e84e2e000f37bc69fe2d",
+      "size": 1123
+    },
+    {
+      "path": "src/main/java/dev/goforge/http/HttpAssertion.java",
+      "sha256": "767cceb549d93be96e2ba21cd2d60dd43b327a5b3da562ddf7c2b30cf3273248",
+      "size": 4091
+    },
+    {
+      "path": "src/main/java/dev/goforge/http/HttpClientPanel.java",
+      "sha256": "3395c63a6451d7ed984e3b9785e3775b2d0e68465d88759dedd68a2e34a9e718",
+      "size": 17506
+    },
+    {
+      "path": "src/main/java/dev/goforge/http/HttpClientService.java",
+      "sha256": "8189445f52c220b25964182cd1d21021052ac74a46f8f2e2643554a035dc86c0",
+      "size": 1227
+    },
+    {
+      "path": "src/main/java/dev/goforge/http/HttpClientToolWindowFactory.java",
+      "sha256": "e6b8c15570993a8516baa0bd81a2b8fd2c9b0e6653eb81d22277d8a8de1b9e01",
+      "size": 758
+    },
+    {
+      "path": "src/main/java/dev/goforge/http/HttpCollectionRunner.java",
+      "sha256": "96828a1234decca3218541e3e51c4d979dca1cabc5f517a245c8aedb38befbe2",
+      "size": 9887
+    },
+    {
+      "path": "src/main/java/dev/goforge/http/HttpEnvironment.java",
+      "sha256": "27c4afb25c96fc7ba6bf3755da211b9d19935b36575776b343dcc40f781c3a53",
+      "size": 5063
+    },
+    {
+      "path": "src/main/java/dev/goforge/http/HttpPrivacy.java",
+      "sha256": "84cbe6383247f21725cb892023cb57068f92be9e45c9a0ec8df23c5d05e87ebe",
+      "size": 2343
+    },
+    {
+      "path": "src/main/java/dev/goforge/http/HttpRequestEngine.java",
+      "sha256": "71eb4e972edc5371d7f60d782ba3bbb6380f31ac41350d1ec8104470e7df603d",
+      "size": 5247
+    },
+    {
+      "path": "src/main/java/dev/goforge/http/HttpRequestFile.java",
+      "sha256": "a5f13dbd9828fbabf2ec7b6e10fa09b596fd7c844c53f04263c10fa741cabe98",
+      "size": 7610
+    },
+    {
+      "path": "src/main/java/dev/goforge/http/OpenHttpClientAction.java",
+      "sha256": "47770a69aed2c1448cc106523044c1236de7a807cce3e4ae8790c355b91c61af",
+      "size": 715
+    },
+    {
+      "path": "src/main/java/dev/goforge/http/RunHttpRequestAction.java",
+      "sha256": "3208c6411d69685b48b23c032d0c9a486ac4e345d2068a0c7e65b2ff52fe0b96",
+      "size": 1231
+    },
+    {
+      "path": "src/main/java/dev/goforge/language/GoFile.java",
+      "sha256": "585797923d2de66e4bbc816d378d1367652f2051ff920d29d7bfb507982386cc",
+      "size": 594
+    },
+    {
+      "path": "src/main/java/dev/goforge/language/GoFileType.java",
+      "sha256": "082c05f769e34981786897500be39c87d74affbf262d44288f7cb80111960afc",
+      "size": 750
+    },
+    {
+      "path": "src/main/java/dev/goforge/language/GoLanguage.java",
+      "sha256": "d741701d2d04bfe6eae3c9a728510372eb492ad21ccafee924f692b32c07375d",
+      "size": 304
+    },
+    {
+      "path": "src/main/java/dev/goforge/language/GoParserDefinition.java",
+      "sha256": "6cab66278b5be23ae274d9e8deffc8e21be939cad10f3bb080528aed5ca6289b",
+      "size": 1951
+    },
+    {
+      "path": "src/main/java/dev/goforge/language/GoSourceLexer.java",
+      "sha256": "6f9f9535aef7f8840f8f8921f9628c230a6eaec62cd9c9183df3132ccb0dcdad",
+      "size": 2644
+    },
+    {
+      "path": "src/main/java/dev/goforge/lsp/GoClosedDocumentSynchronizer.java",
+      "sha256": "d5801ab63195b3c9e5f336f372d952a1d9a5541950ddc3594f90585054663b62",
+      "size": 6576
+    },
+    {
+      "path": "src/main/java/dev/goforge/lsp/GoOpenDocumentSynchronizer.java",
+      "sha256": "8ad8b0839c03c7e55a30ec1bc01f4b07076895a09065134cafce77c6827a3755",
+      "size": 12584
+    },
+    {
+      "path": "src/main/java/dev/goforge/lsp/GoSourceDocumentMatcher.java",
+      "sha256": "97206e38393299c5924abf43f31ced4153ac6d23ccbed07904163673ae6558ff",
+      "size": 821
+    },
+    {
+      "path": "src/main/java/dev/goforge/lsp/GoplsClientFeatures.java",
+      "sha256": "729091a09be2a3b68143eb776bfe86e94812db9f4c1046292c722c89b6437e1f",
+      "size": 3629
+    },
+    {
+      "path": "src/main/java/dev/goforge/lsp/GoplsLanguageClient.java",
+      "sha256": "1a5aab869dfc74e44e6a311a62262c11b9d90df903fa274bba755e4dcfe00b80",
+      "size": 2682
+    },
+    {
+      "path": "src/main/java/dev/goforge/lsp/GoplsServerFactory.java",
+      "sha256": "5b47a0fa617405751c69d0c3631282a0c05330855ce7c178434730ea70c5f08e",
+      "size": 2218
+    },
+    {
+      "path": "src/main/java/dev/goforge/navigation/GoplsNavigationEndpoint.java",
+      "sha256": "fd222abe5d225c5f418133d207be0997b08415f287f0a798bd319df5f8ea184f",
+      "size": 3269
+    },
+    {
+      "path": "src/main/java/dev/goforge/project/GoProjectScaffolder.java",
+      "sha256": "c23fa6529a39b2df987e59543f561e41e920469b92945337f32ca108eab0e838",
+      "size": 5906
+    },
+    {
+      "path": "src/main/java/dev/goforge/project/NewGoProjectAction.java",
+      "sha256": "9f6cc6e232d01cf9afb797677ae603e073295869930a5c7bc70d4aec61098d1d",
+      "size": 5394
+    },
+    {
+      "path": "src/main/java/dev/goforge/project/NewGoProjectDialog.java",
+      "sha256": "84030c31d8e0f06dd54c6db8d08381c75e2e189a2bd09a65aaee762c6a320dbd",
+      "size": 3921
+    },
+    {
+      "path": "src/main/java/dev/goforge/refactor/GoChangeSignature.java",
+      "sha256": "0522a1dd67198cef70b850795c057ab516572c3209bc966fba07e0848eb967bd",
+      "size": 2482
+    },
+    {
+      "path": "src/main/java/dev/goforge/refactor/GoDocumentVersionEndpoint.java",
+      "sha256": "ea63692eef1e18e7485b05d1ecc4236c7d8d3ad370dc410da2474d86d2a8ad74",
+      "size": 1383
+    },
+    {
+      "path": "src/main/java/dev/goforge/refactor/GoRefactorAction.java",
+      "sha256": "87e4bc2b6e5e0d4e0aa8f37f9ada80263e635a96bbbbf02ac34f20b804203934",
+      "size": 19044
+    },
+    {
+      "path": "src/main/java/dev/goforge/refactor/GoRefactorApply.java",
+      "sha256": "6be74ce5c50b96088a693e29086942c6af332ec4baa0ba88caeb3e9ea618b74e",
+      "size": 5519
+    },
+    {
+      "path": "src/main/java/dev/goforge/refactor/GoRefactorCommandCapture.java",
+      "sha256": "41944255c6b2717947648cdd565af8c053a3c3eea9271c3e268285c7ac3eec18",
+      "size": 15118
+    },
+    {
+      "path": "src/main/java/dev/goforge/refactor/GoRefactorEdit.java",
+      "sha256": "5205701ab3fc4d25a868bfcb6f024654afad250b5e894550b1fafc489d5f03ed",
+      "size": 6173
+    },
+    {
+      "path": "src/main/java/dev/goforge/refactor/GoRefactorFileCreationEndpoint.java",
+      "sha256": "6bdc37d39b23c1019486950009b34ae0747dfb22a59e35a8f8efbe51f22d8e01",
+      "size": 1493
+    },
+    {
+      "path": "src/main/java/dev/goforge/refactor/GoRefactorFileCreationGuard.java",
+      "sha256": "628051cd433ae634858bb341c1589500a51bbcbb9822cb0993ed6b9af7a0acc7",
+      "size": 4150
+    },
+    {
+      "path": "src/main/java/dev/goforge/refactor/GoRefactorPreviewDialog.java",
+      "sha256": "24377cfc38dd8b2954e6832a64c8ad72a36b9437e41a4f839172089b193ab39f",
+      "size": 2459
+    },
+    {
+      "path": "src/main/java/dev/goforge/refactor/GoRefactorSnapshot.java",
+      "sha256": "90967ba71a5bfc5bbbf2c3956edbe8adef42511c3c89a8c56b090e66f45060c2",
+      "size": 12092
+    },
+    {
+      "path": "src/main/java/dev/goforge/refactor/GoRefactorWorkspaceEdit.java",
+      "sha256": "21cfa46332e21531549ca14e06e76dbfc37513da18a180790e11d6525ffd5617",
+      "size": 6555
+    },
+    {
+      "path": "src/main/java/dev/goforge/refactor/GoSignatureCodeActionFeature.java",
+      "sha256": "d2170e9708467842c9b5c2b26379f35f2db42e903400e74c5382369b64811f5c",
+      "size": 1741
+    },
+    {
+      "path": "src/main/java/dev/goforge/refactor/GoSignatureEntryEndpoint.java",
+      "sha256": "876c6294bb8ce2ceac6fdf0d286fe98b8f6ac40d10d4cc512f55f9c994a04368",
+      "size": 2428
+    },
+    {
+      "path": "src/main/java/dev/goforge/refactor/GoSignatureSafety.java",
+      "sha256": "6d74476e1f649f8693b3071fd8b06bba7365ba118f78596b3d34109170fe4d14",
+      "size": 7360
+    },
+    {
+      "path": "src/main/java/dev/goforge/refactor/GoSignatureSafetySource.java",
+      "sha256": "a6dc4501ab7e56ae5297fa4ba619cc7b48c7c35c2a6c114d1a9ddd278a5d7484",
+      "size": 9710
+    },
+    {
+      "path": "src/main/java/dev/goforge/remote/GoRemoteAnalysisConfig.java",
+      "sha256": "29e13be555460bb6a3f123a30f2d8e61b314db3e41b0456a37e3daab51cdafdc",
+      "size": 2602
+    },
+    {
+      "path": "src/main/java/dev/goforge/remote/GoRemoteAnalysisScript.java",
+      "sha256": "4b5b0a7ea0514cd58be9a3870abf03d9d6977a544f6edaa77ab6bdecb9240433",
+      "size": 7040
+    },
+    {
+      "path": "src/main/java/dev/goforge/remote/GoRemoteAnalysisService.java",
+      "sha256": "c50fd0a5fdf2b4e44c96f5328700cc41d4d17d2d63183490fdba54d7f2c542dd",
+      "size": 4403
+    },
+    {
+      "path": "src/main/java/dev/goforge/remote/GoRemoteBackend.java",
+      "sha256": "707d5fa715713e1bdbef49eaee4803433ed76df6d8113c4ddaa15a71ed5f8a45",
+      "size": 3813
+    },
+    {
+      "path": "src/main/java/dev/goforge/remote/GoRemoteDebugDocuments.java",
+      "sha256": "2f9038966b998871d5ff7cfeef634a161cbe2daafb05819dd2c3182dbe50674c",
+      "size": 1207
+    },
+    {
+      "path": "src/main/java/dev/goforge/remote/GoRemoteDebugOptions.java",
+      "sha256": "090542f974b63ce694a89ec4fff44db811febe7976f6b28071653063907dcba9",
+      "size": 1775
+    },
+    {
+      "path": "src/main/java/dev/goforge/remote/GoRemoteDebugPaths.java",
+      "sha256": "6f783033baf488a5ffa40005c5610e5d8c91ed3b52f7021b9417e0433347fd1a",
+      "size": 2910
+    },
+    {
+      "path": "src/main/java/dev/goforge/remote/GoRemoteDebugPlan.java",
+      "sha256": "fd41153f12b45f4eebff08055e4a57a9a9d7eb32355c53ea98ece7e8e7be0f08",
+      "size": 6638
+    },
+    {
+      "path": "src/main/java/dev/goforge/remote/GoRemoteDebugScript.java",
+      "sha256": "7456f108a24bdd0b622a1b52b7e0a95b6f3f0f651173106e2d9b5b6971c93d5e",
+      "size": 14818
+    },
+    {
+      "path": "src/main/java/dev/goforge/remote/GoRemoteDebugSessions.java",
+      "sha256": "a9dbdda9785d48944f7ca4c0cb5340074b0cd5e1a65e25c43457874ed0b4b2cb",
+      "size": 1108
+    },
+    {
+      "path": "src/main/java/dev/goforge/remote/GoRemoteDebugSources.java",
+      "sha256": "b86794ce4aa0a562218697c33cad2ad474e6a229e813afdf07dcc68c36effd20",
+      "size": 3204
+    },
+    {
+      "path": "src/main/java/dev/goforge/remote/GoRemoteDebugWorkspace.java",
+      "sha256": "78cd51b5f74a21d4213d7882e04f602210879d7414f1086d8bf6cb7733085c8e",
+      "size": 7487
+    },
+    {
+      "path": "src/main/java/dev/goforge/remote/GoRemoteFiles.java",
+      "sha256": "303d4d2cc05d7d8d540fcc051365e73c9cb58f7ae141a6a22cf0e7f7c4efef43",
+      "size": 7662
+    },
+    {
+      "path": "src/main/java/dev/goforge/remote/GoRemoteLspFraming.java",
+      "sha256": "fe253a4e865a3ddead8292a2bbefce66ed37116c46d99c35970491f5791b0729",
+      "size": 2190
+    },
+    {
+      "path": "src/main/java/dev/goforge/remote/GoRemoteLspMapping.java",
+      "sha256": "9570ec71e2f6589cb858fb896e1ecee1dc19f4f3e310c64331de0461e2466899",
+      "size": 5411
+    },
+    {
+      "path": "src/main/java/dev/goforge/remote/GoRemoteLspTransport.java",
+      "sha256": "ad1b674b3be1572d06678de5656aabc84eebefe6c85928e63294d983840206fc",
+      "size": 14325
+    },
+    {
+      "path": "src/main/java/dev/goforge/remote/GoRemotePanel.java",
+      "sha256": "d1626ee262e18980f78730580398548b4c2d308a52e873170eb17262504125e6",
+      "size": 12483
+    },
+    {
+      "path": "src/main/java/dev/goforge/remote/GoRemoteProcess.java",
+      "sha256": "a78fb7bcb4efcaf5b27da28fcb3e9439621509681abf577ef6799e01aaeae047",
+      "size": 7043
+    },
+    {
+      "path": "src/main/java/dev/goforge/remote/GoRemoteProfile.java",
+      "sha256": "0b216cfa47dcb9f4ec588f1bdf47612a6b603a02729202fb1e693250e52f3fff",
+      "size": 4666
+    },
+    {
+      "path": "src/main/java/dev/goforge/remote/GoRemoteScripts.java",
+      "sha256": "84de442a89c48a4dc54026138d8acd43b57122f4863357d4a7da370bd8e41d60",
+      "size": 6374
+    },
+    {
+      "path": "src/main/java/dev/goforge/remote/GoRemoteService.java",
+      "sha256": "5454ae65298995aa2f6ed8bbd8f9bf77c959ddcf0ab370abba6ef685cd4d80fd",
+      "size": 15994
+    },
+    {
+      "path": "src/main/java/dev/goforge/remote/GoRemoteSettings.java",
+      "sha256": "a1d14aa0597f67078bbb509693ec7dfc656072f811dc13efc6a60b692a0f7ae6",
+      "size": 1238
+    },
+    {
+      "path": "src/main/java/dev/goforge/remote/GoRemoteToolWindowFactory.java",
+      "sha256": "65b798174bff3e3d67a0efab368986fcbaef2982cd78c44696cb51b43a7d20de",
+      "size": 627
+    },
+    {
+      "path": "src/main/java/dev/goforge/run/GoCommand.java",
+      "sha256": "b2b28cb1623906d7f8e38f2de54edcce3fe71ed3bcba2c16ede15750075773e9",
+      "size": 416
+    },
+    {
+      "path": "src/main/java/dev/goforge/run/GoProfilingAction.java",
+      "sha256": "4f6832a4b738d62230c6f0db001abdf449143bd4cf0b6d77f84b301b9663012f",
+      "size": 7875
+    },
+    {
+      "path": "src/main/java/dev/goforge/run/GoRunConfiguration.java",
+      "sha256": "a6c8c8079c72d0e8c4fbd654fdbddbf11ed80a88de49e0cf3a144511c188a330",
+      "size": 9626
+    },
+    {
+      "path": "src/main/java/dev/goforge/run/GoRunConfigurationProducer.java",
+      "sha256": "52ea2f4a1d0b58b7a34150b8d14d8b9dfca4a0334151f1a77723ef6aa63b672f",
+      "size": 2658
+    },
+    {
+      "path": "src/main/java/dev/goforge/run/GoRunConfigurationType.java",
+      "sha256": "0a02dd77d293f1b74387a1ce4b413e8074c8711e002806a44107496db5dc3fc3",
+      "size": 932
+    },
+    {
+      "path": "src/main/java/dev/goforge/run/GoRunSettingsEditor.java",
+      "sha256": "b4992607de9270fa3345fb1806c9fa2c6a67abdaecfdba588ba19ae71bbb1af4",
+      "size": 3565
+    },
+    {
+      "path": "src/main/java/dev/goforge/run/GoSourcePackage.java",
+      "sha256": "68f00449d8fcc84f86e7c8cdba9c613775b5a2bfa55554dba6dfe6daae6c15dd",
+      "size": 1815
+    },
+    {
+      "path": "src/main/java/dev/goforge/run/GoToolsAction.java",
+      "sha256": "b9b3cd75287867e4dfd56195e236666af389a807fc2605ec56fe4360bf211e0b",
+      "size": 6341
+    },
+    {
+      "path": "src/main/java/dev/goforge/settings/GoForgeConfigurable.java",
+      "sha256": "1e8a4bc6def49201a95b9f75e761ec5ff2939ef0a76070efbfa90596027db618",
+      "size": 3175
+    },
+    {
+      "path": "src/main/java/dev/goforge/settings/GoForgeSettings.java",
+      "sha256": "6b649adbcc264c73d84cdb551f62e9e9c05a922484056d2a39ed7fe7de9cb56e",
+      "size": 962
+    },
+    {
+      "path": "src/main/java/dev/goforge/settings/GoProjectConfigurable.java",
+      "sha256": "a8b16c9a59aaf9f2eae1d03d1a8ffc630d7a1d3bb03e5870e3ed6304f75eb49a",
+      "size": 2665
+    },
+    {
+      "path": "src/main/java/dev/goforge/settings/GoProjectSettings.java",
+      "sha256": "4c5049c57db26be946d645ea3dd8a9cbae5aa63301ba1faff8bcafe2e3047b66",
+      "size": 1999
+    },
+    {
+      "path": "src/main/java/dev/goforge/testing/GoTestEvents.java",
+      "sha256": "9b1b14140bf22d100a0d3342ee0b0e205103cfbfe8a032a7473bf8586b4f4457",
+      "size": 23954
+    },
+    {
+      "path": "src/main/java/dev/goforge/testing/GoTestProcessHandler.java",
+      "sha256": "499986298f33b4c7229af73da2b2860bc52860f74207fe4b481be4d488f0942e",
+      "size": 2693
+    },
+    {
+      "path": "src/main/java/dev/goforge/tools/GoToolResolver.java",
+      "sha256": "2efa6f4643e2fdd8a7559a24f3424f9119add128e356750c2904d0fc8acbfde2",
+      "size": 2300
+    },
+    {
+      "path": "src/main/java/dev/goforge/tools/HostTools.java",
+      "sha256": "a52bdd940820629e0c7cdafca7fc140dd47776366f9ddbd6238a21dfd29ad578",
+      "size": 5102
+    },
+    {
+      "path": "src/main/resources/META-INF/plugin.xml",
+      "sha256": "9e0cd0d1bc5e0701c6a3513c3985d6dc1013a206edd8aca6ad33391de67a60d8",
+      "size": 7052
+    },
+    {
+      "path": "src/test/java/dev/goforge/containers/ContainerToolTasksTest.java",
+      "sha256": "8c032295a1ad7683eb7cf133e8e64f16839fac34baf792101d3d747efad1e71b",
+      "size": 11422
+    },
+    {
+      "path": "src/test/java/dev/goforge/containers/ContainersCompactLayoutTest.java",
+      "sha256": "5d3c872108c08fcb52435363f9b3e82bd580a41f3880e6a9faa9e5e735e5c5bc",
+      "size": 2604
+    },
+    {
+      "path": "src/test/java/dev/goforge/containers/DevContainerImageTest.java",
+      "sha256": "43d8450c425baae71f852626c45e565f4a318497d5bf22fbc3846938f6731ab9",
+      "size": 4159
+    },
+    {
+      "path": "src/test/java/dev/goforge/containers/DevContainerPlanTest.java",
+      "sha256": "1b2c04dc0476b497ba8bbf19f19e1ccf2698803574e38c3cb148dd38d2d9d38f",
+      "size": 3764
+    },
+    {
+      "path": "src/test/java/dev/goforge/containers/DevContainerProtocolProbe.java",
+      "sha256": "a5defa83acba2cd41c917ab27f2af9df5b0a6f844c0740d38fb84b06edc2c808",
+      "size": 9115
+    },
+    {
+      "path": "src/test/java/dev/goforge/containers/DevContainerSessionProbe.java",
+      "sha256": "ab9d50c0a60b2063d44ea259bbe575cf955f3bc5cbecea7ee1b07831da22a8ab",
+      "size": 8564
+    },
+    {
+      "path": "src/test/java/dev/goforge/containers/DevContainerSessionTest.java",
+      "sha256": "d0f5968c4633db0956f5794568af13368974be4befb7c2ca58f14a6616fc5d0a",
+      "size": 5661
+    },
+    {
+      "path": "src/test/java/dev/goforge/containers/DockerCommandsTest.java",
+      "sha256": "28c005b5e0f9ae3277407e238725093cc56ebeb71174d9055af5a0b12fdc4f58",
+      "size": 4889
+    },
+    {
+      "path": "src/test/java/dev/goforge/containers/DockerDataTest.java",
+      "sha256": "b2f7a7d34f8a5e1de73e15c538032c3826f20633a38187022e81eec3abf4fe87",
+      "size": 2551
+    },
+    {
+      "path": "src/test/java/dev/goforge/containers/DockerPanelTest.java",
+      "sha256": "69a69e074e5312f19b4285c7457907c31df96825f529b42fa9704f9d98b5a749",
+      "size": 3878
+    },
+    {
+      "path": "src/test/java/dev/goforge/containers/DockerProtocolProbe.java",
+      "sha256": "69eae0660e2f350e53bc00ac229c2f9f8a81b4bd0c8d459a1d33e7c0534e77e3",
+      "size": 9382
+    },
+    {
+      "path": "src/test/java/dev/goforge/containers/KubernetesCommandsTest.java",
+      "sha256": "3f3059d83aa71cb579423db453b4d9c3c4e9a655e0278c8e2e8ba7e23fc268a6",
+      "size": 3024
+    },
+    {
+      "path": "src/test/java/dev/goforge/containers/KubernetesProtocolProbe.java",
+      "sha256": "43bcdba33b76f583146dc24195e6705f58b35ae2311bcc72dd0641a9b89d5e49",
+      "size": 6817
+    },
+    {
+      "path": "src/test/java/dev/goforge/coverage/CoverageChildProcess.java",
+      "sha256": "bf272d3d232dfd3d4fea3962009891e8b6ae4ccd1f2b0f32f824f814e1ecb0cc",
+      "size": 1104
+    },
+    {
+      "path": "src/test/java/dev/goforge/coverage/GoCoverageIntegrationTest.java",
+      "sha256": "bf7da13e825dc5a9d26e37a90dec162358805e80570bfbf3faae7c6a2213a514",
+      "size": 4084
+    },
+    {
+      "path": "src/test/java/dev/goforge/coverage/GoCoverageOffsetsTest.java",
+      "sha256": "18a54adb492a2cdb49fd57d0fa24a558551467c1d98cef733cd656720e38129e",
+      "size": 1855
+    },
+    {
+      "path": "src/test/java/dev/goforge/coverage/GoCoverageProcessTest.java",
+      "sha256": "0da7a4f0dce70c313f93d4536d8d55550d3b1aaa51edbcba11d3d7598c489d20",
+      "size": 4776
+    },
+    {
+      "path": "src/test/java/dev/goforge/coverage/GoCoverageProfileTest.java",
+      "sha256": "4f72e18f02021161abd641d0fc4c2efe68411859ca3beb121a4b72ee2c6831cd",
+      "size": 2678
+    },
+    {
+      "path": "src/test/java/dev/goforge/coverage/GoCoverageProtocolProbe.java",
+      "sha256": "a6f0faf8864d7c501356a43e1383e81dcd0fcdb5a53d0e6be279bf2071e637d6",
+      "size": 6333
+    },
+    {
+      "path": "src/test/java/dev/goforge/coverage/GoCoverageSourceMapTest.java",
+      "sha256": "052fb6c0c89c636854dadf97ea30b6796c3a7bc3906cec61b1fe2ae90433fb3e",
+      "size": 3538
+    },
+    {
+      "path": "src/test/java/dev/goforge/database/DatabaseAssistTest.java",
+      "sha256": "834f44bace930d9fe8fce359b3f64037c1ae5d3a3f656badf9a835d43200d060",
+      "size": 5811
+    },
+    {
+      "path": "src/test/java/dev/goforge/database/DatabaseCsvTest.java",
+      "sha256": "3941157b75455f88f54d8b7ec05077d0057f12f30186fdcb8a5f91a2a6640750",
+      "size": 977
+    },
+    {
+      "path": "src/test/java/dev/goforge/database/DatabasePlatformTest.java",
+      "sha256": "32b2cdea2c1bdcf54e11654ca61f548b8eb8382676944cebc244a8ee81387c89",
+      "size": 19926
+    },
+    {
+      "path": "src/test/java/dev/goforge/database/DatabaseProfileTest.java",
+      "sha256": "027b5509ee4e0fec81e86ef89f3db385b32be69d07817eba9baef38f5359c8a7",
+      "size": 2775
+    },
+    {
+      "path": "src/test/java/dev/goforge/database/DatabaseProtocolProbe.java",
+      "sha256": "b86c506270b898bdde690fc21e25d563e2ed18324dd8159e39f2fd809485aeb1",
+      "size": 6116
+    },
+    {
+      "path": "src/test/java/dev/goforge/database/DatabaseSessionTest.java",
+      "sha256": "845fa4d10e5409da955e00b674532c17d7dfa12308936d0607e87c3803e2aa8b",
+      "size": 9817
+    },
+    {
+      "path": "src/test/java/dev/goforge/database/SqlCompletionTest.java",
+      "sha256": "69dedb5bb62db7f14b3c4827f29001a6ad06d1278c6d60e985c6f0f00e2eca39",
+      "size": 4606
+    },
+    {
+      "path": "src/test/java/dev/goforge/database/SqlStatementTextTest.java",
+      "sha256": "626bb4f1a8c09f70b794e25bbbdfe962d54b5648e677ad08ca5536c510bec319",
+      "size": 1941
+    },
+    {
+      "path": "src/test/java/dev/goforge/debug/GoDebugCompletionContributorTest.java",
+      "sha256": "94261e6a72bf26a3991912dd1a94389fdd06ddc2912ed3baf4065b7ce8ede58f",
+      "size": 4352
+    },
+    {
+      "path": "src/test/java/dev/goforge/debug/GoDebugCompletionEngineTest.java",
+      "sha256": "fa7a0f60902da4a1eb9c7f824f48cc4ad327812ca0b258277d673bd2cc8c1293",
+      "size": 8656
+    },
+    {
+      "path": "src/test/java/dev/goforge/debug/GoDebugConfigurationsTest.java",
+      "sha256": "a2281e7b3b91be362be3de58c303fee4fc0da5617f7843e02bef0311986f2172",
+      "size": 5498
+    },
+    {
+      "path": "src/test/java/dev/goforge/debug/GoDebuggerEditorsProviderTest.java",
+      "sha256": "8d0c982b78b61a19d85ba62c746a6f9f35f97e6f21a1748d063f337c80a932fa",
+      "size": 2645
+    },
+    {
+      "path": "src/test/java/dev/goforge/debug/GoRemoteDebugConfigurationsTest.java",
+      "sha256": "698ce423adbd9b72ca52a95abafcc1f95f1e3f5a214d400a3d40e58065e9021c",
+      "size": 6471
+    },
+    {
+      "path": "src/test/java/dev/goforge/debug/RemoteBridgeChild.java",
+      "sha256": "208383fd185a88a7ee1094defa9f0f1418b4e51fe34d9e260b2e5d84c02608eb",
+      "size": 485
+    },
+    {
+      "path": "src/test/java/dev/goforge/debug/RemoteDapConsoleViewTest.java",
+      "sha256": "1181d190a294d1172b89788abe21b6da4093945714fcbc5cd1640f95f0cec78c",
+      "size": 6420
+    },
+    {
+      "path": "src/test/java/dev/goforge/debug/RemoteDelveProcessHandlerTest.java",
+      "sha256": "3552d98ea4616894fb08f81232951f9192e005432aed6fcb85df235271955be1",
+      "size": 5223
+    },
+    {
+      "path": "src/test/java/dev/goforge/http/HttpAssertionTest.java",
+      "sha256": "f109984d41ae8ae861d07633b659c538e0842caf41d6da52e73c072b4ae2c8e0",
+      "size": 3425
+    },
+    {
+      "path": "src/test/java/dev/goforge/http/HttpClientPanelTest.java",
+      "sha256": "2766d56ad756d29d7cc64faf5eaab694f59ae32f2b7ffcfc3e86277b80ebacd0",
+      "size": 1187
+    },
+    {
+      "path": "src/test/java/dev/goforge/http/HttpCollectionPanelTest.java",
+      "sha256": "bcccb062aa415ef218bc43ec86dfcf753b3124c784a83a95a68dbd22ce4bf93d",
+      "size": 7054
+    },
+    {
+      "path": "src/test/java/dev/goforge/http/HttpCollectionRunnerTest.java",
+      "sha256": "2b54d6f8d5cd0e930111f54185a7f9b83a592eced3c648f37998e633d12ed7f4",
+      "size": 11099
+    },
+    {
+      "path": "src/test/java/dev/goforge/http/HttpEnvironmentTest.java",
+      "sha256": "0e719f867071e2ebe9875da98797d6217a1112cae4036a9083647c708aa29231",
+      "size": 4512
+    },
+    {
+      "path": "src/test/java/dev/goforge/http/HttpRequestEngineTest.java",
+      "sha256": "7dc13e21f19a321b19db7a8352368af4e10ce3a75365c8c5eecd6dce09c6e46e",
+      "size": 5561
+    },
+    {
+      "path": "src/test/java/dev/goforge/http/HttpRequestFileTest.java",
+      "sha256": "a65f90660452adaca608de38918866d8ab141b67d62d092f3d4a2340d19907fa",
+      "size": 3070
+    },
+    {
+      "path": "src/test/java/dev/goforge/language/GoLanguageIntegrationTest.java",
+      "sha256": "3796e15b7330492d5046010417d35502664462be4d55313c455b136557fd416c",
+      "size": 2959
+    },
+    {
+      "path": "src/test/java/dev/goforge/lsp/GoClosedDocumentSynchronizerTest.java",
+      "sha256": "73f04c210bd7d1401cc361b3c64e6125430e76e7e9716f2d694ea3ef6e2dacc7",
+      "size": 16253
+    },
+    {
+      "path": "src/test/java/dev/goforge/lsp/GoOpenDocumentSynchronizerTest.java",
+      "sha256": "6aaab5f4b6c4a32e1d24a5d19514be1f8f5c2aec7b7ba95c00a0eaedb6429a59",
+      "size": 10296
+    },
+    {
+      "path": "src/test/java/dev/goforge/lsp/GoSourceDocumentMatcherTest.java",
+      "sha256": "bfbacfbb1986fed258d21f23e3e70fe336f0b3d230dd24e4eeb7bd5d9f860f7e",
+      "size": 1712
+    },
+    {
+      "path": "src/test/java/dev/goforge/lsp/GoplsDiagnosticsRefreshTest.java",
+      "sha256": "5a1b337b593d70aac548bcc4a403e3e948b612cf49961d1d4d2a249c8f02e43f",
+      "size": 11973
+    },
+    {
+      "path": "src/test/java/dev/goforge/lsp/LspDiagnosticsRefreshRaceTest.java",
+      "sha256": "0c6998c1bb8e750677f425186d9456fcb0be26fd0423d945f2e707f8976d6311",
+      "size": 7891
+    },
+    {
+      "path": "src/test/java/dev/goforge/navigation/GoplsLauncherTest.java",
+      "sha256": "329b2b81145f1d5daaa99d60af912de1555d8f556433ba5620a213aacba24732",
+      "size": 1926
+    },
+    {
+      "path": "src/test/java/dev/goforge/navigation/GoplsNavigationEndpointTest.java",
+      "sha256": "2d54dfbbcd72eb0a0cae30f455249e2b8d598a59eb6510ec5dc13679e5a30cf3",
+      "size": 5406
+    },
+    {
+      "path": "src/test/java/dev/goforge/navigation/GoplsNavigationProtocolProbe.java",
+      "sha256": "73714a0ec6b34ebe3d75d1406cdb4179486c76106ad8b7a157c6ec5e95b4bbba",
+      "size": 11118
+    },
+    {
+      "path": "src/test/java/dev/goforge/navigation/LspIntentionMetadataTest.java",
+      "sha256": "fdefda6200590cef25e14415807d4c16739fd69838d9a3a0a81a0a7ede310386",
+      "size": 2013
+    },
+    {
+      "path": "src/test/java/dev/goforge/platform/GoForgePluginLifecycleTest.java",
+      "sha256": "85fc0dbf43f81d2e6aa8f71a8e1585dd1714a9292493ab09e94e724bbdceb8df",
+      "size": 1211
+    },
+    {
+      "path": "src/test/java/dev/goforge/project/GoProjectActionsTest.java",
+      "sha256": "7840f68d5bbd977801afb50c20018c736058947235d50295a582e819211d764b",
+      "size": 3943
+    },
+    {
+      "path": "src/test/java/dev/goforge/project/GoProjectScaffolderTest.java",
+      "sha256": "1a46780a99b9c915ab2afb1ba277cedf236d71ca4603081be1146a4d6c0b6f37",
+      "size": 5356
+    },
+    {
+      "path": "src/test/java/dev/goforge/refactor/GoChangeSignatureProtocolProbe.java",
+      "sha256": "4b4af30a1c76f714397717211f4290d73699c8961babf487c0135fe9ed6f57d8",
+      "size": 18217
+    },
+    {
+      "path": "src/test/java/dev/goforge/refactor/GoChangeSignatureTest.java",
+      "sha256": "03d30b8cfeaa141e60b2a9be4a31cbf71158db8756f9b119e41c4dbeaabc5456",
+      "size": 4071
+    },
+    {
+      "path": "src/test/java/dev/goforge/refactor/GoDocumentVersionEndpointTest.java",
+      "sha256": "c9ebad3114fa91956994227fbae7bc5b6c8132b9a8e2e8547e09c2fac7507631",
+      "size": 2629
+    },
+    {
+      "path": "src/test/java/dev/goforge/refactor/GoMultiFileRefactorProtocolProbe.java",
+      "sha256": "15ca34b2bbbc438a104ef414a06d3f9c495a4df2aa40ca43d427f72e245c0bf0",
+      "size": 9107
+    },
+    {
+      "path": "src/test/java/dev/goforge/refactor/GoRefactorCommandCaptureTest.java",
+      "sha256": "89bf05ceeecc57d7bfbfe7be4782fc24e992a8732eda70f059f80ac58507ee60",
+      "size": 15735
+    },
+    {
+      "path": "src/test/java/dev/goforge/refactor/GoRefactorEditTest.java",
+      "sha256": "47a4ee33b636cdab5027be18d1c4b9a641898027e9bbacedabd1c8eafb254d9e",
+      "size": 4159
+    },
+    {
+      "path": "src/test/java/dev/goforge/refactor/GoRefactorFileCreationEndpointTest.java",
+      "sha256": "22e6059f2b968a014f56b6093e793611826430137134c306adf81eaf48bbb51f",
+      "size": 2095
+    },
+    {
+      "path": "src/test/java/dev/goforge/refactor/GoRefactorPlatformTest.java",
+      "sha256": "75063a02319e1eb5bdae7693043c1789e41c94a4b881970ac36523c30918392e",
+      "size": 2947
+    },
+    {
+      "path": "src/test/java/dev/goforge/refactor/GoRefactorProtocolProbe.java",
+      "sha256": "edb79d020337e27107dd0b39580ed14f3804a5402b2092c7316ed8a215f2c6d1",
+      "size": 8543
+    },
+    {
+      "path": "src/test/java/dev/goforge/refactor/GoRefactorWorkspaceEditTest.java",
+      "sha256": "710d18bbd70ca1da1c1567146ce21496e991d79ead4b1c39cf8841a7c662ba10",
+      "size": 6822
+    },
+    {
+      "path": "src/test/java/dev/goforge/refactor/GoRefactorWorkspacePlatformTest.java",
+      "sha256": "2870cb3e49077fed4a1a20c5b463ed8378cbeffd18ca749550f989bae5679166",
+      "size": 35569
+    },
+    {
+      "path": "src/test/java/dev/goforge/refactor/GoSignatureEntryEndpointTest.java",
+      "sha256": "59048f4ddaca11460ff23e9571cc81af543838a4cf9e0e744e2c9d9b1db97fe1",
+      "size": 5413
+    },
+    {
+      "path": "src/test/java/dev/goforge/refactor/GoSignatureEntryPlatformTest.java",
+      "sha256": "3b25c079237fe1886de03093025b140c0934b8769c8ad5961a9ca86faaad21b1",
+      "size": 4146
+    },
+    {
+      "path": "src/test/java/dev/goforge/remote/GoRemoteAnalysisBridgeTest.java",
+      "sha256": "decb8aa4f44957be36903d1b0c6393595c8b8290454a06cc2883cf0221ffbbdf",
+      "size": 5100
+    },
+    {
+      "path": "src/test/java/dev/goforge/remote/GoRemoteAnalysisLifecycleTest.java",
+      "sha256": "3d7af985fddca1e3d23a2843f23140e41cdd0563b3aa2ea22ca7610bfc54835a",
+      "size": 1647
+    },
+    {
+      "path": "src/test/java/dev/goforge/remote/GoRemoteAnalysisProbeMain.java",
+      "sha256": "e7cbc1324b10bdbe3712d662d1dc82745c400cc3f9889d0b1ae39d15d08d916e",
+      "size": 1979
+    },
+    {
+      "path": "src/test/java/dev/goforge/remote/GoRemoteDebugIntegrationTest.java",
+      "sha256": "100d8529ac0110e15da94cfb317dc66e0ccdef1289e15c424dc012b9a1015397",
+      "size": 5678
+    },
+    {
+      "path": "src/test/java/dev/goforge/remote/GoRemoteDebugPlanTest.java",
+      "sha256": "383b7f6f948f836fbee69b4cd278e0b6985e78fee78de33832a1ab0099562493",
+      "size": 6157
+    },
+    {
+      "path": "src/test/java/dev/goforge/remote/GoRemoteDebugProbeMain.java",
+      "sha256": "196fba825e6a77f0c0e2aec483acae8a015e9f98b95ad761672d21c3d13d929a",
+      "size": 2733
+    },
+    {
+      "path": "src/test/java/dev/goforge/remote/GoRemoteDebugWorkspaceTest.java",
+      "sha256": "eeacdeaba74034c4aafb63e8e8a29e5f50220af2aa3cd3090c7cbb0c894ad6a4",
+      "size": 6218
+    },
+    {
+      "path": "src/test/java/dev/goforge/remote/GoRemoteFilesTest.java",
+      "sha256": "dcf1514418e42cf91c2dc5873cb4a531e1fdbab421ef48dff6360de8be0b5a00",
+      "size": 3210
+    },
+    {
+      "path": "src/test/java/dev/goforge/remote/GoRemoteIntegrationTest.java",
+      "sha256": "82d48011ea344dcc7d01f3e0d6b7a2f2cb50aa1334db67bcf02139b8b8fb65c5",
+      "size": 7651
+    },
+    {
+      "path": "src/test/java/dev/goforge/remote/GoRemoteLspMappingTest.java",
+      "sha256": "c440e39c2d1738b1dbd66710cdf1d0245d0c3233f0d8e0145334522b131cb7a4",
+      "size": 2339
+    },
+    {
+      "path": "src/test/java/dev/goforge/remote/GoRemoteProcessTest.java",
+      "sha256": "f8d30058aa770f6907f232b82cbbee5b35477f820558105148339e7d2f57f1a7",
+      "size": 4759
+    },
+    {
+      "path": "src/test/java/dev/goforge/remote/GoRemoteProfileTest.java",
+      "sha256": "2babafcf6d2e1c3e5da01073526e01b7772506a32b6aa48a6abc701415146599",
+      "size": 3618
+    },
+    {
+      "path": "src/test/java/dev/goforge/remote/GoRemoteProtocolProbe.java",
+      "sha256": "e63db2a13d433e5da82bb0968f2a9a64366becb6f5cf075931bf8d6054730bd4",
+      "size": 4846
+    },
+    {
+      "path": "src/test/java/dev/goforge/run/GoSourcePackageTest.java",
+      "sha256": "de7df10b8295d3654f7c2b0612b6af7faa81fa344979dda97a91f2cc902f2e29",
+      "size": 1090
+    },
+    {
+      "path": "src/test/java/dev/goforge/run/GoToolsConfigurationTest.java",
+      "sha256": "839eb4b093905795647221a950e6bf27169c52dabcc39531aeb825baf24b0fe0",
+      "size": 4898
+    },
+    {
+      "path": "src/test/java/dev/goforge/testing/GoTestBenchmarkReplayTest.java",
+      "sha256": "1747e31b821725ccd1d08fdcb03bbe2e2b7887d431c97e83c893020854458e2e",
+      "size": 7336
+    },
+    {
+      "path": "src/test/java/dev/goforge/testing/GoTestEventsTest.java",
+      "sha256": "ccf3e25bc7bd04749cea51c5f3ab31470905b02b184989c94eed27a17e8bac50",
+      "size": 14744
+    },
+    {
+      "path": "src/test/java/dev/goforge/tools/GoToolResolverTest.java",
+      "sha256": "6fa26ff253f9ac2218e3e79d7140bf9053d532efd80dc30b575ccebff824b46c",
+      "size": 3898
+    },
+    {
+      "path": "src/test/java/dev/goforge/tools/HostToolsTest.java",
+      "sha256": "0e2cbd95d78d35ee072fd995ed3c99550d3aacade84189ea088e7e5eca682cc6",
+      "size": 4366
+    },
+    {
+      "path": "src/test/resources/dev/goforge/testing/benchmarks/README.txt",
+      "sha256": "051d5b9fefac26e9b10eb3474bca95b87814a04e4409f72390c515bb3f9f6568",
+      "size": 1651
+    },
+    {
+      "path": "src/test/resources/dev/goforge/testing/benchmarks/empty-parent.jsonl",
+      "sha256": "96a0463b65ba82fc32b5f94c1ea49187358a7f98658798cc01b87a7cc6f71683",
+      "size": 1580
+    },
+    {
+      "path": "src/test/resources/dev/goforge/testing/benchmarks/fail.jsonl",
+      "sha256": "f9cf6e0a9062c1ddccc803b86fd9e632a061fdc10f9606261b749608f24ca8a0",
+      "size": 2176
+    },
+    {
+      "path": "src/test/resources/dev/goforge/testing/benchmarks/logged.jsonl",
+      "sha256": "a768dafef58a7f8276c894061d396306d800e5f5fa00435cade40679ab9f3528",
+      "size": 1934
+    },
+    {
+      "path": "src/test/resources/dev/goforge/testing/benchmarks/nested.jsonl",
+      "sha256": "a6c4adade6976470c4d77273eb6e7d7d6c85eeb2ebf1e4e434700e2a7bbf9f00",
+      "size": 2789
+    },
+    {
+      "path": "src/test/resources/dev/goforge/testing/benchmarks/plain.jsonl",
+      "sha256": "35fcc3b0ac94ebe2fac72605d999484e1505a8b12ff996c27b2ffe52854f5adb",
+      "size": 1746
+    },
+    {
+      "path": "src/test/resources/dev/goforge/testing/benchmarks/repeat-classic.jsonl",
+      "sha256": "dc901f6902b58a3bb72c7280ee8a17b9f835627d00462c78bfde1b14579342a6",
+      "size": 2279
+    },
+    {
+      "path": "src/test/resources/dev/goforge/testing/benchmarks/skip.jsonl",
+      "sha256": "a5e6e2e03e84024c00962e4a079e5f889bec249e5aff88c6323452f0e66f21b6",
+      "size": 2023
+    },
+    {
+      "path": "src/test/resources/dev/goforge/testing/benchmarks/ui-fixture-benchmark.jsonl",
+      "sha256": "5a154742216e42b041b800489de363e4a194aaae73754290c744007cc97d8426",
+      "size": 1734
+    }
+  ]
+}

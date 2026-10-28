@@ -1,0 +1,12 @@
+{
+  "sourceTag": "idea/252.28539.97",
+  "policy": "Only the listed public Community modules are carried into this local development package. No GoLand or paid plugin is added.",
+  "plugins": [
+    "copyright", "dev", "editorconfig-plugin", "java", "java-byteCodeViewer",
+    "java-coverage", "java-debugger-streams", "java-decompiler", "java-i18n",
+    "java-ide-customization", "json", "junit", "markdown", "mcpserver",
+    "platform-ijent-impl", "platform-images", "platform-langInjection", "properties",
+    "sh", "tasks", "terminal", "testng", "textmate", "toml", "vcs-git",
+    "vcs-git-commit-modal", "webp", "yaml"
+  ]
+}

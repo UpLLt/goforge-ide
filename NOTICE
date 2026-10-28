@@ -1,0 +1,19 @@
+GoForge
+Copyright 2026 GoForge contributors.
+
+Original GoForge source code and documentation are licensed under the
+Apache License, Version 2.0. See LICENSE for the complete terms.
+
+Third-party material is not relicensed by this notice. In particular, the
+IntelliJ platform, JetBrains Runtime, LSP4IJ and its metadata patch, Go tools,
+Gradle wrapper, JDBC drivers, Node.js and Dev Containers CLI retain their
+respective licenses and attribution notices. Files identified with other
+licenses remain under those licenses. See THIRD-PARTY-NOTICES.md and the
+notices and corresponding-source materials supplied with each distribution.
+
+GoForge is independently developed and is not a JetBrains product. JetBrains,
+IntelliJ IDEA and GoLand are trademarks of their respective owners. Their
+mention identifies compatibility references or upstream components and does
+not imply affiliation or endorsement.
+
+This NOTICE is informational and does not modify any license terms.

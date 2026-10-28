@@ -1,0 +1,8 @@
+{
+  "schema": 1,
+  "publicReleaseApprovedByAcceptance": false,
+  "requiredAcceptance": "Complete verified functional alignment with the GoLand reference, excluding GoForge product accounts, registration, activation and subscription gates.",
+  "status": "incomplete",
+  "reason": "The owner requires full alignment before any public release. Known functional gaps and Windows native acceptance remain outstanding.",
+  "evidence": []
+}

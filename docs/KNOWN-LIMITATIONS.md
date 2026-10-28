@@ -1,0 +1,28 @@
+# Known limitations / 已知差距
+
+GoForge is an internal development build. Complete GoLand feature parity, an original-product runtime baseline, and a meaningful overall completion percentage have **not** been established. Counts of tests or integrated libraries are not a completion percentage.
+
+GoForge 当前是内部开发构建。**完整 GoLand 对齐尚未证明**；也未建立原产品运行基线或可信的总体完成百分比。测试数量和依赖数量不能换算成功能完成度。
+
+| Area / 领域 | Remaining gap / 当前差距 |
+| --- | --- |
+| Distribution / 发行 | Historical macOS ARM64 and Windows x64 archives are assembled. The 1caa automated build passed; its new packages and native acceptance are pending. macOS has no Developer ID notarization or automatic updater. Windows static checks passed, but native launch, UI, debug and cleanup remain unverified. No verified Linux or Windows ARM64 package. / 历史两平台包已组装；1caa 自动构建通过，新包及原生验收待完成；无正式公证或自动更新，Windows 原生验收未完成。 |
+| Go language / Go 语义 | gopls-based behavior is not the proprietary GoLand engine. Full inspection, completion, navigation, build-tag, generics, workspace and large-repository differential coverage is incomplete. / 尚未完成语义规则、大工程和多工作区的完整差分验收。 |
+| Refactoring / 重构 | Cross-package parameter reorder/removal is implemented and protocol-tested through Go Refactor preview/Apply/Undo. It deliberately accepts only proven-safe direct-call shapes; calls with side effects, complex receivers, variadic/function-value cases and incomplete references are refused. Adding parameters, changing types/results, arbitrary cross-package moves and resource rename/delete remain unsupported. New native acceptance is pending. / 跨包参数重排/删除已实现并通过真实协议检查；仅接受可证明安全的直接调用，有副作用或引用不完整等情况会拒绝。新增参数、修改类型/返回值、任意跨包移动和文件移动删除仍不支持，本轮原生验收待完成。 |
+| Debugging / 调试 | Reviewed project-root go.work launch/test/exec/attach is implemented and passed generated Linux SSH/Go/Delve protocol checks, including cross-module source mapping and cleanup. New native acceptance remains pending. Delve/OS restrictions and scoped expression completion still apply; no Windows-client or all-architecture acceptance. / 经审阅的根目录 go.work 启动/测试/可执行文件/附加已实现，真实 Linux SSH/Go/Delve 协议检查通过，含跨模块源码映射与清理；本轮原生验收待完成，尚无 Windows 客户端或全架构结论。 |
+| Remote development / 远程开发 | Snapshot analysis still binds a fixed single-module file set; conflicts stop synchronization. Multi-module debugging requires a project-root go.work with relative use/replace paths contained in the reviewed saved source root, plus remote Go/Delve. External dependency-source navigation, arbitrary remote filesystems and live multi-module analysis remain incomplete. / 分析仍为固定单模块快照；多模块调试要求项目根 go.work，use/replace 为审阅源码根内的相对路径，远端预装 Go/Delve；外部依赖源码导航和完整远端索引尚未完成。 |
+| Coverage / 覆盖率 | Saved files, one module, session-local results; no merged go.work coverage. Source highlighting is bounded per file. / 不合并多模块覆盖率。 |
+| Profiling / 性能 | Go/pprof workflow is available; no claim of complete built-in profiler parity. Graphviz is a separate dependency for graphs. / 不代表完整集成性能分析器。 |
+| Database / 数据库 | Selected drivers and SQL workflows; limited completion and estimated Explain. No complete DataGrip-style dialect intelligence, migrations, ER tooling or all-driver acceptance. / 非完整数据库 IDE。 |
+| HTTP / 网络 | HTTP(S) collections only; no JavaScript hooks, WebSocket or gRPC. Redaction cannot recognize every secret that a server might include in its body; review raw response files before sharing. / 原始响应需自行检查敏感数据。 |
+| Containers / 容器 | Dev Container support intentionally omits unsupported features/Compose/mounts/lifecycle behavior. Docker/Kubernetes require host tools and authorized services. Docker Desktop mount-source aliases may be rejected by strict ownership checks. Cancelling a client command does not roll back server work already accepted. / 不覆盖完整 Dev Container 规范，取消不等于服务端回滚。 |
+| Web, VCS and ecosystem / 周边生态 | Community components are included selectively; not all web frameworks, languages, commercial plugins, VCS providers, AI/cloud integrations or settings migrations are implemented/tested. / 不承诺商业插件及完整周边生态兼容。 |
+| Reliability / 稳定性 | Large-project latency/memory, long-lived sessions, accessibility, all display layouts, failure recovery and cross-version upgrades need broader validation. / 大工程、长时间运行、可访问性、布局、恢复和升级仍需覆盖。 |
+
+The frozen **1caa** unified build passed **449/449 tests** (313 component + 136 platform; 72 JUnit reports) on macOS, with no failures, errors or skips. New package/native UI acceptance and Windows native execution remain pending. The private `UpLLt/goforge-ide` repository contains an internal Windows workflow; there is no public repository or Release. The workflow defaults to `publish=false`, and `packaging/release-readiness.json` still blocks publication.
+
+Historical 7bff native checks exercised bounded signature workflows and remote multi-module package/test debugging, while finding an essential-plugin toggle bypass, an LSP explorer lifecycle error and DAP transport text leaking into the remote console. Repairs are included in the new source/build and separately pinned dependency/platform patches; automated regressions do not replace native retesting. Historical d3d7 successes and its Plugins Settings search failure remain separate. No older result is reassigned to 1caa. Verification record locations are in the [installation guide](INSTALL.md#prepared-package-identities).
+
+冻结的 **1caa** 在 macOS 通过 **449/449 测试**（313 component + 136 platform，72 份 JUnit 报告），零失败、错误或跳过。新包/原生界面与 Windows 实机验收待完成。已有私有仓库及内部 Windows 工作流，但无公开仓库或 Release；`publish` 默认关闭，完整对齐发布门槛仍未满足。
+
+历史 7bff 验证了限定签名操作及远端多模块 package/test 调试，也暴露核心插件开关绕过、LSP explorer 生命周期错误和控制台 DAP 文本泄漏。新源码/构建与独立固定版本补丁纳入修复，但自动回归不能代替原生复验。d3d7 的历史成功与插件搜索失败同样单独保留，不迁移为 1caa 通过。详见[安装指南](INSTALL.md#prepared-package-identities)。

@@ -1,0 +1,24 @@
+{
+  "platform": {
+    "version": "2025.2.6.3", "build": "252.28539.97",
+    "url": "https://download.jetbrains.com/idea/ideaIC-2025.2.6.3.win.zip",
+    "sha256": "ee3bb2bf315298da0758f5d72ee97a9c5e017f22d129c12db80b69a392f4673e",
+    "checksumSource": "https://download.jetbrains.com/idea/ideaIC-2025.2.6.3.win.zip.sha256"
+  },
+  "go": {
+    "version": "1.26.4", "url": "https://go.dev/dl/go1.26.4.windows-amd64.zip",
+    "sha256": "3ca8fb4630b07c419cbdd51f754e31363cfcfb83b3a5354d9e895c90be2cc345",
+    "checksumSource": "https://go.dev/dl/?mode=json&include=all"
+  },
+  "node": {
+    "version": "24.22.1", "url": "https://nodejs.org/dist/v24.22.1/node-v24.22.1-win-x64.zip",
+    "sha256": "d2046d28c2c3dcd211ac5145c0bf30e2047ef9dfb306693c8c6e2eccd8b95fa5",
+    "checksumSource": "https://nodejs.org/dist/v24.22.1/SHASUMS256.txt"
+  },
+  "lsp4ij": {
+    "version": "0.21.0", "url": "https://plugins.jetbrains.com/files/23257/1157565/lsp4ij-0.21.0.zip",
+    "sha256": "2ed125cc36620545c226186587d36ca4a8fc7c3db85e1ee5dfe0946b973e6caa"
+  },
+  "gopls": {"module": "golang.org/x/tools/gopls", "version": "v0.23.0", "package": "."},
+  "dlv": {"module": "github.com/go-delve/delve", "version": "v1.27.2", "package": "./cmd/dlv"}
+}

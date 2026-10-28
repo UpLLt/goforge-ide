@@ -1,0 +1,21 @@
+.gradle/
+.gradle-user-home/
+.intellijPlatform/
+.tools/
+.artifacts/
+build/
+out/
+.idea/
+*.iml
+.DS_Store
+__pycache__/
+research/rea/*-artifact.json
+research/rea/*-evidence.json
+research/rea/mcp-session-*.json
+
+# Local investigation and acceptance records are kept outside the public source.
+/research/
+/AGENTS.md
+/STATUS.md
+/IMPLEMENTATION-CHECKPOINT.md
+/goforge-source.zip

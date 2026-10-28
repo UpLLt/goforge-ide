@@ -1,0 +1,15 @@
+{"Time":"2026-10-27T14:40:19.824743+08:00","Action":"start","Package":"example.com/benchmark-event-probe"}
+{"Time":"2026-10-27T14:40:20.327605+08:00","Action":"output","Package":"example.com/benchmark-event-probe","Output":"goos: darwin\n"}
+{"Time":"2026-10-27T14:40:20.327656+08:00","Action":"output","Package":"example.com/benchmark-event-probe","Output":"goarch: arm64\n"}
+{"Time":"2026-10-27T14:40:20.327658+08:00","Action":"output","Package":"example.com/benchmark-event-probe","Output":"pkg: example.com/benchmark-event-probe\n"}
+{"Time":"2026-10-27T14:40:20.327661+08:00","Action":"output","Package":"example.com/benchmark-event-probe","Output":"cpu: Apple M2 Pro\n"}
+{"Time":"2026-10-27T14:40:20.327675+08:00","Action":"run","Package":"example.com/benchmark-event-probe","Test":"BenchmarkClassic"}
+{"Time":"2026-10-27T14:40:20.327676+08:00","Action":"output","Package":"example.com/benchmark-event-probe","Test":"BenchmarkClassic","Output":"=== RUN   BenchmarkClassic\n"}
+{"Time":"2026-10-27T14:40:20.327682+08:00","Action":"output","Package":"example.com/benchmark-event-probe","Test":"BenchmarkClassic","Output":"BenchmarkClassic\n"}
+{"Time":"2026-10-27T14:40:20.32786+08:00","Action":"output","Package":"example.com/benchmark-event-probe","Test":"BenchmarkClassic","Output":"BenchmarkClassic     \t       1\t       333.0 ns/op\n"}
+{"Time":"2026-10-27T14:40:20.32808+08:00","Action":"output","Package":"example.com/benchmark-event-probe","Output":"BenchmarkClassic     \t       1\t       333.0 ns/op\n"}
+{"Time":"2026-10-27T14:40:20.328342+08:00","Action":"output","Package":"example.com/benchmark-event-probe","Output":"BenchmarkClassic-2   \t       1\t        42.00 ns/op\n"}
+{"Time":"2026-10-27T14:40:20.328501+08:00","Action":"output","Package":"example.com/benchmark-event-probe","Output":"BenchmarkClassic-2   \t       1\t        42.00 ns/op\n"}
+{"Time":"2026-10-27T14:40:20.328518+08:00","Action":"output","Package":"example.com/benchmark-event-probe","Output":"PASS\n"}
+{"Time":"2026-10-27T14:40:20.329028+08:00","Action":"output","Package":"example.com/benchmark-event-probe","Output":"ok  \texample.com/benchmark-event-probe\t0.504s\n"}
+{"Time":"2026-10-27T14:40:20.329036+08:00","Action":"pass","Package":"example.com/benchmark-event-probe","Elapsed":0.504}

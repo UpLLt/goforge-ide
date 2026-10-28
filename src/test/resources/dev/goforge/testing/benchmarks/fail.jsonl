@@ -1,0 +1,15 @@
+{"Time":"2026-10-27T14:37:34.721182+08:00","Action":"start","Package":"example.com/benchmark-event-probe"}
+{"Time":"2026-10-27T14:37:34.978077+08:00","Action":"output","Package":"example.com/benchmark-event-probe","Output":"goos: darwin\n"}
+{"Time":"2026-10-27T14:37:34.97862+08:00","Action":"output","Package":"example.com/benchmark-event-probe","Output":"goarch: arm64\n"}
+{"Time":"2026-10-27T14:37:34.978625+08:00","Action":"output","Package":"example.com/benchmark-event-probe","Output":"pkg: example.com/benchmark-event-probe\n"}
+{"Time":"2026-10-27T14:37:34.978633+08:00","Action":"output","Package":"example.com/benchmark-event-probe","Output":"cpu: Apple M2 Pro\n"}
+{"Time":"2026-10-27T14:37:34.97864+08:00","Action":"run","Package":"example.com/benchmark-event-probe","Test":"BenchmarkFail"}
+{"Time":"2026-10-27T14:37:34.978642+08:00","Action":"output","Package":"example.com/benchmark-event-probe","Test":"BenchmarkFail","Output":"=== RUN   BenchmarkFail\n"}
+{"Time":"2026-10-27T14:37:34.978646+08:00","Action":"output","Package":"example.com/benchmark-event-probe","Test":"BenchmarkFail","Output":"BenchmarkFail\n"}
+{"Time":"2026-10-27T14:37:34.97899+08:00","Action":"output","Package":"example.com/benchmark-event-probe","Test":"BenchmarkFail","Output":"    probe_test.go:7: intentional fixture benchmark failure\n"}
+{"Time":"2026-10-27T14:37:34.979004+08:00","Action":"output","Package":"example.com/benchmark-event-probe","Test":"BenchmarkFail","Output":"--- FAIL: BenchmarkFail\n"}
+{"Time":"2026-10-27T14:37:34.979342+08:00","Action":"fail","Package":"example.com/benchmark-event-probe","Test":"BenchmarkFail"}
+{"Time":"2026-10-27T14:37:34.97937+08:00","Action":"output","Package":"example.com/benchmark-event-probe","Output":"FAIL\n"}
+{"Time":"2026-10-27T14:37:34.981258+08:00","Action":"output","Package":"example.com/benchmark-event-probe","Output":"exit status 1\n"}
+{"Time":"2026-10-27T14:37:34.981269+08:00","Action":"output","Package":"example.com/benchmark-event-probe","Output":"FAIL\texample.com/benchmark-event-probe\t0.260s\n"}
+{"Time":"2026-10-27T14:37:34.981278+08:00","Action":"fail","Package":"example.com/benchmark-event-probe","Elapsed":0.26}
