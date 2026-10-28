@@ -1,0 +1,314 @@
+name: Windows preview
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha256:
+        description: SHA-256 of an uploaded goforge-source.zip (empty for existing checked-in sources)
+        type: string
+        default: ''
+      publish:
+        description: Publish only after full-parity acceptance is recorded and all Windows checks pass
+        type: boolean
+        default: false
+      tag:
+        description: New preview release tag
+        type: string
+        default: v0.1.0-preview.1
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-preview-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    outputs:
+      commit: ${{ steps.source.outputs.commit }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Import the reviewed browser-uploaded source bundle, when present
+        id: source
+        env:
+          EXPECTED_SOURCE_SHA256: ${{ inputs.source_sha256 }}
+        shell: python
+        run: |
+          from pathlib import Path, PurePosixPath
+          import hashlib, json, os, re, stat, subprocess, zipfile
+          def git(*args):
+              return subprocess.check_output(['git', *args], text=True).strip()
+          if os.environ['GITHUB_REF'] != 'refs/heads/main':
+              raise SystemExit('Run this release workflow from main.')
+          bundle = Path('goforge-source.zip')
+          expected = os.environ['EXPECTED_SOURCE_SHA256'].strip().lower()
+          if bundle.exists():
+              if not re.fullmatch('[0-9a-f]{64}', expected):
+                  raise SystemExit('An exact reviewed source ZIP SHA-256 is required.')
+              if hashlib.sha256(bundle.read_bytes()).hexdigest() != expected:
+                  raise SystemExit('Source bundle checksum mismatch.')
+              with zipfile.ZipFile(bundle) as archive:
+                  entries = archive.infolist()
+                  if len(entries) > 2000 or sum(x.file_size for x in entries) > 50_000_000:
+                      raise SystemExit('Unexpected source archive size.')
+                  names = [x.filename for x in entries]
+                  if len(set(n.casefold() for n in names)) != len(names):
+                      raise SystemExit('Duplicate source path.')
+                  manifest = json.loads(archive.read('public-export-manifest.json'))
+                  reviewed = {x['path']: x for x in manifest['files']}
+                  if set(reviewed) | {'public-export-manifest.json'} != set(names):
+                      raise SystemExit('Source manifest does not cover exactly the archive.')
+                  allowed_roots = {'src', 'examples', 'scripts', 'packaging', 'patches', 'docs', 'gradle'}
+                  allowed_files = {'README.md', 'README.zh-CN.md', 'LICENSE', 'NOTICE',
+                      'THIRD-PARTY-NOTICES.md', '.gitignore', 'gradlew', 'gradlew.bat',
+                      'build.gradle.kts', 'settings.gradle.kts', 'gradle.properties',
+                      'public-export-manifest.json'}
+                  forbidden = {'.git', '.github', '.idea', '.artifacts', '.tools', 'research',
+                      '.gradle', '.gradle-user-home', 'build', 'out', '__pycache__'}
+                  payload = {}
+                  for entry in entries:
+                      name = entry.filename
+                      p = PurePosixPath(name)
+                      if (p.is_absolute() or '\\' in name or ':' in name or '..' in p.parts
+                              or any(part in forbidden for part in p.parts)
+                              or stat.S_ISLNK(entry.external_attr >> 16)
+                              or (name not in allowed_files and p.parts[0] not in allowed_roots)):
+                          raise SystemExit('Unapproved source path: ' + name)
+                      data = archive.read(entry)
+                      if name in reviewed:
+                          item = reviewed[name]
+                          if len(data) != item['size'] or hashlib.sha256(data).hexdigest() != item['sha256']:
+                              raise SystemExit('Source file checksum mismatch: ' + name)
+                      payload[name] = data
+                  previous = {}
+                  previous_manifest = Path('public-export-manifest.json')
+                  if previous_manifest.exists():
+                      previous = {x['path']: x for x in json.loads(previous_manifest.read_text(encoding='utf-8'))['files']}
+                  for name in previous:
+                      p = PurePosixPath(name)
+                      if (p.is_absolute() or '\\' in name or ':' in name or '..' in p.parts
+                              or any(part in forbidden for part in p.parts)
+                              or (name not in allowed_files and p.parts[0] not in allowed_roots)):
+                          raise SystemExit('Unsafe previous source manifest.')
+                      path = Path(name)
+                      if path.is_symlink() or any(parent.is_symlink() for parent in path.parents):
+                          raise SystemExit('Previous managed source became a symlink.')
+                      if path.exists() and hashlib.sha256(path.read_bytes()).hexdigest() != previous[name]['sha256']:
+                          raise SystemExit('Managed source was edited outside the reviewed import: ' + name)
+                  for name in git('ls-files').splitlines():
+                      p = PurePosixPath(name)
+                      if p.parts[0] in allowed_roots and name not in payload and name not in previous:
+                          raise SystemExit('Unreviewed source remains outside both manifests: ' + name)
+                  # Reconcile only previously managed paths, after full validation.
+                  for name in previous.keys() - payload.keys():
+                      Path(name).unlink(missing_ok=True)
+                  for name, data in payload.items():
+                      path = Path(name)
+                      if path.is_symlink() or any(parent.is_symlink() for parent in path.parents):
+                          raise SystemExit('Existing destination is a symlink.')
+                      path.parent.mkdir(parents=True, exist_ok=True)
+                      path.write_bytes(data)
+              Path('gradlew').chmod(0o755)
+              git('config', 'user.name', 'github-actions[bot]')
+              git('config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com')
+              git('rm', '--', 'goforge-source.zip')
+              git('add', '-A', '--', *sorted(payload.keys() | previous.keys()))
+              git('commit', '-m', 'Import reviewed GoForge source snapshot')
+              git('push', 'origin', 'HEAD:main')
+          elif expected:
+              raise SystemExit('The named source bundle is missing; do not reuse an old checksum.')
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              output.write('commit=' + git('rev-parse', 'HEAD') + '\n')
+
+  windows-tests:
+    needs: source
+    runs-on: windows-2025
+    timeout-minutes: 45
+    env:
+      GRADLE_USER_HOME: ${{ github.workspace }}/.gradle-user-home
+      GOFORGE_PYTHON: python
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.source.outputs.commit }}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '25.0.5+8'
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - name: Verify POSIX bridge mappings for Windows and macOS clients
+        shell: pwsh
+        run: python scripts/test-remote-debug-paths.py
+      - name: Run product and IntelliJ Platform tests on Windows
+        shell: pwsh
+        run: .\gradlew.bat -PgoforgeSandboxDirectory=build/verification-sandbox test buildPlugin verifyPluginStructure --no-daemon
+      - name: Preserve Windows test reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: windows-test-reports
+          path: |
+            build/test-results/test
+            build/reports/tests/test
+          retention-days: 14
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: verified-plugin
+          path: build/distributions/goforge-0.1.0-dev.zip
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+  windows-package:
+    needs: [source, windows-tests]
+    runs-on: windows-2025
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.source.outputs.commit }}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '25.0.5+8'
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: '1.26.4'
+          cache: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: verified-plugin
+          path: build/distributions
+      - name: Assemble the Windows application
+        shell: pwsh
+        run: |
+          python -m pip install -r packaging/windows/requirements.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/package-windows.py --archive --go (Get-Command go).Source --javac (Join-Path $env:JAVA_HOME 'bin/javac.exe')
+          exit $LASTEXITCODE
+      - name: Verify the installed-plugin search patch against the pristine Windows platform
+        shell: pwsh
+        run: python scripts/test-patch-installed-plugin-search.py --platform-zip .tools/windows-downloads/ideaIC-2025.2.6.3.win.zip --javac (Join-Path $env:JAVA_HOME 'bin/javac.exe') --output .artifacts/windows-platform-patch
+      - name: Verify the LSP4IJ lifecycle repair against the original dependency
+        shell: pwsh
+        run: |
+          $inputDirectory = Join-Path $env:RUNNER_TEMP ('goforge-lsp-lifecycle-' + [guid]::NewGuid().ToString())
+          try {
+            Expand-Archive -LiteralPath .tools/windows-downloads/lsp4ij-0.21.0.zip -DestinationPath $inputDirectory
+            python scripts/test-patch-lsp4ij-lifecycle.py --platform-home build/windows/GoForge --plugin-dir (Join-Path $inputDirectory 'lsp4ij') --javac (Join-Path $env:JAVA_HOME 'bin/javac.exe') --output .artifacts/windows-lsp-lifecycle
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          } finally {
+            if (Test-Path -LiteralPath $inputDirectory) { Remove-Item -LiteralPath $inputDirectory -Recurse -Force }
+          }
+      - name: Verify native launcher, relocation, Go, gopls and Delve on Windows
+        shell: pwsh
+        run: python scripts/verify-windows-package.py --app build/windows/GoForge --report-dir .artifacts/windows-native
+      - name: Preserve native verification results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: windows-native-reports
+          path: |
+            .artifacts/windows-native
+            .artifacts/windows-platform-patch
+            .artifacts/windows-lsp-lifecycle
+          include-hidden-files: true
+          retention-days: 14
+      - name: Prepare corresponding third-party sources
+        shell: pwsh
+        run: python scripts/prepare-release-sources.py --output build/release-sources
+      - name: Preserve the verified release files
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: windows-release-files
+          path: |
+            build/windows/GoForge-0.1.0-dev-windows-x64.zip
+            build/windows/package-manifest.json
+            build/release-sources
+            .artifacts/windows-native/native-verification.json
+          include-hidden-files: true
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+  publish:
+    if: inputs.publish
+    needs: [source, windows-tests, windows-package]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.source.outputs.commit }}
+      - name: Enforce the owner's complete-alignment release condition
+        shell: python
+        run: |
+          from pathlib import Path
+          import json
+          policy = json.loads(Path('packaging/release-readiness.json').read_text(encoding='utf-8'))
+          if (policy.get('schema') != 1
+              or policy.get('publicReleaseApprovedByAcceptance') is not True
+              or policy.get('status') != 'verified'
+              or not policy.get('evidence')):
+              raise SystemExit('Public release is blocked until complete GoLand alignment has been verified. A preview does not waive this condition.')
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: windows-release-files
+          path: release-files
+      - name: Publish the verified development preview
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          SOURCE_COMMIT: ${{ needs.source.outputs.commit }}
+        shell: python
+        run: |
+          from pathlib import Path
+          import hashlib, json, os, re, subprocess
+          tag = os.environ['RELEASE_TAG']
+          if not re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+-preview\.[0-9]+', tag):
+              raise SystemExit('Only a new explicit preview release tag is accepted.')
+          root = Path('release-files')
+          assets = sorted(p for p in root.rglob('*') if p.is_file())
+          if not any(p.name == 'native-verification.json' for p in assets):
+              raise SystemExit('Missing Windows native verification evidence.')
+          names = [p.name for p in assets]
+          if len(names) != len(set(names)):
+              raise SystemExit('Duplicate release asset name.')
+          checksums = root/'SHA256SUMS.txt'
+          checksums.write_text(''.join(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.name+'\n' for p in assets), encoding='utf-8')
+          notes = Path('release-notes.md')
+          notes.write_text('''## GoForge 开发预览版 / Development preview
+
+          无需 GoForge 注册、登录或激活。Windows x64：下载 ZIP，完整解压，运行 `GoForge/bin/goforge64.exe`。
+          No GoForge account, login or activation is required. On Windows x64, extract the whole ZIP and run `GoForge/bin/goforge64.exe`.
+
+          Windows 平台测试、原生启动器、重定位、Go run/test、gopls 和 Delve 断点/变量/单步/取消检查通过。
+          Windows platform tests and native launcher, relocation, Go run/test, gopls and Delve breakpoint/variables/step/cancel checks passed.
+          这不代表完整 IDE 界面验收或与 GoLand 完全等价。发行程序未做 GoForge Authenticode 签名。
+          This does not establish exhaustive IDE UI acceptance or full GoLand parity. The derivative launcher is not Authenticode-signed by GoForge.
+
+          安装使用 / Installation and usage: see `docs/INSTALL.md` and `docs/USAGE.md` in the repository.
+          已知限制 / Known limitations: `docs/KNOWN-LIMITATIONS.md`.
+          校验 / Integrity: `SHA256SUMS.txt`. Corresponding third-party source archives accompany this release.
+          ''', encoding='utf-8')
+          # Creating a ref is atomic and refuses an existing tag, even if it has
+          # no release. --target alone would silently reuse a different commit.
+          subprocess.run(['gh', 'api', '--method', 'POST',
+              'repos/'+os.environ['GITHUB_REPOSITORY']+'/git/refs', '--input', '-'],
+              input=json.dumps({'ref': 'refs/tags/'+tag, 'sha': os.environ['SOURCE_COMMIT']}),
+              text=True, check=True)
+          subprocess.run(['gh', 'release', 'create', tag, '--repo', os.environ['GITHUB_REPOSITORY'],
+              '--verify-tag', '--title', 'GoForge '+tag,
+              '--prerelease', '--notes-file', str(notes), *map(str, assets), str(checksums)], check=True)
