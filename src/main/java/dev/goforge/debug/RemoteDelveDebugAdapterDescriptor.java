@@ -43,7 +43,7 @@ public final class RemoteDelveDebugAdapterDescriptor extends DefaultDebugAdapter
             var command=new GeneralCommandLine(binding.command(ssh)).withCharset(StandardCharsets.UTF_8);
             command.withWorkDirectory(binding.localRoot());
             var process=createBridgeProcessHandler(command,displayLabel(binding));
-            try {var output=process.getProcessInput();if(output==null)throw new java.io.IOException("SSH stdin is unavailable");output.write((binding.startupJson()+"\n").getBytes(StandardCharsets.UTF_8));output.flush();}
+            try {var output=process.getProcessInput();if(output==null)throw new java.io.IOException("SSH stdin is unavailable");output.write(binding.startupPreamble().getBytes(StandardCharsets.UTF_8));output.flush();}
             catch(Exception failure){process.destroyProcess();throw failure;}
             return process;
         } catch(Exception e){throw new ExecutionException("Remote debugging could not start: "+e.getMessage(),e);}

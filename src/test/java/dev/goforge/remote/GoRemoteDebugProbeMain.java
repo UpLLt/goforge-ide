@@ -20,7 +20,7 @@ public final class GoRemoteDebugProbeMain {
         // Explicit protocol simulation only: physical local files were reviewed above on this host.
         var startup=JsonParser.parseString(plan.startupJson()).getAsJsonObject();
         if(json.has("protocolLocalRoot"))startup.addProperty("localRoot",json.get("protocolLocalRoot").getAsString());
-        child.getOutputStream().write((new Gson().toJson(startup)+"\n").getBytes(StandardCharsets.UTF_8));child.getOutputStream().flush();
+        child.getOutputStream().write((GoRemoteDebugScript.payload()+"\n"+new Gson().toJson(startup)+"\n").getBytes(StandardCharsets.UTF_8));child.getOutputStream().flush();
         var input=new Thread(()->{try{byte[] b=new byte[8192];int n;while((n=System.in.read(b))>=0){child.getOutputStream().write(b,0,n);child.getOutputStream().flush();}child.getOutputStream().close();}catch(Exception ignored){child.destroy();}});input.setDaemon(true);input.start();
         byte[] b=new byte[8192];int n;while((n=child.getInputStream().read(b))>=0){System.out.write(b,0,n);System.out.flush();}System.exit(child.waitFor());
     }

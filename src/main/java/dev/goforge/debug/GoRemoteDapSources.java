@@ -22,10 +22,12 @@ import java.security.MessageDigest;
 import java.util.*;
 import java.util.concurrent.*;
 
-/** Per-client, display-only SDK documents. It never changes a source root or writes a source file. */
+/** Per-client, display-only selected source documents. It never changes a source root or writes a source file. */
 final class GoRemoteDapSources implements AutoCloseable {
     static final int FILE_LIMIT=2*1024*1024, TOTAL_LIMIT=32*1024*1024, FILE_COUNT=128;
-    record Identity(int reference,String relative,String version,String sha256) {}
+    record Identity(int reference,String relative,String version,String sha256,String module) {
+        Identity(int reference,String relative,String version,String sha256){this(reference,relative,version,sha256,null);}
+    }
     private final Project project;
     private final String configuration;
     private final long session;
@@ -128,10 +130,11 @@ final class GoRemoteDapSources implements AutoCloseable {
     static Identity identity(Source source) {
         try {
             JsonObject data=new Gson().toJsonTree(source.getAdapterData()).getAsJsonObject();
-            if(!data.keySet().equals(Set.of("goforgeSdkSource","version","relative","sha256"))
-                    ||!data.get("goforgeSdkSource").isJsonPrimitive()
-                    ||!data.getAsJsonPrimitive("goforgeSdkSource").isNumber()
-                    ||data.get("goforgeSdkSource").getAsBigDecimal().compareTo(java.math.BigDecimal.ONE)!=0)throw new IllegalArgumentException();
+            boolean module=data.has("goforgeModuleSource");String marker=module?"goforgeModuleSource":"goforgeSdkSource";
+            Set<String> keys=module?Set.of(marker,"module","version","relative","sha256"):Set.of(marker,"version","relative","sha256");
+            if(!data.keySet().equals(keys)||!data.get(marker).isJsonPrimitive()
+                    ||!data.getAsJsonPrimitive(marker).isNumber()
+                    ||data.get(marker).getAsBigDecimal().compareTo(java.math.BigDecimal.ONE)!=0)throw new IllegalArgumentException();
             for(String key:List.of("relative","version","sha256"))if(!data.get(key).isJsonPrimitive()||!data.getAsJsonPrimitive(key).isString())throw new IllegalArgumentException();
             int reference=source.getSourceReference()==null?0:source.getSourceReference();
             String path=data.get("relative").getAsString(),version=data.get("version").getAsString(),hash=data.get("sha256").getAsString();
@@ -140,9 +143,19 @@ final class GoRemoteDapSources implements AutoCloseable {
             String[] parts=path.split("/",-1);if(parts.length>64)throw new IllegalArgumentException();
             for(String part:parts)if(part.isEmpty()||part.equals(".")||part.equals("..")||part.indexOf('\\')>=0)throw new IllegalArgumentException();
             if((path+version).chars().anyMatch(c->c<32||c==127))throw new IllegalArgumentException();
-            if(source.getPath()!=null||!path.equals(source.getName())||!("Selected remote SDK "+version).equals(source.getOrigin()))throw new IllegalArgumentException();
-            return new Identity(reference,path,version,hash);
-        } catch(RuntimeException invalid) { throw new IllegalArgumentException("Invalid selected SDK source capability"); }
+            String modulePath=null,origin="Selected remote SDK "+version;
+            if(module){
+                if(!data.get("module").isJsonPrimitive()||!data.getAsJsonPrimitive("module").isString())throw new IllegalArgumentException();
+                modulePath=data.get("module").getAsString();
+                if(modulePath.length()>4096||!modulePath.matches("[A-Za-z0-9._~+/-]+")
+                        ||!version.matches("v[0-9]+[.][0-9]+[.][0-9]+(?:-[0-9A-Za-z][0-9A-Za-z.-]*)?(?:[+]incompatible)?"))throw new IllegalArgumentException();
+                String[] moduleParts=modulePath.split("/",-1);if(moduleParts.length>64)throw new IllegalArgumentException();
+                for(String part:moduleParts)if(part.isEmpty()||part.equals(".")||part.equals(".."))throw new IllegalArgumentException();
+                origin="Selected remote module "+modulePath+"@"+version;
+            }
+            if(source.getPath()!=null||!path.equals(source.getName())||!origin.equals(source.getOrigin()))throw new IllegalArgumentException();
+            return new Identity(reference,path,version,hash,modulePath);
+        } catch(RuntimeException invalid) { throw new IllegalArgumentException("Invalid selected source capability"); }
     }
     static int verify(Identity identity,String text) {
         if(text==null||text.indexOf(0)>=0||text.length()>FILE_LIMIT)throw new IllegalArgumentException("Invalid SDK source content");
@@ -158,8 +171,8 @@ final class GoRemoteDapSources implements AutoCloseable {
         } catch(java.security.NoSuchAlgorithmException impossible) { throw new AssertionError(impossible); }
         return data.length;
     }
-    static String name(Identity identity){return "Selected SDK "+identity.version()+" — "+identity.relative();}
-    private static void unavailable(Source source){source.setPath(null);source.setSourceReference(0);source.setAdapterData(null);source.setPresentationHint(org.eclipse.lsp4j.debug.SourcePresentationHint.DEEMPHASIZE);source.setName("Selected SDK source unavailable");}
+    static String name(Identity identity){return (identity.module()==null?"Selected SDK "+identity.version():"Selected module "+identity.module()+"@"+identity.version())+" — "+identity.relative();}
+    private static void unavailable(Source source){source.setPath(null);source.setSourceReference(0);source.setAdapterData(null);source.setPresentationHint(org.eclipse.lsp4j.debug.SourcePresentationHint.DEEMPHASIZE);source.setName("Selected source unavailable");}
     private <T> CompletableFuture<T> own(CompletableFuture<T> future) {
         pending.add(future);future.whenComplete((value,error)->pending.remove(future));
         if(closed)future.cancel(true);return future;

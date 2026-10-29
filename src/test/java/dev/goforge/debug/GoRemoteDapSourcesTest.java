@@ -13,6 +13,33 @@ public final class GoRemoteDapSourcesTest {
         var source=new Source();source.setName(path);source.setSourceReference(ref);source.setOrigin("Selected remote SDK go1.26.4");
         source.setAdapterData(new LinkedHashMap<>(Map.of("goforgeSdkSource",1,"relative",path,"version","go1.26.4","sha256",hash(text))));return source;
     }
+    static Source moduleSource(String module,String version,String path,int ref,String text)throws Exception{
+        var source=new Source();source.setName(path);source.setSourceReference(ref);source.setOrigin("Selected remote module "+module+"@"+version);
+        source.setAdapterData(new LinkedHashMap<>(Map.of("goforgeModuleSource",1,"module",module,"relative",path,"version",version,"sha256",hash(text))));return source;
+    }
+    @Test public void selectedModuleWireCapabilityNamesExactVersionAndVerifiesBytes()throws Exception{
+        String text="package dep\n// 世界\n";var wire=moduleSource("example.test/Dep/v2","v2.1.0","dep.go",1000001,text);
+        var decoded=new com.google.gson.Gson().fromJson(new com.google.gson.Gson().toJson(wire),Source.class);
+        var id=GoRemoteDapSources.identity(decoded);assertEquals("example.test/Dep/v2",id.module());
+        assertEquals("Selected module example.test/Dep/v2@v2.1.0 — dep.go",GoRemoteDapSources.name(id));
+        assertEquals(text.getBytes(StandardCharsets.UTF_8).length,GoRemoteDapSources.verify(id,text));
+        assertThrows(IllegalArgumentException.class,()->GoRemoteDapSources.verify(id,"changed"));
+    }
+    @Test public void moduleOriginVersionAndExactSchemaCannotBeRebound()throws Exception{
+        var source=moduleSource("example.test/dep","v1.1.0","dep.go",1000000,"x");
+        source.setOrigin("Selected remote module example.test/dep@v1.0.0");assertThrows(IllegalArgumentException.class,()->GoRemoteDapSources.identity(source));
+        var mixed=moduleSource("example.test/dep","v1.1.0","dep.go",1000000,"x");
+        @SuppressWarnings("unchecked")var data=(Map<String,Object>)mixed.getAdapterData();data.put("goforgeSdkSource",1);
+        assertThrows(IllegalArgumentException.class,()->GoRemoteDapSources.identity(mixed));
+        for(String version:List.of("latest","go1.26.4","v1.0.0/../v2","v1.0.0\n"))
+            assertThrows(IllegalArgumentException.class,()->GoRemoteDapSources.identity(moduleSource("example.test/dep",version,"dep.go",1000000,"x")));
+    }
+    @Test public void moduleCapabilityRejectsCachePathsAndTraversal()throws Exception{
+        for(String module:List.of("/cache/dep","example.test/../dep","example.test//dep","example.test/dep@v1.0.0","example.test/dep\\other"))
+            assertThrows(IllegalArgumentException.class,()->GoRemoteDapSources.identity(moduleSource(module,"v1.0.0","dep.go",1000000,"x")));
+        var source=moduleSource("example.test/dep","v1.0.0","dep.go",1000000,"x");source.setPath("/cache/example.test/dep@v1.0.0/dep.go");
+        assertThrows(IllegalArgumentException.class,()->GoRemoteDapSources.identity(source));
+    }
     @Test public void exactCapabilityAndUnicodeContentAreAccepted()throws Exception{
         String text="package fmt\n// 世界\n";var id=GoRemoteDapSources.identity(source("fmt/print.go",1000000,text));
         assertEquals("fmt/print.go",id.relative());assertEquals(text.getBytes(StandardCharsets.UTF_8).length,GoRemoteDapSources.verify(id,text));

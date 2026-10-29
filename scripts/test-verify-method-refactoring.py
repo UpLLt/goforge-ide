@@ -176,12 +176,19 @@ class MethodRunnerContracts(unittest.TestCase):
         result['checks']=[dict(self.result['checks'][0],case=case,
             originalSourceBytesUnchanged=True,
             originalSourceBytesUnchangedOrRestoredAfterExplicitFixtureTest=True) for case in cases]
+        if group=='free-function-reorder':
+            for item in result['checks']:
+                if item['case'] in verify.REORDER_BEHAVIOR:
+                    output=verify.REORDER_BEHAVIOR[item['case']]
+                    item.update(fixtureAppliedExecutedAndRestored=True,beforeOutput=output,afterOutput=output,expectedOutput=output)
         return result
 
     def group_summary(self, group, overlay=None):
         name, _, cases=verify.CASE_GROUPS[group]
-        return {'passed':True,'packagedFeaturePassed':overlay is None,'developmentOverlayOnly':overlay is not None,
+        result={'passed':True,'packagedFeaturePassed':overlay is None,'developmentOverlayOnly':overlay is not None,
                 'cases':len(cases),'actualCaseIds':['dev.goforge.refactor.'+name+'#'+case for case in cases]}
+        if group=='free-function-reorder':result['behaviorComparisons']=dict(verify.REORDER_BEHAVIOR)
+        return result
 
     def test_suite_requires_all_72_exact_class_qualified_cases(self):
         seen=[]
@@ -191,11 +198,13 @@ class MethodRunnerContracts(unittest.TestCase):
         with patch.object(verify,'verify',side_effect=group_run):
             result=verify.verify_suite(self.root,self.root/'suite',self.root)
         self.assertTrue(result['passed']);self.assertTrue(result['packagedFeaturePassed'])
-        self.assertEqual(['method-add','method-scalar','free-scalar'],seen)
-        self.assertEqual(2,result['schemaVersion']);self.assertEqual(72,result['cases'])
-        self.assertEqual(72,len(set(result['actualCaseIds'])))
+        self.assertEqual(['method-add','method-scalar','free-scalar','free-function-reorder'],seen)
+        self.assertEqual(3,result['schemaVersion']);self.assertEqual(103,result['cases'])
+        self.assertEqual(72,len(set(result['actualCaseIds'][:72])))
+        self.assertEqual(103,len(set(result['actualCaseIds'])))
         self.assertEqual(result['expectedCaseIds'],result['actualCaseIds'])
-        self.assertEqual([23,29,20],[result['groups'][key]['cases'] for key in seen])
+        self.assertEqual([23,29,20],[result['groups'][key]['cases'] for key in seen[:3]])
+        self.assertEqual(31,result['groups']['free-function-reorder']['cases'])
         self.assertEqual(result,json.loads((self.root/'suite/verification.json').read_text()))
 
     def test_each_group_rejects_missing_duplicate_and_foreign_case_ids(self):
@@ -269,7 +278,9 @@ class MethodRunnerContracts(unittest.TestCase):
 
     def test_each_group_late_cleanup_cannot_escape_as_suite_success(self):
         import zipfile
-        with zipfile.ZipFile(self.layout['plugin'],'w') as archive:archive.writestr('dev/goforge/refactor/GoMethodParameterSafety.class',b'fixture')
+        with zipfile.ZipFile(self.layout['plugin'],'w') as archive:
+            for name in ('GoMethodParameterSafety','GoFunctionReorder','GoFunctionReorderSource','GoFunctionReorderSafety','GoFunctionReorderSafetySource'):
+                archive.writestr('dev/goforge/refactor/'+name+'.class',b'fixture')
         layout={**self.layout,**self.native_fixture(),'jars':[self.layout['plugin'],self.layout['lsp']]}
         for group,(name,_,_) in verify.CASE_GROUPS.items():
             source=self.root/'src/test/java/dev/goforge/refactor'/(name+'.java');source.parent.mkdir(parents=True,exist_ok=True);source.write_text('// owned fixture')
@@ -298,7 +309,7 @@ class MethodRunnerContracts(unittest.TestCase):
             with self.subTest(mode=mode),patch.object(verify,'CASE_GROUPS',groups),patch.object(verify,'verify',side_effect=group_run):
                 result=verify.verify_suite(self.root,self.root/('group-'+mode),self.root)
             self.assertFalse(result['passed']);self.assertFalse(result['packagedFeaturePassed'])
-            self.assertIn('72 unique class-qualified',result['failure'])
+            self.assertIn('103 unique class-qualified',result['failure'])
 
     def test_cli_default_is_suite_and_legacy_flag_keeps_original_report_shape(self):
         for legacy in [False,True]:
@@ -312,6 +323,227 @@ class MethodRunnerContracts(unittest.TestCase):
             self.assertEqual(not legacy,'groups' in result)
             if not legacy:
                 self.assertTrue((report/'method-add/verification.json').is_file())
-                self.assertEqual(72,len(result['expectedCaseIds']))
+                self.assertEqual(103,len(result['expectedCaseIds']))
+
+    def test_reorder_fixed_outputs_reject_equal_but_wrong_triples(self):
+        good=self.group_result('free-function-reorder')
+        comparisons=verify.require_reorder_behavior(good)
+        self.assertEqual(9,len(comparisons))
+        self.assertEqual('g|h|1,11|',comparisons['shared-state'])
+        self.assertEqual('0.300000012,1099511627776|',comparisons['constants-exact-conversion'])
+        self.assertEqual('g-recover:<nil>|h|1,11|boom',comparisons['recover-in-argument'])
+        for case in comparisons:
+            bad=copy.deepcopy(good)
+            row=next(x for x in bad['checks'] if x['case']==case)
+            row.update(beforeOutput='same but wrong',afterOutput='same but wrong',expectedOutput='same but wrong')
+            with self.subTest(case=case),self.assertRaisesRegex(RuntimeError,'fixed behavior output'):
+                verify.require_reorder_behavior(bad)
+
+    def test_reorder_execution_proof_cannot_be_missing_or_claimed_by_negative_case(self):
+        good=self.group_result('free-function-reorder')
+        for field in ('fixtureAppliedExecutedAndRestored','beforeOutput','afterOutput','expectedOutput'):
+            bad=copy.deepcopy(good);bad['checks'][0].pop(field)
+            with self.subTest(field=field),self.assertRaisesRegex(RuntimeError,'fixed behavior output'):
+                verify.require_reorder_behavior(bad)
+        bad=copy.deepcopy(good);next(x for x in bad['checks'] if x['case']=='mutable-variable-refused')['fixtureAppliedExecutedAndRestored']=True
+        with self.assertRaisesRegex(RuntimeError,'Unexpected reorder behavior'):verify.require_reorder_behavior(bad)
+
+    def test_last_reorder_group_failure_cannot_reuse_successful_baseline_72(self):
+        for mode in ('failed-report','exception','missing-behavior','wrong-behavior','failure-alongside-pass'):
+            def group_run(app,report,source_root,overlay,*,group,strict_sources):
+                result=self.group_summary(group)
+                if group=='free-function-reorder':
+                    if mode=='exception':raise PermissionError('last owned cleanup failure')
+                    if mode=='failed-report':result.update(passed=False,packagedFeaturePassed=False,failure='last owned cleanup failure')
+                    elif mode=='missing-behavior':result.pop('behaviorComparisons')
+                    elif mode=='wrong-behavior':result['behaviorComparisons']['shared-state']='h|g|11,10|'
+                    elif mode=='failure-alongside-pass':result['failure']='late cleanup failure'
+                return result
+            with self.subTest(mode=mode),patch.object(verify,'verify',side_effect=group_run):
+                result=verify.verify_suite(self.root,self.root/('last-'+mode),self.root)
+            self.assertFalse(result['passed']);self.assertFalse(result['packagedFeaturePassed'])
+            self.assertNotIn('cases',result)
+            self.assertEqual(72,sum(x['cases'] for key,x in result['groups'].items() if key!='free-function-reorder'))
+            self.assertFalse(json.loads((self.root/('last-'+mode)/'verification.json').read_text())['passed'])
+
+    def test_reorder_group_ids_and_declared_count_are_strict(self):
+        for mutation in ('missing','duplicate','foreign','wrong-count'):
+            def group_run(app,report,source_root,overlay,*,group,strict_sources):
+                result=self.group_summary(group)
+                if group=='free-function-reorder':
+                    if mutation=='missing':result['actualCaseIds'].pop()
+                    elif mutation=='duplicate':result['actualCaseIds'][0]=result['actualCaseIds'][1]
+                    elif mutation=='foreign':result['actualCaseIds'][0]='dev.goforge.refactor.GoMethodAddParameterProtocolProbe#value-imports'
+                    else:result['cases']=30
+                return result
+            with self.subTest(mutation=mutation),patch.object(verify,'verify',side_effect=group_run):
+                result=verify.verify_suite(self.root,self.root/('reorder-'+mutation),self.root)
+            self.assertFalse(result['passed']);self.assertFalse(result['packagedFeaturePassed'])
+            self.assertIn('exact verified case IDs',result['failure'])
+
+    def test_progress_is_flushed_per_group_and_contains_only_bounded_metadata(self):
+        def group_run(app,report,source_root,overlay,*,group,strict_sources):return self.group_summary(group)
+        with patch.object(verify,'verify',side_effect=group_run),patch('builtins.print') as output:
+            result=verify.verify_suite(self.root,self.root/'progress',self.root)
+        self.assertTrue(result['passed']);self.assertEqual(8,output.call_count)
+        expected_completed=[0,23,23,52,52,72,72,103]
+        for i,call in enumerate(output.call_args_list):
+            self.assertEqual({'flush':True},call.kwargs)
+            message=call.args[0];group=verify.SUITE_GROUPS[i//2]
+            self.assertRegex(message,r'^\[method-refactoring\] '+('start' if i%2==0 else 'end')+' group='+group+r' cases=(23|29|20|31) completed='+str(expected_completed[i])+r'/103 elapsed=\d+\.\d{3}s'+('' if i%2==0 else ' status=passed')+'$')
+            self.assertNotIn(str(self.root),message)
+
+    def test_failed_progress_does_not_expose_failure_payload_or_start_later_groups(self):
+        secret='sentinel-secret '+str(self.root)
+        def group_run(app,report,source_root,overlay,*,group,strict_sources):
+            if group=='method-scalar':raise RuntimeError(secret)
+            return self.group_summary(group)
+        with patch.object(verify,'verify',side_effect=group_run),patch('builtins.print') as output:
+            result=verify.verify_suite(self.root,self.root/'progress-failed',self.root)
+        self.assertFalse(result['passed']);self.assertEqual(4,output.call_count)
+        messages=[call.args[0] for call in output.call_args_list]
+        self.assertIn('end group=method-scalar cases=29 completed=23/103',messages[-1])
+        self.assertTrue(messages[-1].endswith('status=failed'))
+        for call in output.call_args_list:
+            self.assertEqual({'flush':True},call.kwargs);self.assertNotIn(secret,call.args[0]);self.assertNotIn(str(self.root),call.args[0])
+
+    def test_reorder_behavior_is_checked_by_real_verify_entry_before_success(self):
+        import zipfile
+        with zipfile.ZipFile(self.layout['plugin'],'w') as archive:
+            for name in ('GoMethodParameterSafety','GoFunctionReorder','GoFunctionReorderSource','GoFunctionReorderSafety','GoFunctionReorderSafetySource'):
+                archive.writestr('dev/goforge/refactor/'+name+'.class',b'fixture')
+        layout={**self.layout,**self.native_fixture(),'jars':[self.layout['plugin'],self.layout['lsp']]}
+        source=self.root/'src/test/java/dev/goforge/refactor/GoFunctionReorderProtocolProbe.java';source.parent.mkdir(parents=True);source.write_text('// owned fixture')
+        for valid in (True,False):
+            def command(executable,args,out,phase,*rest):
+                if phase=='compile':
+                    path=out/'classes/dev/goforge/refactor/GoFunctionReorderProtocolProbe.class';path.parent.mkdir(parents=True);path.write_bytes(b'fixture');(out/'classes'/(verify.NATIVE_BOOTSTRAP+'.class')).write_bytes(b'fixture')
+                else:
+                    raw=self.group_result('free-function-reorder')
+                    if not valid:raw['checks'][0]['afterOutput']='changed order'
+                    (out/'protocol').mkdir();(out/'protocol/result.json').write_text(json.dumps(raw));(out/'native-binding.json').write_text(json.dumps(self.native_result(layout)))
+                return {'exit':0}
+            with self.subTest(valid=valid),patch.object(verify,'package_layout',return_value=layout),patch.object(verify,'run_java_tool',side_effect=command):
+                result=verify.verify(self.root,self.root/('real-entry-'+str(valid)),self.root,group='free-function-reorder',strict_sources=True)
+            self.assertEqual(valid,result['passed']);self.assertEqual(valid,result['packagedFeaturePassed'])
+            if valid:self.assertEqual(verify.REORDER_BEHAVIOR,result['behaviorComparisons'])
+            else:self.assertIn('fixed behavior output',result['failure'])
+
+    def phase_fixture(self):
+        import zipfile
+        with zipfile.ZipFile(self.layout['plugin'],'w') as archive:archive.writestr('dev/goforge/refactor/GoMethodParameterSafety.class',b'fixture')
+        source=self.root/verify.PROBE;source.parent.mkdir(parents=True);source.write_text('// fixture')
+        return {**self.layout,'jars':[self.layout['plugin'],self.layout['lsp']]}
+
+    def phase_command(self,executable,args,out,name,*rest):
+        current=json.loads((out/'phase-checkpoint.json').read_text())['current']
+        self.assertEqual('javac' if name=='compile' else 'jvm',current['phase'])
+        self.assertEqual('start',current['event'])
+        if name=='compile':
+            path=out/'classes/dev/goforge/refactor/GoMethodAddParameterProtocolProbe.class';path.parent.mkdir(parents=True);path.write_bytes(b'fixture')
+        else:
+            (out/'protocol').mkdir();(out/'protocol/result.json').write_text(json.dumps(self.result))
+        return {'exit':0}
+
+    def test_phase_checkpoints_exist_before_child_commands_and_finish_after_cleanup(self):
+        layout=self.phase_fixture();report=self.root/'phased-success'
+        with patch.object(verify,'package_layout',return_value=layout),patch.object(verify,'run_java_tool',side_effect=self.phase_command),patch('builtins.print') as output:
+            result=verify.verify(self.root,report,self.root)
+        self.assertTrue(result['passed']);self.assertTrue(result['packagedFeaturePassed'])
+        state=json.loads((report/'phase-checkpoint.json').read_text())
+        expected=[(phase,event) for phase in ('layout','hash','temp-allocation','javac','jvm','result-validation','temp-cleanup') for event in ('start','completed')]
+        self.assertEqual(expected,[(x['phase'],x['event']) for x in state['events']]);self.assertEqual([],state['failedPhases'])
+        self.assertTrue(state['diagnosticOnly']);self.assertNotIn('passed',state)
+        self.assertEqual(list(range(1,15)),[x['sequence'] for x in state['events']])
+        self.assertEqual(sorted(x['elapsedSeconds'] for x in state['events']),[x['elapsedSeconds'] for x in state['events']])
+        self.assertFalse((report/'phase-checkpoint.tmp').exists())
+        self.assertEqual(14,output.call_count)
+        for call in output.call_args_list:
+            self.assertEqual({'flush':True},call.kwargs)
+            self.assertRegex(call.args[0],r'^\[method-refactoring\] phase=(layout|hash|temp-allocation|javac|jvm|result-validation|temp-cleanup) group=method-add event=(start|completed)$')
+            self.assertNotIn(str(self.root),call.args[0])
+
+    def test_hash_failure_is_recorded_before_any_temp_or_child_start(self):
+        layout=self.phase_fixture();report=self.root/'hash-failure'
+        with patch.object(verify,'package_layout',return_value=layout),patch.object(verify,'sha256',side_effect=PermissionError('owned hash read failed')),patch.object(verify,'run_java_tool') as child,patch.object(verify.tempfile,'TemporaryDirectory') as temporary:
+            result=verify.verify(self.root,report,self.root)
+        self.assertFalse(result['passed']);child.assert_not_called();temporary.assert_not_called()
+        state=json.loads((report/'phase-checkpoint.json').read_text())
+        self.assertEqual(('hash','failed'),(state['current']['phase'],state['current']['event']))
+        self.assertEqual(['hash'],state['failedPhases']);self.assertIn('owned hash read failed',result['failure'])
+
+    def test_temp_allocation_failure_has_a_checkpoint_without_false_cleanup(self):
+        layout=self.phase_fixture();report=self.root/'allocation-failure'
+        with patch.object(verify,'package_layout',return_value=layout),patch.object(verify.tempfile,'TemporaryDirectory',side_effect=PermissionError('owned allocation failed')),patch.object(verify,'run_java_tool') as child:
+            result=verify.verify(self.root,report,self.root)
+        self.assertFalse(result['passed']);child.assert_not_called()
+        state=json.loads((report/'phase-checkpoint.json').read_text())
+        self.assertEqual(['temp-allocation'],state['failedPhases']);self.assertEqual('failed',state['current']['event'])
+        self.assertNotIn('temp-cleanup',[x['phase'] for x in state['events']])
+
+    def test_cleanup_failure_retains_prior_failed_phase_and_never_becomes_success(self):
+        layout=self.phase_fixture()
+        for earlier_failure in (False,True):
+            owned=self.root/('owned-'+str(earlier_failure));owned.mkdir();report=self.root/('cleanup-phases-'+str(earlier_failure))
+            class CleanupFailure:
+                def __enter__(self):return str(owned)
+                def __exit__(self,*ignored):raise PermissionError('owned cleanup failed')
+            def command(*args):
+                if earlier_failure:raise RuntimeError('original compile failure')
+                return self.phase_command(*args)
+            with self.subTest(earlier_failure=earlier_failure),patch.object(verify,'package_layout',return_value=layout),patch.object(verify.tempfile,'TemporaryDirectory',return_value=CleanupFailure()),patch.object(verify,'run_java_tool',side_effect=command):
+                result=verify.verify(self.root,report,self.root)
+            self.assertFalse(result['passed']);self.assertFalse(result['packagedFeaturePassed'])
+            state=json.loads((report/'phase-checkpoint.json').read_text())
+            self.assertEqual(['javac','temp-cleanup'] if earlier_failure else ['temp-cleanup'],state['failedPhases'])
+            self.assertEqual(('temp-cleanup','failed'),(state['current']['phase'],state['current']['event']))
+            self.assertIn('owned cleanup failed',result['failure'])
+            self.assertFalse(json.loads((report/'verification.json').read_text())['passed'])
+
+    def test_checkpoint_survives_abrupt_worker_exit_without_claiming_success(self):
+        report=self.root/'abrupt';report.mkdir();script=ROOT/'scripts/verify-method-refactoring.py'
+        code="import importlib.util,os;from pathlib import Path;s=importlib.util.spec_from_file_location('v',"+repr(str(script))+");m=importlib.util.module_from_spec(s);s.loader.exec_module(m);r=m.PhaseRecorder(Path("+repr(str(report))+"),'method-add');r.checkpoint('jvm','start');os._exit(23)"
+        child=subprocess.run([sys.executable,'-B','-c',code],capture_output=True,text=True,timeout=10)
+        self.assertEqual(23,child.returncode)
+        state=json.loads((report/'phase-checkpoint.json').read_text())
+        self.assertEqual('start',state['current']['event']);self.assertEqual('jvm',state['current']['phase'])
+        self.assertEqual(1,len(state['events']));self.assertTrue(state['diagnosticOnly']);self.assertNotIn('passed',state)
+        self.assertIn('phase=jvm group=method-add event=start',child.stdout)
+        self.assertFalse((report/'verification.json').exists())
+
+    def test_phase_payload_is_fixed_bounded_and_contains_no_failure_detail(self):
+        report=self.root/'phase-bound';report.mkdir();secret='sentinel private path '+str(self.root)
+        recorder=verify.PhaseRecorder(report,'method-add')
+        with patch('builtins.print') as output:
+            with self.assertRaisesRegex(RuntimeError,'sentinel'):
+                with recorder.phase('jvm'):raise RuntimeError(secret)
+            for _ in range(30):recorder.checkpoint('jvm','start')
+            saved=(report/'phase-checkpoint.json').read_bytes()
+            with self.assertRaisesRegex(RuntimeError,'event limit'):recorder.checkpoint('jvm','start')
+            with self.assertRaises(ValueError):recorder.checkpoint(secret,'start')
+        self.assertEqual(saved,(report/'phase-checkpoint.json').read_bytes());self.assertNotIn(secret,saved.decode())
+        self.assertEqual(32,len(json.loads(saved)['events']))
+        self.assertNotIn(secret,' '.join(call.args[0] for call in output.call_args_list))
+
+    def test_checkpoint_io_failure_still_cleans_temporary_directory_and_refuses_success(self):
+        layout=self.phase_fixture();factory=verify.tempfile.TemporaryDirectory
+        for operation,fail_at in (('fsync',6),('fsync',13),('replace',14)):
+            ended=[];underlying=getattr(verify.os,operation);calls=[0]
+            class ObservedTemporary:
+                def __init__(self,**kwargs):self.delegate=factory(**kwargs)
+                def __enter__(self):return self.delegate.__enter__()
+                def __exit__(self,*args):
+                    value=self.delegate.__exit__(*args);ended.append(not Path(self.delegate.name).exists());return value
+            def fail_once(*args,**kwargs):
+                calls[0]+=1
+                if calls[0]==fail_at:raise OSError('owned diagnostic I/O failure')
+                return underlying(*args,**kwargs)
+            report=self.root/('io-'+operation+'-'+str(fail_at))
+            with self.subTest(operation=operation,fail_at=fail_at),patch.object(verify,'package_layout',return_value=layout),patch.object(verify,'run_java_tool',side_effect=self.phase_command),patch.object(verify.tempfile,'TemporaryDirectory',side_effect=ObservedTemporary),patch.object(verify.os,operation,side_effect=fail_once):
+                result=verify.verify(self.root,report,self.root)
+            self.assertEqual([True],ended)
+            self.assertFalse(result['passed']);self.assertFalse(result['packagedFeaturePassed'])
+            self.assertIn('diagnostic checkpoint',result['failure'])
+            self.assertFalse(json.loads((report/'verification.json').read_text())['passed'])
 
 if __name__=='__main__':unittest.main()

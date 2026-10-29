@@ -38,6 +38,17 @@ public final class GoRemoteDapSourcesPlatformTest extends BasePlatformTestCase {
     }
     private static IDebugProtocolServer content(String text){return new IDebugProtocolServer(){@Override public CompletableFuture<SourceResponse> source(SourceArguments args){var value=new SourceResponse();value.setContent(text);return CompletableFuture.completedFuture(value);}};}
     private static <T>T await(CompletableFuture<T> future)throws Exception{PlatformTestUtil.waitWithEventsDispatching("SDK source did not load",future::isDone,5);return future.get(1,TimeUnit.SECONDS);}
+    public void testSelectedModuleUsesActualReadonlyNavigationAndStopInvalidatesSnapshot()throws Exception{
+        String text="package dep\n// selected v1.1.0 世界\n";var client=client("module-"+UUID.randomUUID());var owner=owner(client);
+        var response=stack("dep.go",1000000,text);response.getStackFrames()[0].setSource(GoRemoteDapSourcesTest.moduleSource("example.test/dep","v1.1.0","dep.go",1000000,text));
+        response=await(owner.prepare(response,content(text)));assertEquals("Selected module example.test/dep@v1.1.0 — dep.go",response.getStackFrames()[0].getSource().getName());
+        var position=new DAPStackFrame(client,response.getStackFrames()[0]).getSourcePosition();assertNotNull(position);position.createNavigatable(getProject()).navigate(true);
+        PlatformTestUtil.dispatchAllEventsInIdeEventQueue();var editor=FileEditorManager.getInstance(getProject()).getSelectedTextEditor();assertNotNull(editor);
+        var document=FileDocumentManager.getInstance().getDocument(position.getFile());assertSame(document,editor.getDocument());assertEquals(1,editor.getCaretModel().getLogicalPosition().line);assertEquals(0,editor.getCaretModel().getLogicalPosition().column);
+        assertEquals(text,document.getText());assertFalse(document.isWritable());assertFalse(FileDocumentManager.getInstance().isDocumentUnsaved(document));
+        org.junit.Assert.assertThrows(com.intellij.openapi.editor.ReadOnlyModificationException.class,()->WriteAction.run(()->document.insertString(0,"bad")));
+        owner.close();PlatformTestUtil.dispatchAllEventsInIdeEventQueue();assertFalse(position.getFile().isValid());assertFalse(FileEditorManager.getInstance(getProject()).isFileOpen(position.getFile()));assertEquals("",document.getText());assertFalse(FileDocumentManager.getInstance().isDocumentUnsaved(document));
+    }
     public void testActualDapStackUsesVerifiedReadonlyDocumentAtExactLine()throws Exception{
         String text="package fmt\n// line two 世界\n";var client=client("sdk-"+UUID.randomUUID());var owner=owner(client);var response=await(owner.prepare(stack("fmt/print.go",1000000,text),content(text)));
         var position=new DAPStackFrame(client,response.getStackFrames()[0]).getSourcePosition();assertNotNull(position);assertEquals(1,position.getLine());

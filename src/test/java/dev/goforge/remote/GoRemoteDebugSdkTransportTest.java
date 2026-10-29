@@ -10,12 +10,15 @@ import java.util.zip.InflaterInputStream;
 import static org.junit.Assert.*;
 
 public final class GoRemoteDebugSdkTransportTest {
-    @Test public void CompressedLoaderContainsTheExactUtf8BridgeAndNoSourceFileWrite()throws Exception{
-        String command=GoRemoteDebugScript.command();assertTrue(command.startsWith("python3 -c 'import base64,zlib;exec(zlib.decompress(base64.b64decode("));
-        var match=java.util.regex.Pattern.compile("[A-Za-z0-9+/=]{100,}").matcher(command);assertTrue(match.find());String payload=match.group();assertFalse(match.find());
+    @Test public void CompressedStdinPayloadContainsExactBridgeAndLeavesPlanOnSecondLine()throws Exception{
+        String command=GoRemoteDebugScript.command();assertTrue(command.startsWith("python3 -c 'import sys,base64,zlib"));
+        String payload=GoRemoteDebugScript.payload();assertFalse(command.contains(payload));assertTrue(command.length()<2048);
         try(var input=new InflaterInputStream(new ByteArrayInputStream(Base64.getDecoder().decode(payload)))){
             assertArrayEquals(GoRemoteDebugScript.SOURCE.getBytes(StandardCharsets.UTF_8),input.readAllBytes());
         }
+        var profile=new GoRemoteProfile("fixture.invalid","fixture",2222,"","/remote workspace","go","");
+        var plan=new GoRemoteDebugPlan(profile,"/local","dlv","debug",".",0,Map.of("go.mod","a".repeat(64)),List.of(),Map.of());
+        assertEquals(payload+"\n"+plan.startupJson()+"\n",plan.startupPreamble());
     }
     @Test public void ActualRemoteDebugArgvFitsConservativeWindowsLaunchBudget(){
         var profile=new GoRemoteProfile("fixture.invalid","fixture",2222,"","/remote workspace","go","");

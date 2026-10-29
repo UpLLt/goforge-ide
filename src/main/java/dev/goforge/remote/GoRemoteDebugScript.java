@@ -3,15 +3,28 @@ package dev.goforge.remote;
 /** Transient stdio/loopback supervisor; never installed on the SSH host. */
 public final class GoRemoteDebugScript {
     private GoRemoteDebugScript() {}
-    /** The constant helper is compressed to remain below Windows SSH/CreateProcess argv bounds. */
-    public static String command() {
+    /** A bounded first stdin line carries the helper, keeping SSH argv small on Windows. */
+    public static String command() { return GoRemoteScripts.python(LOADER); }
+    public static String payload() {
         var bytes=new java.io.ByteArrayOutputStream();
         try(var compressed=new java.util.zip.DeflaterOutputStream(bytes)) {
             compressed.write(SOURCE.getBytes(java.nio.charset.StandardCharsets.UTF_8));
         }catch(java.io.IOException impossible){throw new AssertionError(impossible);}
         String encoded=java.util.Base64.getEncoder().encodeToString(bytes.toByteArray());
-        return GoRemoteScripts.python("import base64,zlib;exec(zlib.decompress(base64.b64decode('"+encoded+"')))");
+        if(encoded.length()>131072)throw new IllegalStateException("Remote debug helper exceeds its transport bound.");
+        return encoded;
     }
+    static final String LOADER="""
+import sys,base64,zlib
+line=sys.stdin.buffer.readline(131074)
+if len(line)>131073 or not line.endswith(b'\\n') or b'\\r' in line:raise ValueError('Invalid debug helper envelope')
+encoded=line[:-1]
+compressed=base64.b64decode(encoded,validate=True)
+if not encoded or base64.b64encode(compressed)!=encoded:raise ValueError('Noncanonical debug helper encoding')
+reader=zlib.decompressobj();body=reader.decompress(compressed,524289)
+if len(body)>524288 or not reader.eof or reader.unused_data or reader.unconsumed_tail:raise ValueError('Invalid or oversized debug helper stream')
+exec(body.decode('utf-8','strict'))
+""";
     public static final String SOURCE="""
 import sys,os,json,hashlib,stat,subprocess,socket,threading,queue,re,time,signal,shutil,tempfile,select,base64
 preamble=sys.stdin.buffer.readline(65537)
@@ -69,7 +82,7 @@ def remote_send(message,timeout=5):
                 offset+=sent
             except BlockingIOError: select.select([],[conn],[],min(.1,remaining))
     finally: socket_lock.release()
-""" + GoRemoteDebugPaths.SOURCE + GoRemoteDebugSdkScript.SOURCE + """
+""" + GoRemoteDebugPaths.SOURCE + GoRemoteDebugSdkScript.SOURCE + GoRemoteDebugModuleScript.SOURCE + """
 def sources(value):
     if isinstance(value,dict):
         for key,item in list(value.items()):
@@ -216,6 +229,7 @@ try:
     # Delve applies launch env before invoking Go; SDK discovery must see the same values.
     env.update(plan['arguments'].get('env',{}))
     debug_sdk_initialize()
+    debug_module_start()
     threading.Thread(target=debug_sdk_worker,daemon=True).start()
     child=subprocess.Popen([dlv,'dap','--listen=127.0.0.1:0'],cwd=root,env=env,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,start_new_session=True)
     ready=queue.Queue();last=[]
@@ -256,7 +270,8 @@ finally:
         try: conn.shutdown(socket.SHUT_RDWR)
         except OSError: pass
         conn.close()
-    if private: shutil.rmtree(private,ignore_errors=True)
+    module_cleanup=debug_module_close()
+    if private and module_cleanup: shutil.rmtree(private,ignore_errors=True)
     if failure: sys.stderr.write('GoForge remote debug: '+failure+'\\n')
 sys.exit(1 if failure else 0)
 """;

@@ -20,7 +20,8 @@ import java.util.concurrent.*;
 
 /** Previewed Go refactorings with a stable snapshot and one undoable write command. */
 public final class GoRefactorAction extends AnAction {
-    private record Choice(CodeAction action,GoChangeSignature signature,boolean addParameter,boolean scalarType) {
+    private record Choice(CodeAction action,GoChangeSignature signature,boolean addParameter,boolean scalarType,boolean orderedCalls) {
+        Choice(CodeAction action,GoChangeSignature signature,boolean addParameter,boolean scalarType){this(action,signature,addParameter,scalarType,false);}
         Choice(CodeAction action){this(action,null,false,false);}
         @Override public String toString() { return action.getTitle(); }
     }
@@ -103,6 +104,7 @@ public final class GoRefactorAction extends AnAction {
                             var scalar=new CodeAction("Change scalar parameter/result type…");scalar.setKind("goforge.changeScalarType");choices.add(0,new Choice(scalar,null,false,true));
                         }
                         if(signature!=null){
+                            var ordered=new CodeAction("Reorder scalar parameters preserving call order…");ordered.setKind("goforge.reorderScalarCalls");choices.add(0,new Choice(ordered,signature,false,false,true));
                             var custom=new CodeAction("Change signature across files…");custom.setKind("goforge.changeSignature");choices.add(0,new Choice(custom,signature,false,false));
                         }
                     }
@@ -133,7 +135,7 @@ public final class GoRefactorAction extends AnAction {
                                 var dialog=new GoAddParameterDialog(project);if(!dialog.showAndGet())return;
                                 parameter=dialog.specification();
                             }else if(choice.signature()!=null){
-                                signature=Messages.showInputDialog(project,"Reorder existing parameters or remove unused ones. Keep parameter names/types and results.\nAll affected callers will be previewed. Calls with nontrivial argument evaluation are refused.","Change Go Signature",null,choice.signature().placeholder(),null);
+                                signature=Messages.showInputDialog(project,choice.orderedCalls()?"Reorder all existing scalar parameters of a private top-level function. Keep names, types and results.\nStandalone calls using constants or static function calls are evaluated in their original order. Methods, labels and variable arguments are refused. A complete module compile check is required.":"Reorder existing parameters or remove unused ones. Keep parameter names/types and results.\nAll affected callers will be previewed. Calls with nontrivial argument evaluation are refused.",choice.action().getTitle(),null,choice.signature().placeholder(),null);
                                 if(signature==null)return;
                                 try{choice.signature().request(signature);}catch(IllegalArgumentException error){fail(project,error.getMessage());return;}
                             }
@@ -155,7 +157,17 @@ public final class GoRefactorAction extends AnAction {
                     if (query.wrapper().isDisposed() || !query.wrapper().isActive() || query.wrapper().getLanguageServer() != query.server())
                         throw new IllegalStateException("The Go language server restarted. Request the refactoring again.");
                     WorkspaceEdit workspace;
-                    if(scalarType!=null){
+                    if("goforge.reorderScalarCalls".equals(action.getKind())){
+                        requireCompileConfiguration(project);
+                        var settings=dev.goforge.settings.GoForgeSettings.getInstance();
+                        Map<String,String> environment=new HashMap<>(new com.intellij.execution.configurations.GeneralCommandLine().getEffectiveEnvironment());
+                        String go=dev.goforge.tools.GoToolResolver.resolve(settings.goPath,"go",project.getBasePath(),environment);
+                        checkedGoSetting=settings.goPath;
+                        checkedType=GoFunctionReorder.plan(go,environment,query.snapshot().directory(),query.sources(),query.wrapper().toUriString(file),query.selection(),requestedSignature,
+                                target->await(query.server().getTextDocumentService().references(new ReferenceParams(new TextDocumentIdentifier(target.getUri()),target.getRange().getStart(),new ReferenceContext(false))),indicator,project,true),
+                                ()->indicator.isCanceled()||project.isDisposed());
+                        workspace=checkedType.workspace();
+                    }else if(scalarType!=null){
                         requireCompileConfiguration(project);
                         var settings=dev.goforge.settings.GoForgeSettings.getInstance();
                         var command=new com.intellij.execution.configurations.GeneralCommandLine();

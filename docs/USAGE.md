@@ -6,7 +6,7 @@ Use action search for registered menu actions hidden by your layout; console-spe
 
 Verification differs by build and host; see [current acceptance and limitations](KNOWN-LIMITATIONS.md#verification-scope--验证范围). Instructions describe current source, not a complete native pass. / 构建与宿主验收分别记录，见[当前验收与差距](KNOWN-LIMITATIONS.md#verification-scope--验证范围)；以下说明当前源码用法，不代表完整原生通过。
 
-Current Full 24 passed 915 macOS-host JUnit cases and independent build readback. It adds owned temporary-file cleanup with bounded Windows retries and visible persistent failures; its Mac archive and all 72 packaged protocol cases passed independent readback, including bundled JNA and cleanup checks. New GUI/Windows checks remain pending, with 32 shutdown warnings recorded. Full 22 Windows Run 15 passed product tests, plugin readback and nine native groups, but failed later packaged-method cleanup; no release archive was produced. / 当前 Full 24 的 915 项 macOS 宿主 JUnit 与独立构建读回通过；新增自有临时文件清理、Windows 有界重试及持续失败显示，Mac 归档及全部 72 个包内协议场景已通过独立读回，包括包内 JNA 与清理检查，32 条关闭阶段警告保留；新 GUI/Windows 验证仍待完成。Full 22 第 15 次 Windows CI 通过产品测试、插件读回和 9 组原生检查，但后续包内方法清理失败，未生成发行归档。
+Current Full 27 passed 924 macOS-host JUnit cases, independent build/archive readback and all 103 actual packaged refactoring cases (23 Add Parameter, 29 method scalar, 20 free-function scalar, 31 call-order-preserving reorder), without a development overlay. Forty-four gopls shutdown warnings remain recorded. No Full 27 GUI group ran while the Mac was locked; Windows acceptance for this source is unperformed. Frozen Full 24 Windows Run 16 passed product tests and plugin readback, but the package job hit its one-hour limit and was cancelled. No native/method reports or release archive were uploaded; the blocking phase is unknown. / 当前 Full 27 通过 924 项 macOS 宿主 JUnit、独立构建/归档读回及全部 103 个真实包内重构场景（23 新增参数、29 方法标量、20 普通函数标量、31 保留调用顺序重排），无开发覆盖，44 条 gopls 关闭阶段警告保留。Mac 锁定，本轮无 Full 27 GUI 功能组，本源码的 Windows 验收未执行；冻结 Full 24 的 Windows 第 16 次已通过产品测试和插件读回，但打包任务触及一小时上限后取消；未上传原生/方法报告或发行归档，具体阻塞阶段未知。
 
 | Entry / 入口 | Steps / 操作 | Boundary / 边界 |
 | --- | --- | --- |
@@ -198,6 +198,16 @@ This bounded operation checks direct callers in the captured project, including 
 
 当前会检查项目内直接调用及已同步的未保存文档。实参只接受标识符或字面量；函数调用、下标、解引用、通道接收、间接函数引用、可变参数展开、缺失引用及不支持的泛型操作会在应用前拒绝。此重排/删除对话框不新增参数；当前源码使用下方独立的限定新增操作。现有标量参数/返回值类型可用下方独立的限定操作；任意类型迁移、跨包移动声明仍未完成。
 
+### Reorder scalar call arguments / 保留调用顺序的标量参数重排
+
+In current source, place the caret on a private top-level function's **`func`** keyword and choose **Go Refactor… → Reorder scalar parameters preserving call order…**. Reorder all existing named scalar parameters in the signature template, keeping every name, type and result unchanged. Review both the declaration and generated local blocks at callers, then Apply and save the affected files. The blocks evaluate arguments into typed temporary variables in their original order before calling the reordered signature. Ordinary Undo/Redo covers the complete edit.
+
+This separate action accepts 2–64 individually named predeclared scalar parameters and direct standalone calls inside a block. Each argument must be a compile-time constant or a direct static nongeneric, nonvariadic function call returning one assignable scalar. Whole-module before/after compilation and a complete typed reference check are mandatory. Receivers, exported/generic targets, variables as arguments, method/function-valued calls, nonconstant conversions/builtins, go/defer/return/nested-call contexts, labels and comments within replaced ranges are refused. Existing simple reorder/remove retains its separate behavior. Full 27 platform transaction tests and all 31 actual packaged Go/gopls cases passed; nine generated programs have fixed before/after output checks, including panic/recover and float conversion. Native IDE GUI and Windows acceptance for this action remain pending.
+
+在当前源码中，把光标放在私有普通函数声明的 **`func`** 上，选择 **Go Refactor… → Reorder scalar parameters preserving call order…**。在签名模板中重排全部现有具名标量参数，保留每个名字、类型及返回值。检查声明和调用方新生成的局部代码块，再 Apply、保存受影响文件；代码块先按原顺序把实参求值到带类型临时变量，再按新参数顺序调用，整组改动支持普通 Undo/Redo。
+
+独立入口限 2–64 个各自具名的预声明标量参数，以及直接位于代码块中的独立调用语句；每个实参须为编译期常量，或返回单个可赋值标量的非泛型、非可变参数静态函数调用。必须通过整模块修改前后编译及完整类型/引用检查。接收者、导出/泛型目标、变量实参、方法/函数值调用、非常量转换或内置调用、go/defer/return/嵌套目标调用、标签及替换范围内注释均拒绝。原有简单重排/删除入口保持独立。Full 27 平台事务测试与 31 个真实包内 Go/gopls 场景通过，其中 9 个生成程序核对固定的前后输出，包含 panic/recover 与浮点转换；本入口的原生 IDE GUI 和 Windows 验收仍待完成。
+
 ### Add one parameter / 新增一个参数
 
 Place the caret on a function declaration's **`func`** keyword, invoke **Go Refactor…**, and choose **Add parameter to verified project calls…**. Enter the new parameter name, a predeclared scalar type, the insertion position (`0` means first; the current parameter count means last), and the literal value to insert at every verified call. Select **Preview verified callers**, review the declaration and every affected caller, then **Apply**. Preview leaves files unchanged. After Apply, **save the affected files before running an external Go command**: editor changes may still be unsaved. Ordinary Undo/Redo covers the complete change; cancellation or a stale/conflicting file prevents application.
@@ -284,7 +294,7 @@ The target is a read-only Go editor snapshot identified as remote SDK source, no
 
 目标是标识为远端 SDK 的只读 Go 编辑器快照，不是本地项目文件；允许查看/复制，拒绝修改和保存到 SDK。**Stop remote analysis** 会使本次 URI 失效并关闭所属 SDK 标签，普通项目标签保留。读取上限为每文件 2 MiB、每会话 128 文件/32 MiB；SDK 变化、过期请求、不安全路径或超限会被拒绝，需重新审阅会话获取新快照。macOS 限定原生检查通过自有 localhost SSH 夹具的精确 fmt/io 跳转、编辑/保存拒绝及 Stop 清理；Windows IDE 宿主和更广远端宿主待验收。
 
-Analysis SDK and dependency sources use distinct session identities and do not permit cross-boundary workspace edits. Paused debug/test SDK viewing is a separate workflow below; dependency debugger mapping remains unsupported. / 分析用 SDK 与依赖源码身份各自独立，均不允许跨边界工作区修改；暂停的包/测试调试 SDK 查看属于下方独立流程，依赖调试映射仍不支持。
+Analysis SDK and dependency sources use distinct session identities and do not permit cross-boundary workspace edits. Paused debug/test SDK and selected dependency viewing are separate workflows below. / 分析用 SDK 与依赖源码身份各自独立，均不允许跨边界工作区修改；暂停的包/测试调试 SDK 与已选依赖查看属于下方独立流程。
 
 ### Selected cached remote dependencies / 已选缓存远端依赖
 
@@ -292,15 +302,15 @@ Start Go analysis from one reviewed root `go.mod` and `go.sum`, with all depende
 
 Use the same **Go to Declaration or Usages** or **LSP Type Definition(s)** from a project file. The target opens as a read-only source identified by its exact module path and selected version. The selected Go module graph must match reviewed content and `/go.mod` h1 checksums; the requested cache file must equal its verified archive member. A historical version appearing only in `go.sum` is not permission to open it. Checksums bind reviewed bytes, not publisher trust. Missing metadata/archive, changed paths or bytes, unsafe ZIP entries and size limits cause refusal; no module is downloaded.
 
-SDK and dependency files share the 2 MiB per-file, 128-file/32 MiB session cache. Module discovery/archives also have bounded limits; even an uncached historical metadata anchor may conservatively disable optional dependency lookup. Viewing/copying is supported; editing, saving and onward LSP requests from a fetched source are not. **Stop remote analysis** expires and closes both kinds of source tabs while preserving ordinary project tabs. Re-review a new session after changing module metadata. This does not add dependency paths to remote debugging. Protocol, macOS-host platform and bounded Full 19 native checks passed. In an owned localhost SSH fixture, declaration/type navigation selected `example.test/Upper/dep@v1.1.0` at `3:6`/`2:6`, despite a cached historical v1.0.0; SDK navigation opened `fmt/print.go:314:6`. Both source kinds refused typing/Save. UI Stop closed their tabs, preserved the local tab and stopped analysis children; the listener was stopped separately after normal app exit. Source/cache bytes remained unchanged. Windows IDE-host and broader remote-host acceptance remain pending.
+SDK and dependency files share the 2 MiB per-file, 128-file/32 MiB session cache. Module discovery/archives also have bounded limits; even an uncached historical metadata anchor may conservatively disable optional dependency lookup. Viewing/copying is supported; editing, saving and onward LSP requests from a fetched source are not. **Stop remote analysis** expires and closes both kinds of source tabs while preserving ordinary project tabs. Re-review a new session after changing module metadata. Remote debugging uses the separate paused-session checks below. Protocol, macOS-host platform and bounded Full 19 native checks passed. In an owned localhost SSH fixture, declaration/type navigation selected `example.test/Upper/dep@v1.1.0` at `3:6`/`2:6`, despite a cached historical v1.0.0; SDK navigation opened `fmt/print.go:314:6`. Both source kinds refused typing/Save. UI Stop closed their tabs, preserved the local tab and stopped analysis children; the listener was stopped separately after normal app exit. Source/cache bytes remained unchanged. Windows IDE-host and broader remote-host acceptance remain pending.
 
 从单个已审阅根 `go.mod` 与 `go.sum` 启动 Go analysis，依赖须已缓存于远端；此源码查找不支持 `go.work`、replace 或 vendor。等待 `Remote dependency source lookup ready for … selected module(s)` 日志。可选发现最多五秒，失败不妨碍项目/SDK 分析；过早请求会提示仍在加载。
 
 在项目文件中使用相同的定义/类型定义动作，目标按精确模块路径和已选版本标识，以只读源码打开。Go 选定模块图须符合审核过的模块内容与 `/go.mod` h1，缓存源文件须与验证后的归档成员一致；`go.sum` 中仅有历史版本不授予读取权限。校验和绑定已审阅字节，不证明作者可信。元数据/归档缺失、路径/内容变化、不安全 ZIP 或超限均拒绝，不自动下载。
 
-SDK 与依赖共享每文件 2 MiB、每会话 128 文件/32 MiB 上限，模块图与归档另有范围限制；历史元数据未缓存也可能保守关闭依赖查找。允许查看/复制，不允许编辑、保存或从只读源页继续请求 LSP。**Stop remote analysis** 同时使两类源码失效并关闭所属标签，普通项目标签保留；修改模块元数据后须重新审阅会话。该功能不增加远端调试器依赖映射。协议、macOS 宿主平台及 Full 19 限定原生检查通过：自有 localhost SSH 夹具中，虽缓存历史 v1.0.0，定义/类型跳转仍选择 `example.test/Upper/dep@v1.1.0` 的 `3:6`/`2:6`，SDK 跳转到 `fmt/print.go:314:6`。两类源码均拒绝输入/保存；UI Stop 关闭所属标签、保留本地标签并停止分析子进程，应用正常退出后另行停止监听器；源文件/缓存字节未变。Windows IDE 宿主及更广远端宿主仍待验收。
+SDK 与依赖共享每文件 2 MiB、每会话 128 文件/32 MiB 上限，模块图与归档另有范围限制；历史元数据未缓存也可能保守关闭依赖查找。允许查看/复制，不允许编辑、保存或从只读源页继续请求 LSP。**Stop remote analysis** 同时使两类源码失效并关闭所属标签，普通项目标签保留；修改模块元数据后须重新审阅会话。调试器使用下方独立的暂停会话授权。协议、macOS 宿主平台及 Full 19 限定原生检查通过：自有 localhost SSH 夹具中，虽缓存历史 v1.0.0，定义/类型跳转仍选择 `example.test/Upper/dep@v1.1.0` 的 `3:6`/`2:6`，SDK 跳转到 `fmt/print.go:314:6`。两类源码均拒绝输入/保存；UI Stop 关闭所属标签、保留本地标签并停止分析子进程，应用正常退出后另行停止监听器；源文件/缓存字节未变。Windows IDE 宿主及更广远端宿主仍待验收。
 
-The review preview still contains the stale blanket text **“External dependency navigation is unavailable.”** This wording defect remains in Full 19; the supported selected-cache scope is described above. Actual discovery failures and unsupported-source refusals still apply. / 审阅预览仍显示过时的笼统文字 **“External dependency navigation is unavailable.”**，Full 19 保留此缺陷；已支持的缓存版本范围见上，实际发现失败和不支持源码的拒绝仍有效。
+The review preview describes the selected-cache restrictions and read-only lifetime above. Unsupported sources or actual discovery failures remain unavailable. / 审阅预览说明上述已选缓存限制与只读生命周期；不支持的源码或实际发现失败仍会拒绝。
 
 ## Remote debugging / 远端调试
 
@@ -315,15 +325,29 @@ The adapter binds remote DAP to loopback and relays it through SSH. Local/remote
 
 ### View SDK source at a paused remote frame / 查看远端暂停栈帧的 SDK 源码
 
-Start a reviewed remote **Package** or **Tests** debug session. When it pauses in a standard-library frame, select that frame to view a read-only snapshot from the selected remote Go SDK at the reported source line. The source must be within the verified remote `GOROOT/src`; arbitrary paths, module-cache files and SDK sources for **Executable/Attach** sessions are unavailable. Breakpoints are supported only in reviewed workspace files. These source views do not start local Go language services or write the remote SDK.
+Start a reviewed remote **Package** or **Tests** debug session. When it pauses in a standard-library frame, select that frame to view a read-only snapshot from the selected remote Go SDK at the reported source line. The source must be within the verified remote `GOROOT/src`; arbitrary paths and SDK sources for **Executable/Attach** sessions are unavailable; selected dependency viewing follows the separate checks below. Breakpoints are supported only in reviewed workspace files. These source views do not start local Go language services or write the remote SDK.
 
 Resume, Step and Stop cancel outstanding source reads. Already loaded snapshots may stay visible until Stop, which closes and invalidates only this debug session's views and preserves unrelated editor tabs. A changed SDK/file, invalid or stale request, unavailable source or limit violation leaves the SDK source unavailable; workspace debugging stays usable. Limits are 2 MiB per file, 128 files/32 MiB per session and 16 queued reads. This is selected-SDK snapshot viewing, not proof that all compiler inputs or cached binaries were frozen. Mac-host SSH protocol, Full 22 platform tests and Run 15 Windows product tests passed; native IDE acceptance remains pending.
 
-审阅后启动远端 **Package** 或 **Tests** 调试，会话在标准库栈帧暂停时，选中该帧即可按报告行号查看当前远端 Go SDK 的只读源码快照。仅允许已验证 `GOROOT/src` 内的路径；任意路径、模块缓存文件及 **Executable/Attach** 会话的 SDK 源码不支持。断点只允许审阅后的工作区文件；源码页不启动本地 Go 语言服务，也不写入远端 SDK。
+审阅后启动远端 **Package** 或 **Tests** 调试，会话在标准库栈帧暂停时，选中该帧即可按报告行号查看当前远端 Go SDK 的只读源码快照。仅允许已验证 `GOROOT/src` 内的路径；任意路径及 **Executable/Attach** 会话的 SDK 源码不支持；已选依赖查看另按下方检查。断点只允许审阅后的工作区文件；源码页不启动本地 Go 语言服务，也不写入远端 SDK。
 
 Resume、Step 和 Stop 会取消尚未完成的源码读取；已加载快照可保留至 Stop，届时只关闭并失效本调试会话的视图，其他编辑器标签保留。SDK/文件变化、过期或无效请求、源码不可用或超限时不加载 SDK 源码，工作区调试仍可使用。上限为每文件 2 MiB、每会话 128 文件/32 MiB、16 个排队读取。这是当前选定 SDK 的快照查看，不证明全部编译输入或缓存二进制都被冻结；Mac 宿主 SSH 协议、Full 22 平台测试与第 15 次 Windows 产品测试通过，原生 IDE 验收仍待完成。
 
-Full 23 corrects the remote debug preview to describe the paused Package/Tests SDK views. Dependency and Executable/Attach SDK restrictions remain. / Full 23 已修正远端调试预览文字，说明暂停的 Package/Tests SDK 查看；依赖及 Executable/Attach 的 SDK 限制仍保留。
+The Debug help and review preview describe the bounded SDK/dependency capabilities. Executable/Attach source restrictions remain. / 调试帮助与审阅预览说明限定的 SDK/依赖源码能力；Executable/Attach 的源码限制仍保留。
+
+### View selected dependency source at a paused frame / 查看暂停栈帧的已选依赖源码
+
+In current source, review and start remote **Package** or **Tests** debugging for one root `go.mod`/`go.sum`. The selected dependency versions must already exist in the remote module cache, with matching reviewed content and go.mod checksums and cached archives. When a paused stack actually contains such a dependency frame, select it to open a read-only PlainText snapshot labeled with module path and version. A historical version present only in go.sum/cache is not eligible. This operation does not install or download dependencies.
+
+The optional catalogue loads in the background; pending, unsupported or failed lookup leaves project/SDK debugging usable and shows the dependency source as unavailable. It does not support `go.work`, replacement directives or vendor mode; **Executable/Attach**, arbitrary cache paths, dependency breakpoints, editing and onward LSP are unsupported. Changed launch-reviewed metadata or cache identities/bytes refuse the read. Resume/Step cancel pending reads; the next pause must observe the frame again. Stop closes and invalidates only this session's snapshots. SDK and module views share the 2 MiB/file, 128-file/32 MiB session bound; module frame enrichment also has bounded batch work. This is checked selected source, not proof of a hermetic binary build.
+
+Full 27 platform navigation/read-only/Stop tests and three isolated real localhost SSH/Delve debug/test/Stop sessions passed, including exact selected-version content, unchanged project/cache bytes, launch metadata drift refusal and owned process/output cleanup. Native IDE GUI and Windows-host acceptance are pending.
+
+在当前源码中，审阅单根 `go.mod`/`go.sum` 后启动远端 **Package** 或 **Tests** 调试。所选依赖版本须已在远端模块缓存中，内容与 go.mod 校验值和缓存归档均匹配已审阅元数据。暂停调用栈实际出现该依赖帧时，选中帧会打开标有模块路径与版本的只读 PlainText 快照；只存在于历史 go.sum/缓存中的旧版本不会获准，本操作不安装或下载依赖。
+
+可选目录在后台准备；等待、超时、不支持或校验失败时，项目/SDK 调试仍可用，依赖源码明确显示不可用。范围不含 go.work、replace、vendor、**Executable/Attach**、任意缓存路径、依赖断点、编辑及继续 LSP。启动时审阅的元数据或缓存身份/字节变化会拒绝读取；Resume/Step 取消待完成读取，下次暂停须重新观察栈帧，Stop 仅关闭并使本会话快照失效。SDK 与模块共用每文件 2 MiB、每会话 128 文件/32 MiB 上限，模块栈帧补充另有批次上限；这些检查不等于完整二进制构建输入证明。
+
+Full 27 平台导航/只读/Stop 测试及 3 组隔离真实 localhost SSH/Delve debug/test/Stop 会话通过，覆盖所选版本精确内容、项目/缓存字节未变、启动后元数据变化拒绝与所属进程/输出清理。原生 IDE GUI 和 Windows 宿主仍待验收。
 
 ### Multi-module workspaces / 多模块工作区
 

@@ -6,6 +6,7 @@ No IDE GUI or complete GoLand equivalence is established by this protocol check.
 """
 from __future__ import annotations
 import argparse
+from contextlib import contextmanager
 import hashlib
 import json
 import os
@@ -36,6 +37,13 @@ CASE_GROUPS={
     'method-scalar': ('GoMethodScalarTypeProtocolProbe', True, ('value-imports', 'pointer-imports', 'parameter-incompatible-caller', 'parameter-incompatible-body', 'shadow-old-refused', 'shadow-new-refused', 'alias-shadow-refused', 'method-result-refused', 'dirty-unicode', 'init-and-testmain-not-run', 'interface-old-refused', 'interface-new-refused', 'interface-alias-refused', 'constraint-refused', 'anonymous-interface-refused', 'method-value-refused', 'method-expression-refused', 'promoted-refused', 'public-method-refused', 'public-receiver-refused', 'generic-receiver-refused', 'alias-receiver-refused', 'missing-reference-refused', 'outside-reference-refused', 'metadata-change-after-preview', 'goenv-change-after-preview', 'sdk-change-after-preview', 'default-cgo-parameter', 'cancelled-after-references')),
     'free-scalar': ('GoChangeScalarTypeProtocolProbe', True, ('goenv-change-after-preview', 'sdk-change-after-preview', 'default-cgo-parameter', 'parameter-default-import', 'alias-shadow-refused', 'parameter-constant', 'result-inferred', 'named-result', 'generic-parameter', 'generic-result', 'dirty-unicode', 'init-and-testmain-not-run', 'parameter-incompatible-caller', 'result-incompatible-consumer', 'result-incompatible-body', 'function-value-refused', 'missing-reference-refused', 'outside-reference-refused', 'metadata-change-after-preview', 'cancelled-after-references')),
 }
+
+REORDER_CASES=('shared-state', 'static-imported-argument', 'constants-exact-conversion', 'typed-float-argument', 'byte-rune-aliases', 'temporary-name-collision', 'panic-first-argument', 'recover-in-argument', 'dirty-unicode', 'init-and-testmain-not-run', 'mutable-variable-refused', 'function-variable-refused', 'shadowed-function-refused', 'method-argument-refused', 'conversion-refused', 'builtin-refused', 'caller-type-shadow-refused', 'declaration-alias-refused', 'function-value-refused', 'return-refused', 'go-refused', 'defer-refused', 'label-refused', 'tuple-refused', 'ellipsis-refused', 'generic-argument-refused', 'missing-reference-refused', 'outside-reference-refused', 'metadata-change-after-preview', 'sdk-change-after-preview', 'cancelled-after-references')
+REORDER_BEHAVIOR={'shared-state': 'g|h|1,11|', 'static-imported-argument': 'h|-1,10|', 'constants-exact-conversion': '0.300000012,1099511627776|', 'typed-float-argument': 'g|h|0.300000012,1099511627776|', 'byte-rune-aliases': '255,30028|', 'temporary-name-collision': 'g|h|1,11|', 'panic-first-argument': 'g|boom1', 'recover-in-argument': 'g-recover:<nil>|h|1,11|boom', 'dirty-unicode': 'g|h|1,11|'}
+CASE_GROUPS['free-function-reorder']=('GoFunctionReorderProtocolProbe', True, REORDER_CASES)
+SUITE_GROUPS=('method-add','method-scalar','free-scalar','free-function-reorder')
+SUITE_CASE_IDS=tuple('dev.goforge.refactor.'+name+'#'+case
+                     for name,_,cases in CASE_GROUPS.values() for case in cases)
 
 NATIVE_BOOTSTRAP='GoForgePackagedNativeProbe'
 NATIVE_SOURCE='''import java.nio.file.*;
@@ -221,6 +229,91 @@ def require_results(result,layout,overlay=None,*,expected_cases=EXPECTED_CASES,r
     return {'cases':len(checks),'packagedFeaturePassed':overlay is None,'developmentOverlayOnly':overlay is not None}
 
 
+def require_reorder_behavior(result):
+    """Keep the nine independent expected outputs fixed, not merely equal to one another."""
+    checks=result.get('checks')
+    if result.get('passed') is not True or not isinstance(checks,list) or len(checks)!=31 or {c.get('case') for c in checks}!=set(REORDER_CASES):
+        raise RuntimeError('Reorder protocol did not return the exact 31 cases')
+    comparisons={}
+    for item in checks:
+        case=item['case']
+        if item.get('passed') is not True or item.get('versionedDiagnosticsReady') is not True or item.get('fixtureDeleted') is not True or item.get('goplsAliveAfterCleanup') is not False or item.get('goplsExit')!=0 or item.get('originalSourceBytesUnchangedOrRestoredAfterExplicitFixtureTest') is not True or any(key in item for key in ('failure','cleanupFailure','suppressedFailures')):
+            raise RuntimeError('Reorder case failed readiness, source or cleanup: '+case)
+        if case in REORDER_BEHAVIOR:
+            expected=REORDER_BEHAVIOR[case]
+            if item.get('fixtureAppliedExecutedAndRestored') is not True or item.get('beforeOutput')!=expected or item.get('afterOutput')!=expected or item.get('expectedOutput')!=expected:
+                raise RuntimeError('Reorder fixed behavior output differs: '+case)
+            comparisons[case]=item['afterOutput']
+        elif item.get('fixtureAppliedExecutedAndRestored'):
+            raise RuntimeError('Unexpected reorder behavior execution claim: '+case)
+    if comparisons!=REORDER_BEHAVIOR:raise RuntimeError('Missing fixed reorder behavior comparison')
+    return comparisons
+
+
+def group_progress(event,group,planned,completed,started,status=None):
+    # Only fixed group identifiers/counts and elapsed time: no environment or fixture paths.
+    message='[method-refactoring] '+event+' group='+group+' cases='+str(planned)+' completed='+str(completed)+'/103 elapsed='+format(time.monotonic()-started,'.3f')+'s'
+    if status is not None:message+=' status='+status
+    print(message,flush=True)
+
+
+class PhaseRecorder:
+    """Bounded diagnostic state; never a protocol success or cleanup attestation."""
+    PHASES=('layout','hash','temp-allocation','javac','jvm','result-validation','temp-cleanup')
+
+    def __init__(self,report,group):
+        if group not in SUITE_GROUPS:raise ValueError('Unknown diagnostic group')
+        self.report=Path(report);self.group=group;self.started=time.monotonic();self.events=[];self.failure=None;self.failures=[]
+
+    def checkpoint(self,phase,event):
+        if phase not in self.PHASES or event not in ('start','completed','failed'):raise ValueError('Unknown diagnostic phase or event')
+        if len(self.events)>=32:raise RuntimeError('Diagnostic phase event limit exceeded')
+        current={'sequence':len(self.events)+1,'phase':phase,'event':event,
+                 'elapsedSeconds':round(time.monotonic()-self.started,3)}
+        self.events.append(current)
+        state={'schemaVersion':1,'diagnosticOnly':True,'group':self.group,'current':current,
+               'events':self.events,'failedPhases':[x['phase'] for x in self.events if x['event']=='failed'],
+               'checkpointFailures':self.failures}
+        temporary=self.report/'phase-checkpoint.tmp'
+        try:
+            with temporary.open('w',encoding='utf-8') as stream:
+                json.dump(state,stream,indent=2);stream.write('\n');stream.flush();os.fsync(stream.fileno())
+            os.replace(temporary,self.report/'phase-checkpoint.json')
+        except Exception as failure:
+            # Diagnostics must never prevent the existing temporary-directory exit from running.
+            self.failed_checkpoint(phase,event,'write',failure);event='checkpoint-failed'
+        try:print('[method-refactoring] phase='+phase+' group='+self.group+' event='+event,flush=True)
+        except Exception as failure:self.failed_checkpoint(phase,event,'console',failure)
+
+    def failed_checkpoint(self,phase,event,kind,failure):
+        if self.failure is None:self.failure=failure
+        if len(self.failures)<32:self.failures.append({'phase':phase,'event':event,'kind':kind})
+
+    def require_recorded(self):
+        if self.failure is not None:
+            raise RuntimeError('A diagnostic checkpoint could not be recorded; verification cannot report success.') from self.failure
+
+    @contextmanager
+    def phase(self,name):
+        self.checkpoint(name,'start')
+        try:yield
+        except BaseException:
+            self.checkpoint(name,'failed');raise
+        else:self.checkpoint(name,'completed')
+
+
+class PhasedTemporaryDirectory:
+    """Observe the existing context-manager entry/exit without changing its cleanup policy."""
+    def __init__(self,recorder):self.recorder=recorder;self.delegate=None
+    def __enter__(self):
+        with self.recorder.phase('temp-allocation'):
+            self.delegate=tempfile.TemporaryDirectory(prefix='goforge-method-verification-')
+            return self.delegate.__enter__()
+    def __exit__(self,kind,value,traceback):
+        with self.recorder.phase('temp-cleanup'):
+            return self.delegate.__exit__(kind,value,traceback)
+
+
 def verify(app,report,source_root=ROOT,development_overlay=None,*,group="method-add",strict_sources=False):
     report=Path(report).absolute();report.mkdir(parents=True,exist_ok=False)
     summary={'passed':False,'packagedFeaturePassed':False,'developmentOverlayOnly':development_overlay is not None,
@@ -228,38 +321,49 @@ def verify(app,report,source_root=ROOT,development_overlay=None,*,group="method-
     try:
         name,ready,expected=CASE_GROUPS[group]
         main='dev.goforge.refactor.'+name
-        layout=package_layout(app);source_root=Path(source_root).resolve(strict=True);source=source_root/'src/test/java/dev/goforge/refactor'/(name+'.java')
-        summary.update(group=group,expectedCaseIds=[main+'#'+case for case in expected])
-        if not source.is_file():raise RuntimeError('Repository method probe source is missing')
-        overlay=Path(development_overlay).resolve(strict=True) if development_overlay else None
-        if overlay is not None and not overlay.is_dir():raise RuntimeError('Development overlay must be an explicit classes directory')
-        if overlay is None:
-            with zipfile.ZipFile(layout['plugin']) as archive:
-                if 'dev/goforge/refactor/GoMethodParameterSafety.class' not in archive.namelist():raise RuntimeError('This package does not contain the new typed method implementation')
-        summary.update(source={'path':str(source),'sha256':sha256(source)},tools={k:{'path':str(layout[k]),'sha256':sha256(layout[k])} for k in ('java','javac','go','gopls')},
-                       classpathJars=[{'path':str(p),'sha256':sha256(p)} for p in layout['jars']],overlay=str(overlay) if overlay else None)
-        if 'jnaDispatch' in layout:
-            summary['nativeInputs']={k:{'path':str(layout[k]),'sha256':sha256(layout[k])} for k in ('jnaDispatch','jnaProvider','jbrRelease')}
-        classes=report/'classes';classes.mkdir();classpath=os.pathsep.join([str(classes)]+([str(overlay)] if overlay else [])+[str(p) for p in layout['jars']])
-        with tempfile.TemporaryDirectory(prefix='goforge-method-verification-') as temporary:
+        recorder=PhaseRecorder(report,group)
+        with recorder.phase('layout'):
+            layout=package_layout(app);source_root=Path(source_root).resolve(strict=True);source=source_root/'src/test/java/dev/goforge/refactor'/(name+'.java')
+            summary.update(group=group,expectedCaseIds=[main+'#'+case for case in expected])
+            if not source.is_file():raise RuntimeError('Repository method probe source is missing')
+            overlay=Path(development_overlay).resolve(strict=True) if development_overlay else None
+            if overlay is not None and not overlay.is_dir():raise RuntimeError('Development overlay must be an explicit classes directory')
+            if overlay is None:
+                with zipfile.ZipFile(layout['plugin']) as archive:
+                    if 'dev/goforge/refactor/GoMethodParameterSafety.class' not in archive.namelist():raise RuntimeError('This package does not contain the new typed method implementation')
+                    if group=='free-function-reorder':
+                        for implementation in ('GoFunctionReorder','GoFunctionReorderSource','GoFunctionReorderSafety','GoFunctionReorderSafetySource'):
+                            if 'dev/goforge/refactor/'+implementation+'.class' not in archive.namelist():raise RuntimeError('This package does not contain the static-function reorder implementation')
+        with recorder.phase('hash'):
+            summary.update(source={'path':str(source),'sha256':sha256(source)},tools={k:{'path':str(layout[k]),'sha256':sha256(layout[k])} for k in ('java','javac','go','gopls')},
+                           classpathJars=[{'path':str(p),'sha256':sha256(p)} for p in layout['jars']],overlay=str(overlay) if overlay else None)
+            if 'jnaDispatch' in layout:
+                summary['nativeInputs']={k:{'path':str(layout[k]),'sha256':sha256(layout[k])} for k in ('jnaDispatch','jnaProvider','jbrRelease')}
+            classes=report/'classes';classes.mkdir();classpath=os.pathsep.join([str(classes)]+([str(overlay)] if overlay else [])+[str(p) for p in layout['jars']])
+        with PhasedTemporaryDirectory(recorder) as temporary:
             owned=Path(temporary).resolve(strict=True);(owned/'tmp').mkdir();env=probe_environment(layout,owned,os.environ)
-            compile_sources=[str(source)]
-            if strict_sources:
-                bootstrap=owned/(NATIVE_BOOTSTRAP+'.java');bootstrap.write_text(NATIVE_SOURCE,encoding='utf-8');compile_sources.append(str(bootstrap))
-                summary['nativeBootstrapSha256']=sha256(bootstrap)
-            summary['compile']=run_java_tool(layout['javac'],['--release','21','-encoding','UTF-8','-implicit:none','-sourcepath','','-cp',classpath,'-d',str(classes),*compile_sources],report,'compile',env,source_root,120)
-            compiled=sorted(p.relative_to(classes).as_posix() for p in classes.rglob('*.class'))
-            prefix='dev/goforge/refactor/'+name
-            if not compiled or any(not (x==prefix+'.class' or x.startswith(prefix+'$') or (strict_sources and x==NATIVE_BOOTSTRAP+'.class')) for x in compiled):raise RuntimeError('Probe compilation emitted unexpected classes')
-            summary['compiledProbeClasses']={x:sha256(classes/x) for x in compiled}
+            with recorder.phase('javac'):
+                compile_sources=[str(source)]
+                if strict_sources:
+                    bootstrap=owned/(NATIVE_BOOTSTRAP+'.java');bootstrap.write_text(NATIVE_SOURCE,encoding='utf-8');compile_sources.append(str(bootstrap))
+                    summary['nativeBootstrapSha256']=sha256(bootstrap)
+                summary['compile']=run_java_tool(layout['javac'],['--release','21','-encoding','UTF-8','-implicit:none','-sourcepath','','-cp',classpath,'-d',str(classes),*compile_sources],report,'compile',env,source_root,120)
+                compiled=sorted(p.relative_to(classes).as_posix() for p in classes.rglob('*.class'))
+                prefix='dev/goforge/refactor/'+name
+                if not compiled or any(not (x==prefix+'.class' or x.startswith(prefix+'$') or (strict_sources and x==NATIVE_BOOTSTRAP+'.class')) for x in compiled):raise RuntimeError('Probe compilation emitted unexpected classes')
+                summary['compiledProbeClasses']={x:sha256(classes/x) for x in compiled}
             entry=[NATIVE_BOOTSTRAP,main,str(report/'protocol'),str(layout['jnaDispatch']),str(layout['jnaProvider']),str(report/'native-binding.json')] if strict_sources else [main,str(report/'protocol')]
             args=['-Djava.io.tmpdir='+str(owned/'tmp'),'-Dgoforge.probe.go='+str(layout['go']),'-Dgoforge.probe.gopls='+str(layout['gopls']),'-Dgoforge.probe.cacheRoot='+str(owned),*(native_arguments(layout) if 'jnaDispatch' in layout else []),'-cp',classpath,*entry]
-            summary['runtime']=run_java_tool(layout['java'],args,report,'probe',env,source_root,1200)
-            if strict_sources:summary['nativeBinding']=require_native_result(json.loads((report/'native-binding.json').read_text(encoding='utf-8')),layout)
-            result=json.loads((report/'protocol/result.json').read_text(encoding='utf-8'))
-            preservation=('originalSourceBytesUnchanged' if group=='free-scalar' else 'originalSourceBytesUnchangedOrRestoredAfterExplicitFixtureTest') if strict_sources else None
-            validated=require_results(result,layout,overlay,expected_cases=expected,require_ready=ready,source_preservation=preservation)
-            summary['actualCaseIds']=[main+'#'+item['case'] for item in result['checks']]
+            with recorder.phase('jvm'):
+                summary['runtime']=run_java_tool(layout['java'],args,report,'probe',env,source_root,1200)
+            with recorder.phase('result-validation'):
+                if strict_sources:summary['nativeBinding']=require_native_result(json.loads((report/'native-binding.json').read_text(encoding='utf-8')),layout)
+                result=json.loads((report/'protocol/result.json').read_text(encoding='utf-8'))
+                preservation=('originalSourceBytesUnchanged' if group=='free-scalar' else 'originalSourceBytesUnchangedOrRestoredAfterExplicitFixtureTest') if strict_sources else None
+                validated=require_results(result,layout,overlay,expected_cases=expected,require_ready=ready,source_preservation=preservation)
+                summary['actualCaseIds']=[main+'#'+item['case'] for item in result['checks']]
+                if group=='free-function-reorder':summary['behaviorComparisons']=require_reorder_behavior(result)
+        recorder.require_recorded()
         summary.update(validated);summary['passed']=True
     except Exception as failure:
         summary['passed']=False;summary['packagedFeaturePassed']=False
@@ -270,27 +374,38 @@ def verify(app,report,source_root=ROOT,development_overlay=None,*,group="method-
 
 
 def verify_suite(app,report,source_root=ROOT,development_overlay=None):
-    """Default CI entry: all 72 cases must pass; per-group legacy reports remain intact."""
+    """Default CI entry: all 103 cases must pass; the original verify() API stays at 23."""
     report=Path(report).absolute();report.mkdir(parents=True,exist_ok=False)
     summary={'passed':False,'packagedFeaturePassed':False,'developmentOverlayOnly':development_overlay is not None,
-             'schemaVersion':2,'scope':'72 packaged method/scalar protocol cases; no IDE GUI or complete parity claim.','groups':{},
-             'expectedCaseIds':['dev.goforge.refactor.'+name+'#'+case for name,_,cases in CASE_GROUPS.values() for case in cases]}
+             'schemaVersion':3,'scope':'103 packaged method/scalar/reorder protocol cases; no IDE GUI or complete parity claim.','groups':{},
+             'expectedCaseIds':list(SUITE_CASE_IDS)}
     try:
+        configured=tuple('dev.goforge.refactor.'+name+'#'+case for name,_,cases in CASE_GROUPS.values() for case in cases)
+        if tuple(CASE_GROUPS)!=SUITE_GROUPS or configured!=SUITE_CASE_IDS or len(set(configured))!=103:
+            raise RuntimeError('Expected the fixed four groups and 103 unique class-qualified cases')
         actual=[]
-        for group in CASE_GROUPS:
-            result=verify(app,report/group,source_root,development_overlay,group=group,strict_sources=True)
-            summary['groups'][group]=result
-            if result.get('passed') is not True:raise RuntimeError(group+' failed: '+str(result.get('failure','no successful report')))
-            if result.get('developmentOverlayOnly') is not (development_overlay is not None) or result.get('packagedFeaturePassed') is not (development_overlay is None):
-                raise RuntimeError(group+' returned inconsistent package/overlay identity')
-            name,_,expected=CASE_GROUPS[group];ids=result.get('actualCaseIds')
-            wanted={'dev.goforge.refactor.'+name+'#'+case for case in expected}
-            if not isinstance(ids,list) or len(ids)!=len(wanted) or set(ids)!=wanted:raise RuntimeError(group+' did not return its exact verified case IDs')
-            actual.extend(ids)
-        if len(actual)!=72 or len(set(actual))!=72:raise RuntimeError('Expected 72 unique class-qualified cases')
-        summary.update(passed=True,packagedFeaturePassed=development_overlay is None,cases=72,actualCaseIds=actual)
+        for group in SUITE_GROUPS:
+            name,_,expected=CASE_GROUPS[group];started=time.monotonic();group_passed=False
+            group_progress('start',group,len(expected),len(actual),started)
+            try:
+                result=verify(app,report/group,source_root,development_overlay,group=group,strict_sources=True)
+                summary['groups'][group]=result
+                if result.get('passed') is not True or 'failure' in result:raise RuntimeError(group+' failed: '+str(result.get('failure','no successful report')))
+                if result.get('developmentOverlayOnly') is not (development_overlay is not None) or result.get('packagedFeaturePassed') is not (development_overlay is None):
+                    raise RuntimeError(group+' returned inconsistent package/overlay identity')
+                ids=result.get('actualCaseIds');wanted={'dev.goforge.refactor.'+name+'#'+case for case in expected}
+                if result.get('cases')!=len(expected) or not isinstance(ids,list) or len(ids)!=len(wanted) or set(ids)!=wanted:
+                    raise RuntimeError(group+' did not return its exact verified case IDs')
+                if group=='free-function-reorder':
+                    if result.get('behaviorComparisons')!=REORDER_BEHAVIOR:raise RuntimeError('Reorder group lost its fixed behavior comparisons')
+                    summary['behaviorComparisons']=dict(result['behaviorComparisons'])
+                actual.extend(ids);group_passed=True
+            finally:
+                group_progress('end',group,len(expected),len(actual),started,'passed' if group_passed else 'failed')
+        if len(actual)!=103 or len(set(actual))!=103:raise RuntimeError('Expected 103 unique class-qualified cases')
+        summary.update(passed=True,packagedFeaturePassed=development_overlay is None,cases=103,actualCaseIds=actual)
     except Exception as failure:
-        summary['failure']=type(failure).__name__+': '+str(failure)
+        summary.update(passed=False,packagedFeaturePassed=False,failure=type(failure).__name__+': '+str(failure))
     finally:
         (report/'verification.json').write_text(json.dumps(summary,indent=2,ensure_ascii=False)+'\n',encoding='utf-8')
     return summary
