@@ -110,8 +110,10 @@ public final class GoTestSourceIndex {
         var names = new HashSet<String>();
         for (var raw : output.declarations()) {
             if (raw == null || raw.name() == null || raw.kind() == null
-                    || !Set.of("test", "example").contains(raw.kind()) || !names.add(raw.name()))
+                    || !Set.of("test", "example", "benchmark", "unsupported-benchmark").contains(raw.kind()) || !names.add(raw.name()))
                 throw new IOException("Invalid or ambiguous Go source declaration.");
+            try { GoTestSelection.declaration(raw.name(), "unsupported-benchmark".equals(raw.kind()) ? "benchmark" : raw.kind()); }
+            catch (IllegalArgumentException invalid) { throw new IOException("Go source declaration kind does not match its name.", invalid); }
             int start = utf8ToUtf16(text, raw.start()), end = utf8ToUtf16(text, raw.end()), name = utf8ToUtf16(text, raw.nameStart());
             if (start < 0 || start > name || name >= end || end > text.length() || !text.startsWith(raw.name(), name)
                     || name + raw.name().length() > end)

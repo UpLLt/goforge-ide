@@ -146,4 +146,31 @@ public final class GoStructuredTestConfigurationTest extends BasePlatformTestCas
         }
         return null;
     }
+
+    public void testBenchmarkKindRoundTripsAndProducesOnlyItsLiteralBenchSelector() throws Exception {
+        var config=configuration();config.setTestSelection(GoTestSelection.benchmark("BenchmarkOne"));config.setGoArguments("-benchtime=1x -benchmem");
+        config.checkConfiguration();assertEquals(List.of("test","-benchtime=1x","-benchmem","-json","-run=^$","-bench=^BenchmarkOne$","."),config.createCommandLine().getParametersList().getList());
+        var xml=new Element("configuration");config.writeExternal(xml);assertEquals("benchmark",xml.getChild("goforge-test-selection").getAttributeValue("kind"));
+        var restored=configuration();restored.readExternal(xml);assertEquals(config.getTestSelection(),restored.getTestSelection());
+        assertEquals(config.createCommandLine().getParametersList().getList(),restored.createCommandLine().getParametersList().getList());
+        var editor=new GoRunSettingsEditor();editor.resetEditorFrom(restored);JComponent ui=editor.createEditor();
+        assertEquals(2,((JComboBox<?>)named(ui,"Test selection")).getSelectedIndex());assertFalse(checkbox(ui).isEnabled());
+        editor.applyEditorTo(restored);assertEquals(config.getTestSelection(),restored.getTestSelection());
+        ((JTextArea)named(ui,"Test names")).setText("BenchmarkTwo");editor.applyEditorTo(restored);assertEquals(GoTestSelection.benchmark("BenchmarkTwo"),restored.getTestSelection());
+    }
+    public void testMalformedBenchmarkKindsDoNotFallBackToPackageOrOrdinaryTests() {
+        for(String kind:List.of("benchmark","fuzz","BENCHMARK")){
+            var config=configuration();var xml=new Element("configuration");config.writeExternal(xml);
+            xml.addContent(new Element("goforge-test-selection").setAttribute("version","1").setAttribute("kind",kind).addContent(new Element("test").setAttribute("name","TestOne")));
+            config.readExternal(xml);assertNotNull(config.getTestSelectionReadError());assertThrows(IllegalArgumentException.class,config::createCommandLine);
+        }
+        var config=configuration();config.setTestSelection(GoTestSelection.benchmark("BenchmarkOne"));
+        var missingKind=new Element("configuration");config.writeExternal(missingKind);missingKind.getChild("goforge-test-selection").removeAttribute("kind");
+        var oldShape=configuration();oldShape.readExternal(missingKind);assertNotNull(oldShape.getTestSelectionReadError());assertThrows(IllegalArgumentException.class,oldShape::createCommandLine);
+        for(String flag:List.of("-bench=.","-test.run=TestOne","-count=2")){
+            config.setGoArguments(flag);assertThrows(RuntimeConfigurationError.class,config::checkConfiguration);
+            config.setGoArguments("");config.getEnvironment().put("GOFLAGS",flag);assertThrows(IllegalArgumentException.class,config::createCommandLine);config.getEnvironment().put("GOFLAGS","");
+        }
+    }
+
 }

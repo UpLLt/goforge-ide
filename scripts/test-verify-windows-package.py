@@ -171,7 +171,7 @@ class WindowsVerifierTest(unittest.TestCase):
     def launcher_probe(self,changes=None):
         (self.app/'jbr').mkdir(parents=True,exist_ok=True)
         fields={'product':'GoForge','home':str(self.app),'runtime':str(self.app/'jbr')}
-        fields.update({key:str(self.root/key) for key in ('config','system','plugins','log')})
+        fields.update({key:str(path) for key,path in verify.launcher_probe_paths(self.root).items()})
         fields.update(changes or {})
         return '\n'.join(key+'='+value for key,value in fields.items())
 
@@ -185,6 +185,35 @@ class WindowsVerifierTest(unittest.TestCase):
             alias=self.root/'app alias';alias.symlink_to(self.app,target_is_directory=True)
             result=verify.require_launcher_relocation(self.launcher_probe({'home':str(alias),'runtime':str(alias/'jbr')}),self.app,self.root)
             self.assertEqual(str(self.app.resolve()),result['resolvedPaths']['home'])
+
+    def test_owned_launcher_properties_keep_unicode_and_cannot_inherit_external_configuration(self):
+        inherited={'SYSTEMROOT':str(self.root/'Windows'),'GoForge_Properties':'outside.properties'}
+        env=verify.native_environment(self.app,self.root,inherited);saved=dict(env)
+        probe=verify.launcher_probe_environment(env,self.root)
+        self.assertEqual(saved,env);self.assertNotIn('GOFORGE_PROPERTIES',env)
+        properties=Path(probe['GOFORGE_PROPERTIES'])
+        self.assertEqual(self.root.resolve()/'goforge-probe.properties',properties)
+        lines=properties.read_text(encoding='utf-8').splitlines()
+        expected=verify.launcher_probe_paths(self.root)
+        self.assertEqual(['idea.'+key+'.path='+path.as_posix() for key,path in expected.items()],lines)
+        self.assertIn('中文',properties.read_text(encoding='utf-8'))
+        self.assertTrue(all(path.is_dir() for path in expected.values()))
+        self.assertEqual(set(saved)|{'GOFORGE_PROPERTIES'},set(probe))
+        self.assertEqual('outside.properties',inherited['GoForge_Properties'])
+        with self.assertRaises(FileExistsError):verify.launcher_probe_environment(env,self.root)
+
+    def test_launcher_probe_rejects_other_temporary_paths_and_swapped_owned_directories(self):
+        for key in ('config','system','plugins','log'):
+            for other in (self.root/'other'/key,self.root/'ide-paths'/('config' if key!='config' else 'system')):
+                with self.subTest(key=key,other=str(other)):
+                    with self.assertRaisesRegex(RuntimeError,'unexpected '+key+' path'):
+                        verify.require_launcher_relocation(self.launcher_probe({key:str(other)}),self.app,self.root)
+
+    def test_owned_launcher_properties_refuse_platform_variable_substitution(self):
+        unsafe=self.root/'${idea.home.path}'
+        with self.assertRaisesRegex(RuntimeError,'property substitution'):
+            verify.launcher_probe_environment({},unsafe)
+        self.assertFalse((unsafe/'goforge-probe.properties').exists())
 
     def test_launcher_probe_rejects_duplicate_missing_relative_and_wrong_product_fields(self):
         valid=self.launcher_probe()
@@ -408,7 +437,7 @@ class CleanupTests(unittest.TestCase):
     binary=Path(args[0]);name=binary.name;env=kwargs.get('env',{})
     if name=='powershell.exe':return json.dumps(metadata_fixture(env['SYSTEMROOT']))
     if name=='goforge64.exe':
-     home=binary.parents[1];return '\n'.join(['product=GoForge','home='+str(home),'runtime='+str(home/'jbr')]+[key+'='+env['LOCALAPPDATA'] for key in ('config','system','plugins','log')])
+     home=binary.parents[1];return '\n'.join(['product=GoForge','home='+str(home),'runtime='+str(home/'jbr')]+[key+'='+str(path) for key,path in verify.launcher_probe_paths(Path(env['GOFORGE_PROPERTIES']).parent).items()])
     if name=='go.exe':
      if args[1]=='env':return str(binary.parents[1])
      if args[1]=='version':return 'go1.26.4'

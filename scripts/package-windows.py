@@ -191,7 +191,8 @@ def configure(home: Path, retained: list[str]):
              '-Didea.suppress.statistics.report=true', '-Didea.headless.enable.statistics=false',
              '-Dide.no.platform.update=true', '-Didea.initially.ask.config=never', '-Dsplash=false',
              '-XX:ErrorFile=%IDE_CACHE_DIR%/java_error_in_goforge_%p.log', '-XX:HeapDumpPath=%IDE_CACHE_DIR%']
-    # PathManager's Windows defaults honor APPDATA/LOCALAPPDATA and vendor/selector.
+    # The native Windows launcher restores APPDATA/LOCALAPPDATA from KnownFolders;
+    # normal defaults then use these locations with the configured vendor/selector.
     launch['additionalJvmArguments'] = args
     launch['customCommands'] = [{'commands':['goforge-package-info'], 'vmOptionsFilePath':launch['vmOptionsFilePath'],
         'bootClassPathJarNames':launch['bootClassPathJarNames'], 'additionalJvmArguments':args+['-Djava.awt.headless=true'],

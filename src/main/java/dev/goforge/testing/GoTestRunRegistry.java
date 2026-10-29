@@ -9,7 +9,6 @@ import dev.goforge.run.GoRunConfiguration;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -36,6 +35,7 @@ public final class GoTestRunRegistry implements AutoCloseable {
     private final GoRunConfiguration original;
     private final GoTestRerunArguments.Context commandContext;
     private final Map<String, PackageSources> packages;
+    private final GoTestSelectionObservation selectedNames;
     private final Map<Path, Document> documents = new LinkedHashMap<>();
     private final String runToken = UUID.randomUUID().toString();
     private final Map<String, Observed> nodes = new LinkedHashMap<>();
@@ -48,6 +48,7 @@ public final class GoTestRunRegistry implements AutoCloseable {
     GoTestRunRegistry(Project project, GoRunConfiguration original, Map<String, PackageSources> packages,
                       GoTestRerunArguments.Context commandContext) {
         this.project = project; this.original = original.clone(); this.packages = Map.copyOf(packages);
+        selectedNames = new GoTestSelectionObservation(this.original.getTestSelection(), this.packages.keySet());
         this.commandContext = commandContext;
         for (var pkg : packages.values()) for (var source : pkg.files()) {
             var file = LocalFileSystem.getInstance().findFileByNioFile(source.file());
@@ -72,7 +73,9 @@ public final class GoTestRunRegistry implements AutoCloseable {
 
     /** Called only for GoTestEvents-owned IDs, never from a displayed label or a location URL. */
     public synchronized String locationHint(String pkg, String name, String nodeId, boolean inferred) {
-        if (disposed || !ordinaryTestName(name)) return "";
+        if (disposed) return "";
+        selectedNames.location(pkg, name, inferred);
+        if (!ordinaryTestName(name)) return "";
         Observed n = nodes.get(nodeId);
         if (n == null) {
             n = new Observed(pkg, name, nodeId, UUID.randomUUID().toString(), inferred);
@@ -92,11 +95,7 @@ public final class GoTestRunRegistry implements AutoCloseable {
             n.status = emission.status();
     }
     public synchronized List<String> missingRequestedTests() {
-        GoTestSelection selection = original.getTestSelection();
-        if (selection == null) return List.of();
-        var observed = new LinkedHashSet<String>();
-        for (Observed n : nodes.values()) if (!n.inferred && packages.containsKey(n.packageName)) observed.add(n.fullName);
-        return selection.testNames().stream().filter(name -> !observed.contains(name)).toList();
+        return selectedNames.missing();
     }
     public synchronized void markTerminated() { terminated = true; }
     public synchronized ObservedIdentity identity(String url) {
@@ -141,5 +140,5 @@ public final class GoTestRunRegistry implements AutoCloseable {
         return name.startsWith(prefix) && (name.length() == prefix.length()
             || Character.getType(name.codePointAt(prefix.length())) != Character.LOWERCASE_LETTER);
     }
-    @Override public synchronized void close() { disposed = true; nodes.clear(); tokens.clear(); documents.clear(); }
+    @Override public synchronized void close() { disposed = true; nodes.clear(); tokens.clear(); documents.clear(); selectedNames.clear(); }
 }

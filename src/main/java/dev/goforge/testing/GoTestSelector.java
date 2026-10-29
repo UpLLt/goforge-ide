@@ -41,6 +41,8 @@ public final class GoTestSelector {
     }
 
     public static List<String> arguments(GoTestSelection selection) {
+        if (selection.kind() == GoTestSelection.Kind.BENCHMARK)
+            return List.of("-run=^$", "-bench=" + pattern(selection));
         return selection.rerun() ? List.of("-run=" + pattern(selection), "-count=1")
             : List.of("-run=" + pattern(selection));
     }

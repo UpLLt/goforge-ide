@@ -23,7 +23,7 @@ import java.util.LinkedHashMap;
 
 public final class GoRunSettingsEditor extends SettingsEditor<GoRunConfiguration> {
     private enum TestScope {
-        PACKAGE("Package / manual"), NAMED("Named Test / Example");
+        PACKAGE("Package / manual"), NAMED("Named Test / Example"), BENCHMARK("One top-level Benchmark");
         private final String title;
         TestScope(String title) { this.title = title; }
         @Override public String toString() { return title; }
@@ -50,7 +50,7 @@ public final class GoRunSettingsEditor extends SettingsEditor<GoRunConfiguration
             .addLabeledComponent("Go arguments:", goArguments)
             .addLabeledComponent("Program arguments (go run):", programArguments)
             .addLabeledComponent("Environment (one NAME=value per line):", new JScrollPane(environment))
-            .addComponent(new JBLabel("<html>Arguments support quoting. Commands run directly without a shell.<br>Use ./... for tests, tidy for go mod, or edit -json for go work.<br>Named tests use package '.' in the chosen working directory; names are literal.<br>A selected subtest also runs its parents and descendants. Use names observed in the test tree.<br>For mod/work/tool, Go arguments follow the subcommand; otherwise they precede the package target.</html>"))
+            .addComponent(new JBLabel("<html>Arguments support quoting. Commands run directly without a shell.<br>Use ./... for tests, tidy for go mod, or edit -json for go work.<br>Named tests and benchmarks use package '.' in the chosen working directory; names are literal.<br>A selected benchmark runs only its top-level name (including any children it creates), without ordinary tests.<br>A selected subtest also runs its parents and descendants. Use names observed in the test tree.<br>For mod/work/tool, Go arguments follow the subcommand; otherwise they precede the package target.</html>"))
             .addComponentFillVertically(new JPanel(), 0).getPanel();
         testScope.getAccessibleContext().setAccessibleName("Test selection");
         testNames.getAccessibleContext().setAccessibleName("Test names");
@@ -66,7 +66,8 @@ public final class GoRunSettingsEditor extends SettingsEditor<GoRunConfiguration
         goArguments.setText(config.getGoArguments()); programArguments.setText(config.getProgramArguments());
         environment.setText(String.join("\n", config.getEnvironment().entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).toList()));
         var selection = config.getTestSelection();
-        testScope.setSelectedItem(selection != null || config.getTestSelectionReadError() != null ? TestScope.NAMED : TestScope.PACKAGE);
+        testScope.setSelectedItem(selection != null && selection.kind() == GoTestSelection.Kind.BENCHMARK ? TestScope.BENCHMARK
+                : selection != null || config.getTestSelectionReadError() != null ? TestScope.NAMED : TestScope.PACKAGE);
         testNames.setText(selection == null ? "" : String.join("\n", selection.testNames()));
         freshRun.setSelected(selection != null && selection.rerun());
         selectionError.setText(config.getTestSelectionReadError() == null ? "" : config.getTestSelectionReadError());
@@ -82,11 +83,13 @@ public final class GoRunSettingsEditor extends SettingsEditor<GoRunConfiguration
             variables.put(line.substring(0, equals), line.substring(equals + 1));
         }
         GoTestSelection selected = null;
-        if (testScope.getSelectedItem() == TestScope.NAMED) {
+        if (testScope.getSelectedItem() != TestScope.PACKAGE) {
             try {
                 if (command.getSelectedItem() != GoCommand.TEST || !".".equals(target.getText().trim()))
-                    throw new IllegalArgumentException("Named tests require Command 'test' and package target '.'.");
-                selected = new GoTestSelection(testNames.getText().lines().filter(line -> !line.isEmpty()).toList(), freshRun.isSelected());
+                    throw new IllegalArgumentException("Named selections require Command 'test' and package target '.'.");
+                boolean benchmark = testScope.getSelectedItem() == TestScope.BENCHMARK;
+                selected = new GoTestSelection(testNames.getText().lines().filter(line -> !line.isEmpty()).toList(),
+                        !benchmark && freshRun.isSelected(), benchmark ? GoTestSelection.Kind.BENCHMARK : GoTestSelection.Kind.TESTS);
                 var effective = new GeneralCommandLine().withEnvironment(GoProjectSettings.getInstance(config.getProject()).environment())
                     .withEnvironment(variables).getEffectiveEnvironment();
                 GoTestSelector.validateArguments(ParametersListUtil.parse(goArguments.getText()), HostTools.environmentValue(effective, "GOFLAGS"));
@@ -102,8 +105,8 @@ public final class GoRunSettingsEditor extends SettingsEditor<GoRunConfiguration
     private void updateEnabledFields() {
         boolean testing = command.getSelectedItem() == GoCommand.TEST;
         testScope.setEnabled(testing);
-        boolean named = testing && testScope.getSelectedItem() == TestScope.NAMED;
-        testNames.setEnabled(named); freshRun.setEnabled(named);
+        boolean named = testing && testScope.getSelectedItem() != TestScope.PACKAGE;
+        testNames.setEnabled(named); freshRun.setEnabled(testing && testScope.getSelectedItem() == TestScope.NAMED);
         programArguments.setEnabled(command.getSelectedItem() == GoCommand.RUN);
     }
     @Override protected @NotNull JComponent createEditor() { return panel; }

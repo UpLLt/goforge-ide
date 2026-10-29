@@ -21,7 +21,8 @@ public final class GoSelectedTestDebugPlan {
 
     public static Map<String, Object> launch(String canonicalDirectory, GoTestSelection selection,
                                             List<String> goArguments) {
-        if (selection == null) throw new IllegalArgumentException("Select a Test or Example to debug.");
+        if (selection == null || selection.kind() != GoTestSelection.Kind.TESTS)
+            throw new IllegalArgumentException("Select a Test or Example to debug; use Run for a selected benchmark.");
         var build = new ArrayList<String>();
         var args = new ArrayList<String>();
         for (int i = 0; i < goArguments.size(); i++) {

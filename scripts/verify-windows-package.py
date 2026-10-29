@@ -47,6 +47,29 @@ def native_environment(app, temporary, inherited):
     return env
 
 
+def launcher_probe_paths(temporary):
+    return {key:(temporary/'ide-paths'/key).resolve() for key in ('config','system','plugins','log')}
+
+
+def launcher_probe_environment(env, temporary):
+    """Own the four probe paths; Windows' native launcher restores KnownFolders env."""
+    paths=launcher_probe_paths(temporary)
+    lines=[]
+    for key,path in paths.items():
+        path.mkdir(parents=True,exist_ok=True)
+        value=path.as_posix()
+        if '${' in value:
+            raise RuntimeError('Probe path contains a platform property substitution: '+value)
+        # PathManager uses Properties.load(Reader) with UTF-8; preserve Unicode and escape controls.
+        escapes={'\\':'\\\\','\t':'\\t','\n':'\\n','\r':'\\r','\f':'\\f'}
+        value=''.join(escapes.get(char,char) for char in value)
+        lines.append('idea.'+key+'.path='+value)
+    properties=temporary/'goforge-probe.properties'
+    with properties.open('x',encoding='utf-8',newline='\n') as stream:
+        stream.write('\n'.join(lines)+'\n')
+    return {**env,'GOFORGE_PROPERTIES':str(properties.resolve())}
+
+
 def fixture_hashes(project):
     """Snapshot all Go inputs, including a newly added source or module file."""
     return {path.relative_to(project).as_posix():hashlib.sha256(path.read_bytes()).hexdigest()
@@ -340,6 +363,8 @@ def require_launcher_relocation(output, app, temporary):
     root=temporary.resolve()
     for key in ('config','system','plugins','log'):
         if not paths[key].is_relative_to(root):refuse('used an external '+key+' path: '+str(paths[key]))
+        expected=launcher_probe_paths(temporary)[key]
+        if paths[key]!=expected:refuse('used an unexpected '+key+' path: '+str(paths[key])+'; expected='+str(expected))
     return {'passed':True,'output':output,'resolvedPaths':{key:str(value) for key,value in paths.items()}}
 
 
@@ -363,7 +388,11 @@ def main(app,report):
             resources=metadata['properties']
             assert resources=={'product':'GoForge','description':'GoForge','original':'goforge64.exe','signature':'NotSigned'},resources
             result['checks']['windowsVersionAndSignature']={'passed':True,**metadata}
-            probe=command([relocated/'bin/goforge64.exe','goforge-package-info'],env=env,timeout=120)
+            probe_env=launcher_probe_environment(env,temp)
+            result['probeConfiguration']={'properties':probe_env['GOFORGE_PROPERTIES'],
+                'paths':{key:str(path) for key,path in launcher_probe_paths(temp).items()},
+                'propertiesSha256':hashlib.sha256(Path(probe_env['GOFORGE_PROPERTIES']).read_bytes()).hexdigest()}
+            probe=command([relocated/'bin/goforge64.exe','goforge-package-info'],env=probe_env,timeout=120)
             result['checks']['nativeLauncherRelocation']=require_launcher_relocation(probe,relocated,temp)
             go=relocated/'goforge-tools/go/bin/go.exe'
             assert Path(command([go,'env','GOROOT'],env=env).strip()).resolve()==(relocated/'goforge-tools/go').resolve()

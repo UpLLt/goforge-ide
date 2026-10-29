@@ -132,7 +132,7 @@ public final class GoRunConfiguration extends RunConfigurationBase<RunConfigurat
             throw new IllegalArgumentException(testSelectionReadError + " Open the run configuration and correct the test selection.");
         if (testSelection == null) return;
         if (command != GoCommand.TEST || !".".equals(target))
-            throw new IllegalArgumentException("Named Test/Example selection requires the test command and package target '.'. Choose its package working directory, or choose Package / manual.");
+            throw new IllegalArgumentException("Named Test/Example/Benchmark selection requires the test command and package target '.'. Choose its package working directory, or choose Package / manual.");
         GoTestSelector.validateArguments(ParametersListUtil.parse(goArguments), HostTools.environmentValue(effectiveEnvironment, "GOFLAGS"));
     }
 
@@ -167,6 +167,7 @@ public final class GoRunConfiguration extends RunConfigurationBase<RunConfigurat
         if (testSelection != null) {
             Element selected = new Element("goforge-test-selection").setAttribute("version", "1")
                 .setAttribute("rerun", Boolean.toString(testSelection.rerun()));
+            if (testSelection.kind() == GoTestSelection.Kind.BENCHMARK) selected.setAttribute("kind", "benchmark");
             for (String name : testSelection.testNames()) selected.addContent(new Element("test").setAttribute("name", name));
             element.addContent(selected);
         } else for (Element invalid : invalidTestSelectionXml) element.addContent(invalid.clone());
@@ -199,8 +200,12 @@ public final class GoRunConfiguration extends RunConfigurationBase<RunConfigurat
                     throw new IllegalArgumentException("Invalid structured test rerun flag.");
                 if (selected.getChildren().stream().anyMatch(child -> !"test".equals(child.getName())))
                     throw new IllegalArgumentException("Invalid structured test selection entry.");
+                String kind = selected.getAttributeValue("kind", "tests");
+                if (!"tests".equals(kind) && !"benchmark".equals(kind))
+                    throw new IllegalArgumentException("Invalid structured test selection kind.");
                 setTestSelection(new GoTestSelection(selected.getChildren("test").stream()
-                    .map(child -> child.getAttributeValue("name")).toList(), Boolean.parseBoolean(rerun)));
+                    .map(child -> child.getAttributeValue("name")).toList(), Boolean.parseBoolean(rerun),
+                    "benchmark".equals(kind) ? GoTestSelection.Kind.BENCHMARK : GoTestSelection.Kind.TESTS));
             } catch (IllegalArgumentException | NullPointerException invalid) {
                 testSelectionReadError = invalid.getMessage() == null ? "Invalid structured test selection." : invalid.getMessage();
                 invalidTestSelectionXml = selections.stream().map(Element::clone).toList();

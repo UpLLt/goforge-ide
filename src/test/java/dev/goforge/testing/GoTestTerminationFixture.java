@@ -14,6 +14,18 @@ public final class GoTestTerminationFixture {
             return;
         }
         event("start", "");
+        if (mode.equals("benchmark-open")) {
+            event("run", "BenchmarkOne");
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> event("fail", "")));
+            System.err.println("FIXTURE_READY");
+            Thread.sleep(60_000);
+            return;
+        }
+        if (mode.equals("benchmark") || mode.equals("benchmark-missing")) {
+            if (mode.equals("benchmark")) event("run", "BenchmarkOne");
+            event("pass", "");
+            return;
+        }
         if (mode.equals("terminal-but-alive")) {
             event("run", "TestPass"); event("pass", "TestPass");
             event("run", "TestFail"); event("fail", "TestFail");

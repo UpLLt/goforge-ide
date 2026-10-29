@@ -43,7 +43,7 @@ public final class GoTestPackageIndex {
     }
     private static final Set<String> BUILD_BOOLEAN = Set.of("a", "n", "x", "race", "msan", "asan", "cover", "trimpath", "work", "modcacherw", "buildvcs");
     private static final Set<String> BUILD_VALUE = Set.of("asmflags", "buildmode", "compiler", "gccgoflags", "gcflags", "installsuffix", "ldflags", "mod", "modfile", "overlay", "p", "pgo", "pkgdir", "tags", "toolexec");
-    private static final Set<String> TEST_BOOLEAN = Set.of("json", "v", "short", "failfast", "fullpath", "c");
+    private static final Set<String> TEST_BOOLEAN = Set.of("json", "v", "short", "failfast", "fullpath", "c", "benchmem");
     private static final Set<String> TEST_VALUE = Set.of("run", "skip", "bench", "benchtime", "count", "cpu", "list", "parallel", "timeout", "fuzz", "fuzztime", "fuzzminimizetime", "vet", "shuffle", "coverprofile", "covermode", "coverpkg", "blockprofile", "blockprofilerate", "cpuprofile", "memprofile", "memprofilerate", "mutexprofile", "mutexprofilefraction", "outputdir", "trace", "o");
 
     public static Map<String, GoTestRunRegistry.PackageSources> prepare(GoRunConfiguration configuration,
@@ -109,7 +109,7 @@ public final class GoTestPackageIndex {
                 for (String selected : configuration.getTestSelection().testNames()) {
                     String top = selected.split("/", -1)[0];
                     int matches = 0;
-                    for (var file : sources) if (file.named(top) != null) matches++;
+                    for (var file : sources) if (configuration.getTestSelection().matchesDeclaration(file.named(top))) matches++;
                     if (matches != 1) throw new IllegalStateException("Selected test '" + top + "' is missing or ambiguous in the current package. Save and select the test again.");
                 }
             }

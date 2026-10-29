@@ -53,6 +53,9 @@ public final class GoFormatOnSaveTest extends BasePlatformTestCase {
     private LanguageServerDefinition gopls, fixtureDefinition;
     private boolean oldEnabled;
     private FormatOnSaveOptions oldOptions;
+    private OptimizeImportsOnSaveOptions oldImportOptions;
+    private boolean importFixture;
+    private volatile boolean importFeatureEnabled=true;
     private Path directory;
     private VirtualFile contentRoot;
     private final List<Editor> editors = new ArrayList<>();
@@ -65,6 +68,8 @@ public final class GoFormatOnSaveTest extends BasePlatformTestCase {
         gopls = LanguageServersRegistry.getInstance().getServerDefinition("goforge.gopls");
         assertNotNull(gopls);oldEnabled = gopls.isEnabled(getProject());gopls.setEnabled(false, getProject());
         oldOptions = FormatOnSaveOptions.getInstance(getProject()).clone();
+        oldImportOptions=OptimizeImportsOnSaveOptions.getInstance(getProject()).clone();
+        copyImportState(OptimizeImportsOnSaveOptions.getInstance(getProject()),new OptimizeImportsOnSaveOptions(getProject()));
         copyState(FormatOnSaveOptions.getInstance(getProject()), new FormatOnSaveOptions(getProject()));
         directory = Files.createTempDirectory("goforge-save-format-");
         contentRoot = LocalFileSystem.getInstance().refreshAndFindFileByNioFile(directory);assertNotNull(contentRoot);
@@ -79,6 +84,7 @@ public final class GoFormatOnSaveTest extends BasePlatformTestCase {
                 () -> { if (server != null) server.stop(); },
                 () -> { for (var editor : editors) EditorFactory.getInstance().releaseEditor(editor); },
                 () -> { if (oldOptions != null) copyState(FormatOnSaveOptions.getInstance(project), oldOptions); },
+                () -> { if (oldImportOptions != null) copyImportState(OptimizeImportsOnSaveOptions.getInstance(project), oldImportOptions); },
                 () -> { if (contentRoot != null) PsiTestUtil.removeContentEntry(getModule(), contentRoot); },
                 () -> { if (directory != null) FileUtil.delete(directory.toFile()); },
                 () -> super.tearDown(),
@@ -301,6 +307,172 @@ public final class GoFormatOnSaveTest extends BasePlatformTestCase {
         assertEquals("package p\nvar x=1",file.document.getText());assertEquals(file.document.getText(),Files.readString(file.path));
     }
 
+    public void testOptimizeImportsWorksWhenFormattingIsDisabledAndSaveWaitsForIt() throws Exception {
+        var file=file("imports.go","package p\nvar value = 0");startImportServer(file);
+        FormatOnSaveOptions.getInstance(getProject()).setRunOnSaveEnabled(false);enableImports();
+        String input="package p\nvar value=fmt.Sprint(2)";change(file,input);
+        server.importDelayed=new CompletableFuture<>();triggerSave(file);await(()->server.importRequests.get()==1);
+        assertTrue(onSave().hasPendingActions());assertEquals(input,file.document.getText());assertEquals(input,Files.readString(file.path));
+        String organized="package p\nimport \"fmt\"\nvar value=fmt.Sprint(2)";
+        server.importDelayed.complete(server.importActions(organized));await(()->!onSave().hasPendingActions());
+        assertEquals(0,server.requests.get());assertEquals(1,server.importRequests.get());
+        assertEquals(List.of(CodeActionKind.SourceOrganizeImports),server.lastImportOnly);assertTrue(server.lastImportDiagnostics.isEmpty());
+        assertEquals(organized,file.document.getText());assertEquals(organized,Files.readString(file.path));
+        assertFalse(manager().isDocumentUnsaved(file.document));
+    }
+
+    public void testImportsThenFormattingUsesTheUpdatedOverlayExactlyOnce() throws Exception {
+        var file=file("imports.go","package p\nvar value = 0");startImportServer(file);enableImports();
+        server.organized="package p\nimport \"fmt\"\nvar value=fmt.Sprint(2)";
+        server.formatted="package p\n\nimport \"fmt\"\n\nvar value = fmt.Sprint(2)\n";
+        change(file,"package p\nvar value=fmt.Sprint(2)");save(file);
+        assertEquals(1,server.importRequests.get());assertEquals(1,server.requests.get());
+        assertEquals(server.organized,server.lastInput);assertTrue(server.lastFormatVersion>server.lastImportVersion);
+        assertEquals(server.formatted,file.document.getText());assertEquals(server.formatted,Files.readString(file.path));
+        var undo=com.intellij.openapi.command.undo.UndoManager.getInstance(getProject());
+        var editor=com.intellij.openapi.fileEditor.impl.text.TextEditorProvider.getInstance().getTextEditor(file.editor);
+        undo.undo(editor);assertEquals("package p\nvar value=fmt.Sprint(2)",file.document.getText());
+        assertEquals(server.formatted,Files.readString(file.path));undo.redo(editor);assertEquals(server.formatted,file.document.getText());
+    }
+
+    public void testDisabledOrUnselectedImportPreferenceDoesNotRequestImports() throws Exception {
+        var file=file("imports.go","package p\nvar value = 0");startImportServer(file);
+        FormatOnSaveOptions.getInstance(getProject()).setRunOnSaveEnabled(false);
+        change(file,"package p\nvar value=fmt.Sprint(2)");save(file);assertEquals(0,server.importRequests.get());
+        loadImportState(state(true,false,PlainTextFileType.INSTANCE.getName()));
+        change(file,"package p\nvar value=fmt.Sprint(3)");save(file);assertEquals(0,server.importRequests.get());
+        assertEquals("package p\nvar value=fmt.Sprint(3)",Files.readString(file.path));
+    }
+
+    public void testTypingCancelsPendingImportsWithoutSavingNewTyping() throws Exception {
+        var file=file("imports.go","package p\nvar value = 0");startImportServer(file);enableImports();
+        FormatOnSaveOptions.getInstance(getProject()).setRunOnSaveEnabled(false);
+        server.importDelayed=new CompletableFuture<>(){@Override public boolean cancel(boolean interrupt){return false;}};
+        String initial="package p\nvar value=fmt.Sprint(2)";change(file,initial);triggerSave(file);await(()->server.importRequests.get()==1);
+        change(file,initial+" // newer typing");await(()->!onSave().hasPendingActions());
+        server.importDelayed.complete(server.importActions("package p\nimport \"fmt\"\nvar value=fmt.Sprint(2)"));
+        PlatformTestUtil.dispatchAllEventsInIdeEventQueue();
+        assertEquals(initial+" // newer typing",file.document.getText());assertEquals(initial,Files.readString(file.path));
+        assertTrue(manager().isDocumentUnsaved(file.document));
+    }
+
+    public void testDisablingImportPreferenceRejectsPendingResponse() throws Exception {
+        var file=file("imports.go","package p\nvar value = 0");startImportServer(file);enableImports();
+        FormatOnSaveOptions.getInstance(getProject()).setRunOnSaveEnabled(false);server.importDelayed=new CompletableFuture<>();
+        String input="package p\nvar value=fmt.Sprint(2)";change(file,input);triggerSave(file);await(()->server.importRequests.get()==1);
+        OptimizeImportsOnSaveOptions.getInstance(getProject()).setRunOnSaveEnabled(false);
+        server.importDelayed.complete(server.importActions("package p\nimport \"fmt\"\nvar value=fmt.Sprint(2)"));await(()->!onSave().hasPendingActions());
+        assertEquals(input,file.document.getText());assertEquals(input,Files.readString(file.path));
+    }
+
+    public void testDisablingCodeActionFeatureRejectsPendingImports() throws Exception {
+        var file=file("imports.go","package p\nvar value = 0");startImportServer(file);enableImports();
+        FormatOnSaveOptions.getInstance(getProject()).setRunOnSaveEnabled(false);server.importDelayed=new CompletableFuture<>();
+        String input="package p\nvar value=fmt.Sprint(2)";change(file,input);triggerSave(file);await(()->server.importRequests.get()==1);
+        importFeatureEnabled=false;
+        server.importDelayed.complete(server.importActions("package p\nimport \"fmt\"\nvar value=fmt.Sprint(2)"));await(()->!onSave().hasPendingActions());
+        assertEquals(input,file.document.getText());assertEquals(input,Files.readString(file.path));
+    }
+
+    public void testInvalidImportCommandDoesNotExecuteOrFallThroughToFormatting() throws Exception {
+        var file=file("imports.go","package p\nvar value = 0");startImportServer(file);enableImports();
+        server.importDelayed=new CompletableFuture<>();String input="package p\nvar value=2";change(file,input);triggerSave(file);
+        await(()->server.importRequests.get()==1);
+        server.importDelayed.complete(List.of(org.eclipse.lsp4j.jsonrpc.messages.Either.forLeft(new Command("Forbidden","must.not.execute"))));
+        await(()->!onSave().hasPendingActions());assertEquals(0,server.requests.get());assertEquals(0,server.commands.get());assertEquals(0,server.resolutions.get());
+        assertEquals(input,file.document.getText());assertEquals(input,Files.readString(file.path));
+    }
+
+    public void testImportOnlySavePreservesCrLfAndSupportsUndoRedo() throws Exception {
+        var file=file("imports.go","package p\r\nvar value = 0");startImportServer(file);enableImports();
+        FormatOnSaveOptions.getInstance(getProject()).setRunOnSaveEnabled(false);
+        String input="package p\nvar value=fmt.Sprint(2)";server.organized="package p\nimport \"fmt\"\nvar value=fmt.Sprint(2)";
+        change(file,input);save(file);String saved="package p\r\nimport \"fmt\"\r\nvar value=fmt.Sprint(2)";
+        assertEquals(saved,Files.readString(file.path));assertEquals(server.organized,file.document.getText());
+        var undo=com.intellij.openapi.command.undo.UndoManager.getInstance(getProject());
+        var editor=com.intellij.openapi.fileEditor.impl.text.TextEditorProvider.getInstance().getTextEditor(file.editor);
+        assertTrue(undo.isUndoAvailable(editor));undo.undo(editor);assertEquals(input,file.document.getText());assertEquals(saved,Files.readString(file.path));
+        assertTrue(undo.isRedoAvailable(editor));undo.redo(editor);assertEquals(server.organized,file.document.getText());assertEquals(saved,Files.readString(file.path));
+    }
+
+    public void testImportOnlyNoOverlayDoesNotStartTheServer() throws Exception {
+        var file=file("imports.go","package p\nvar value = 0");enableImports();
+        FormatOnSaveOptions.getInstance(getProject()).setRunOnSaveEnabled(false);
+        String input="package p\nvar value=fmt.Sprint(2)";change(file,input);save(file);
+        assertEquals(input,Files.readString(file.path));assertTrue(LanguageServiceAccessor.getInstance(getProject()).getStartedServers().isEmpty());
+    }
+
+    public void testFormattingFailureAfterValidImportsRetainsOnlyTheValidImportEdit() throws Exception {
+        var file=file("imports.go","package p\nvar value = 0");startImportServer(file);enableImports();
+        server.organized="package p\nimport \"fmt\"\nvar value=fmt.Sprint(2)";
+        server.delayed=CompletableFuture.failedFuture(new IllegalStateException("controlled format failure"));
+        change(file,"package p\nvar value=fmt.Sprint(2)");save(file);
+        assertEquals(1,server.importRequests.get());assertEquals(1,server.requests.get());
+        assertEquals(server.organized,file.document.getText());assertEquals(server.organized,Files.readString(file.path));
+    }
+
+    public void testChangedLinesFormattingPreferenceDoesNotDisableExplicitImportOptimization() throws Exception {
+        var file=file("imports.go","package p\nvar value = 0");startImportServer(file);enableImports();
+        com.intellij.testFramework.ServiceContainerUtil.replaceService(
+            com.intellij.openapi.application.ApplicationManager.getApplication(),
+            com.intellij.codeInsight.actions.VcsFacade.class,new com.intellij.codeInsight.actions.VcsFacade(){
+                @Override public boolean hasActiveVcss(Project project){return true;}
+            },getTestRootDisposable());
+        var state=state(true,false,GoFileType.INSTANCE.getName());
+        state.addContent(new Element("option").setAttribute("name","myFormatOnlyChangedLines").setAttribute("value","true"));
+        load(FormatOnSaveOptions.getInstance(getProject()),state);
+        server.organized="package p\nimport \"fmt\"\nvar value=fmt.Sprint(2)";
+        change(file,"package p\nvar value=fmt.Sprint(2)");save(file);
+        assertEquals(1,server.importRequests.get());assertEquals(0,server.requests.get());
+        assertEquals(server.organized,file.document.getText());assertEquals(server.organized,Files.readString(file.path));
+    }
+
+    public void testNoOpImportsStillFormatTheSameCurrentOverlay() throws Exception {
+        var file=file("imports.go","package p\nvar value = 0");startImportServer(file);enableImports();
+        String input="package p\nvar value=2";server.formatted="package p\n\nvar value = 2\n";
+        change(file,input);save(file);
+        assertEquals(1,server.importRequests.get());assertEquals(1,server.requests.get());
+        assertEquals(server.lastImportVersion,server.lastFormatVersion);assertEquals(input,server.lastInput);
+        assertEquals(server.formatted,Files.readString(file.path));
+        var undo=com.intellij.openapi.command.undo.UndoManager.getInstance(getProject());
+        var editor=com.intellij.openapi.fileEditor.impl.text.TextEditorProvider.getInstance().getTextEditor(file.editor);
+        undo.undo(editor);assertEquals(input,file.document.getText());undo.redo(editor);assertEquals(server.formatted,file.document.getText());
+    }
+
+    public void testStaleImportVersionRejectsAllEditsAndDoesNotFormat() throws Exception {
+        var file=file("imports.go","package p\nvar value = 0");startImportServer(file);enableImports();
+        String input="package p\nvar value=fmt.Sprint(2)";
+        server.importDelayed=new CompletableFuture<>();change(file,input);triggerSave(file);await(()->server.importRequests.get()==1);
+        var response=server.importActions("package p\nimport \"fmt\"\nvar value=fmt.Sprint(2)");
+        response.getFirst().getRight().getEdit().getDocumentChanges().getFirst().getLeft().getTextDocument().setVersion(server.lastImportVersion-1);
+        server.importDelayed.complete(response);await(()->!onSave().hasPendingActions());
+        assertEquals(0,server.requests.get());assertEquals(input,file.document.getText());assertEquals(input,Files.readString(file.path));
+    }
+
+    public void testTypingWhileFormattingKeepsAlreadyAppliedImportsAndRejectsLateFormat() throws Exception {
+        var file=file("imports.go","package p\nvar value = 0");startImportServer(file);enableImports();
+        String input="package p\nvar value=fmt.Sprint(2)";
+        server.organized="package p\nimport \"fmt\"\nvar value=fmt.Sprint(2)";
+        server.delayed=new CompletableFuture<>(){@Override public boolean cancel(boolean interrupt){return false;}};
+        change(file,input);triggerSave(file);await(()->server.requests.get()==1);
+        assertEquals(server.organized,file.document.getText());assertEquals(input,Files.readString(file.path));
+        String typed=server.organized+" // typing after import edits";change(file,typed);await(()->!onSave().hasPendingActions());
+        server.delayed.complete(server.edits("package p\n\nimport \"fmt\"\n\nvar value = fmt.Sprint(2)\n"));
+        PlatformTestUtil.dispatchAllEventsInIdeEventQueue();
+        assertEquals(typed,file.document.getText());assertEquals(input,Files.readString(file.path));assertTrue(manager().isDocumentUnsaved(file.document));
+        var undo=com.intellij.openapi.command.undo.UndoManager.getInstance(getProject());
+        var editor=com.intellij.openapi.fileEditor.impl.text.TextEditorProvider.getInstance().getTextEditor(file.editor);
+        undo.undo(editor);assertEquals(server.organized,file.document.getText());
+        undo.undo(editor);assertEquals(input,file.document.getText());
+    }
+
+    private void enableImports(){loadImportState(state(true,false,GoFileType.INSTANCE.getName()));}
+    private void startImportServer(Source source)throws Exception{importFixture=true;startServer(source);}
+    @SuppressWarnings({"rawtypes","unchecked"})
+    private static void copyImportState(OptimizeImportsOnSaveOptions target,OptimizeImportsOnSaveOptions source){((PersistentStateComponent)target).loadState(source.getState());}
+    @SuppressWarnings({"rawtypes","unchecked"})
+    private void loadImportState(Element xml){var options=OptimizeImportsOnSaveOptions.getInstance(getProject());Object current=options.getState();Object state=XmlSerializer.deserialize(xml,current.getClass());((PersistentStateComponent)options).loadState(state);}
+
     private Source file(String name, String text) throws Exception {
         Path path = directory.resolve(name);Files.writeString(path, text);
         VirtualFile file = LocalFileSystem.getInstance().refreshAndFindFileByNioFile(path);assertNotNull(file);
@@ -347,7 +519,11 @@ public final class GoFormatOnSaveTest extends BasePlatformTestCase {
         fixtureDefinition = new LanguageServerDefinition("goforge.test.save-format", "Save formatting fixture", "In-memory test LSP", false, 60, false) {
             @Override public StreamConnectionProvider createConnectionProvider(Project project) { return server; }
             @Override public com.redhat.devtools.lsp4ij.client.features.LSPClientFeatures createClientFeatures() {
-                return new com.redhat.devtools.lsp4ij.client.features.LSPClientFeatures().setFormattingFeature(
+                var features=importFixture?new dev.goforge.lsp.GoplsClientFeatures():new com.redhat.devtools.lsp4ij.client.features.LSPClientFeatures();
+                if(importFixture)features.setCodeActionFeature(new com.redhat.devtools.lsp4ij.client.features.LSPCodeActionFeature(){
+                    @Override public boolean isEnabled(PsiFile file){return importFeatureEnabled&&super.isEnabled(file);}
+                });
+                return features.setFormattingFeature(
                     new com.redhat.devtools.lsp4ij.client.features.LSPFormattingFeature() {
                         @Override public boolean isEnabled(PsiFile file) { return formattingEnabled && super.isEnabled(file); }
                     });
@@ -372,6 +548,13 @@ public final class GoFormatOnSaveTest extends BasePlatformTestCase {
         private Future<?> listener;
         final Map<String, String> documents = new ConcurrentHashMap<>();
         final AtomicInteger requests = new AtomicInteger();
+        final AtomicInteger importRequests=new AtomicInteger(),commands=new AtomicInteger(),resolutions=new AtomicInteger();
+        final Map<String,Integer> versions=new ConcurrentHashMap<>();
+        volatile String organized,lastImportUri,lastImportInput;
+        volatile int lastImportVersion,lastFormatVersion;
+        volatile List<String> lastImportOnly;
+        volatile List<Diagnostic> lastImportDiagnostics;
+        volatile CompletableFuture<List<org.eclipse.lsp4j.jsonrpc.messages.Either<Command,CodeAction>>> importDelayed;
         volatile String formatted, lastUri, lastInput;
         volatile CompletableFuture<List<? extends TextEdit>> delayed;
         WireServer() throws IOException { clientOutput = new PipedOutputStream(serverInput);serverOutput = new PipedOutputStream(clientInput); }
@@ -387,24 +570,42 @@ public final class GoFormatOnSaveTest extends BasePlatformTestCase {
             if (listener != null) listener.cancel(true);executor.shutdownNow();
         }
         @Override public CompletableFuture<InitializeResult> initialize(InitializeParams params) {
-            var capabilities = new ServerCapabilities();capabilities.setDocumentFormattingProvider(true);capabilities.setTextDocumentSync(TextDocumentSyncKind.Full);
+            var capabilities = new ServerCapabilities();capabilities.setDocumentFormattingProvider(true);capabilities.setTextDocumentSync(TextDocumentSyncKind.Full);capabilities.setCodeActionProvider(new CodeActionOptions(List.of(CodeActionKind.SourceOrganizeImports)));
             return CompletableFuture.completedFuture(new InitializeResult(capabilities));
         }
         @Override public CompletableFuture<Object> shutdown() { return CompletableFuture.completedFuture(null); }
         @Override public void exit() {}
         @Override public TextDocumentService getTextDocumentService() { return this; }
         @Override public WorkspaceService getWorkspaceService() { return this; }
-        @Override public void didOpen(DidOpenTextDocumentParams params) { documents.put(params.getTextDocument().getUri(), params.getTextDocument().getText()); }
-        @Override public void didChange(DidChangeTextDocumentParams params) { documents.put(params.getTextDocument().getUri(), params.getContentChanges().getLast().getText()); }
+        @Override public void didOpen(DidOpenTextDocumentParams params) { documents.put(params.getTextDocument().getUri(), params.getTextDocument().getText());versions.put(params.getTextDocument().getUri(),params.getTextDocument().getVersion()); }
+        @Override public void didChange(DidChangeTextDocumentParams params) { documents.put(params.getTextDocument().getUri(), params.getContentChanges().getLast().getText());versions.put(params.getTextDocument().getUri(),params.getTextDocument().getVersion()); }
         @Override public void didClose(DidCloseTextDocumentParams params) { documents.remove(params.getTextDocument().getUri()); }
         @Override public void didSave(DidSaveTextDocumentParams params) {}
         @Override public void didChangeConfiguration(DidChangeConfigurationParams params) {}
         @Override public void didChangeWatchedFiles(DidChangeWatchedFilesParams params) {}
         @Override public CompletableFuture<List<? extends TextEdit>> formatting(DocumentFormattingParams params) {
-            lastUri = params.getTextDocument().getUri();lastInput = documents.get(lastUri);requests.incrementAndGet();
+            lastUri = params.getTextDocument().getUri();lastInput = documents.get(lastUri);lastFormatVersion=versions.getOrDefault(lastUri,-1);requests.incrementAndGet();
             if (delayed != null) return delayed;
             if (formatted == null) return CompletableFuture.failedFuture(new ResponseErrorException(new ResponseError(ResponseErrorCode.RequestFailed, "Test formatter response was not configured", null)));
             return CompletableFuture.completedFuture(edits(formatted));
+        }
+        @Override public CompletableFuture<List<org.eclipse.lsp4j.jsonrpc.messages.Either<Command,CodeAction>>> codeAction(CodeActionParams params){
+            lastImportUri=params.getTextDocument().getUri();lastImportInput=documents.get(lastImportUri);lastImportVersion=versions.get(lastImportUri);
+            lastImportOnly=params.getContext().getOnly();lastImportDiagnostics=params.getContext().getDiagnostics();importRequests.incrementAndGet();
+            return importDelayed!=null?importDelayed:CompletableFuture.completedFuture(organized==null?List.of():importActions(organized));
+        }
+        @Override public CompletableFuture<CodeAction> resolveCodeAction(CodeAction action){resolutions.incrementAndGet();return CompletableFuture.failedFuture(new AssertionError("Unexpected resolve"));}
+        @Override public CompletableFuture<Object> executeCommand(ExecuteCommandParams params){commands.incrementAndGet();return CompletableFuture.failedFuture(new AssertionError("Unexpected command"));}
+        @SuppressWarnings({"rawtypes", "unchecked"})
+        List<org.eclipse.lsp4j.jsonrpc.messages.Either<Command,CodeAction>> importActions(String replacement){
+            var lines=lastImportInput.split("\n",-1);var end=new Position(lines.length-1,lines[lines.length-1].length());
+            var action=new CodeAction("Organize Imports");action.setKind(CodeActionKind.SourceOrganizeImports);
+            // The pinned runtime's wire serializer requires Either<TextEdit, SnippetTextEdit>;
+            // the platform compile API still declares List<TextEdit>.
+            var document=new TextDocumentEdit(new VersionedTextDocumentIdentifier(lastImportUri,lastImportVersion),
+                (List)List.of(org.eclipse.lsp4j.jsonrpc.messages.Either.forLeft(new TextEdit(new Range(new Position(0,0),end),replacement))));
+            action.setEdit(new WorkspaceEdit(List.of(org.eclipse.lsp4j.jsonrpc.messages.Either.forLeft(document))));
+            return List.of(org.eclipse.lsp4j.jsonrpc.messages.Either.forRight(action));
         }
         List<? extends TextEdit> edits(String replacement) {
             var lines=lastInput.split("\n",-1);var end=new Position(lines.length-1,lines[lines.length-1].length());

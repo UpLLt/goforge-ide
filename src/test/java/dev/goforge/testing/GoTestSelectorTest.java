@@ -88,4 +88,32 @@ public final class GoTestSelectorTest {
         assertThrows(IllegalArgumentException.class, () -> GoTestSelector.validateGoFlags("\"-race\"'-test.run=TestA'"));
         GoTestSelector.validateGoFlags("'-ldflags=-X main.message=-run=TestOther'");
     }
+
+    @Test public void benchmarkIsADistinctSingleTopLevelSelectionWithTestsDisabled() {
+        var selection=GoTestSelection.benchmark("Benchmark中文");
+        assertEquals(GoTestSelection.Kind.BENCHMARK,selection.kind());assertFalse(selection.rerun());
+        assertEquals(List.of("-run=^$","-bench=^Benchmark中文$"),GoTestSelector.arguments(selection));
+        assertEquals(GoTestSelection.Kind.TESTS,GoTestSelection.single("TestOne").kind());
+        assertEquals(selection,GoTestSelection.declaration("Benchmark中文","benchmark"));
+        assertThrows(IllegalArgumentException.class,()->GoTestSelection.declaration("Benchmark中文","test"));
+        assertThrows(IllegalArgumentException.class,()->GoTestSelection.declaration("TestOne","benchmark"));
+        assertThrows(IllegalArgumentException.class,()->GoTestSelection.declaration("TestOne","example"));
+    }
+    @Test public void benchmarkRejectsMultipleSubbenchmarkFuzzInvalidNameAndRerunSelections() {
+        for(String name:List.of("TestOne","FuzzOne","Benchmarklower","BenchmarkOne/child","BenchmarkOne|BenchmarkTwo","BenchmarkOne\n", "BenchmarkOne\uD800"))
+            assertThrows(name,IllegalArgumentException.class,()->GoTestSelection.benchmark(name));
+        assertThrows(IllegalArgumentException.class,()->new GoTestSelection(List.of("BenchmarkOne","BenchmarkTwo"),false,GoTestSelection.Kind.BENCHMARK));
+        assertThrows(IllegalArgumentException.class,()->new GoTestSelection(List.of("BenchmarkOne"),true,GoTestSelection.Kind.BENCHMARK));
+        assertEquals(List.of("-run=^$","-bench=^Benchmark$"),GoTestSelector.arguments(GoTestSelection.benchmark("Benchmark")));
+    }
+    @Test public void selectedBenchmarkAcceptsTimingAndMemoryFlagsButNeverASecondSelector() {
+        GoTestSelector.validateArguments(List.of("-benchtime=1x","-benchmem"),"-mod=readonly");
+        assertEquals(List.of("list","-json","."),GoTestPackageIndex.listArguments(
+                List.of("test","-json","-benchtime=1x","-benchmem","-run=^$","-bench=^BenchmarkOne$","."),List.of(".")));
+        for(String flag:List.of("-bench=.","-test.bench=Other","-run=TestOne","-test.run=TestOne","-count=2","-fuzz=FuzzOne")){
+            assertThrows(IllegalArgumentException.class,()->GoTestSelector.validateArguments(List.of(flag),""));
+            assertThrows(IllegalArgumentException.class,()->GoTestSelector.validateArguments(List.of(),flag));
+        }
+    }
+
 }

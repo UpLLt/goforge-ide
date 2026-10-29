@@ -58,4 +58,10 @@ public class GoSelectedTestDebugPlanTest {
         assertEquals(List.of("-buildvcs"), launch.get("buildFlags"));
         assertTrue(((List<?>) launch.get("args")).contains("-test.short"));
     }
+
+    @Test public void selectedBenchmarkCannotBecomeAnOrdinaryTestDebugFilter() {
+        var error=assertThrows(IllegalArgumentException.class,()->GoSelectedTestDebugPlan.launch("/project",GoTestSelection.benchmark("BenchmarkOne"),List.of()));
+        assertTrue(error.getMessage().contains("use Run"));
+    }
+
 }

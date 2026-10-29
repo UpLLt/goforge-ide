@@ -57,4 +57,16 @@ public final class GoTestSourceIndexTest {
         assertEquals("package p\n// 前🙂\nfunc TestA() {}\n", GoTestSourceIndex.normalizeText("package p\r\n// 前🙂\rfunc TestA() {}\r\n"));
     }
     private static int bytes(String s, int offset) { return s.substring(0, offset).getBytes(StandardCharsets.UTF_8).length; }
+
+    @Test public void decoderPreservesBenchmarkKindAndRefusesNameKindConfusion() throws Exception {
+        String text="package p\nfunc BenchmarkOne(b *testing.B) {}\n";
+        String json="{\"passed\":true,\"declarations\":[{\"name\":\"BenchmarkOne\",\"kind\":\"benchmark\",\"start\":10,\"end\":43,\"nameStart\":15}]}";
+        var snapshot=GoTestSourceIndex.decode(Path.of("x_test.go"),text,json);
+        assertEquals("benchmark",snapshot.containing(20).kind());assertTrue(GoTestSelection.benchmark("BenchmarkOne").matchesDeclaration(snapshot.named("BenchmarkOne")));
+        assertFalse(GoTestSelection.single("TestOne").matchesDeclaration(snapshot.named("BenchmarkOne")));
+        assertThrows(IOException.class,()->GoTestSourceIndex.decode(Path.of("x_test.go"),text,json.replace("\"kind\":\"benchmark\"","\"kind\":\"test\"")));
+        var unavailable=GoTestSourceIndex.decode(Path.of("x_test.go"),text,json.replace("\"kind\":\"benchmark\"","\"kind\":\"unsupported-benchmark\""));
+        assertFalse(GoTestSelection.benchmark("BenchmarkOne").matchesDeclaration(unavailable.named("BenchmarkOne")));
+    }
+
 }

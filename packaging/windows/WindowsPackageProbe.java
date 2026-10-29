@@ -10,6 +10,8 @@ import java.nio.file.Path;
 /** Headless native-launcher verification; no IDE project, UI or network is started. */
 public final class WindowsPackageProbe {
     public static void main(String[] args) throws Exception {
+        // This custom main bypasses IDE bootstrap; honor its explicitly supplied properties file.
+        PathManager.loadProperties();
         String name = ApplicationNamesInfo.getInstance().getFullProductName();
         Path home = Path.of(PathManager.getHomePath()).toRealPath();
         if (!"GoForge".equals(name)) throw new IllegalStateException("Unexpected product: " + name);

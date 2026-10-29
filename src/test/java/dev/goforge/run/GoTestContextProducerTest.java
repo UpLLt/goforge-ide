@@ -47,12 +47,14 @@ public final class GoTestContextProducerTest extends BasePlatformTestCase {
     private LanguageServerDefinition server;
     private boolean serverEnabled;
     private String previousGo;
+    private String previousBuildTags;
     private static final String TEXT = "package fixture\n\nfunc TestOne(t *testing.T) {}\nfunc TestTwo(t *testing.T) {}\n";
     @Override protected void setUp() throws Exception {
         super.setUp();
         server = LanguageServersRegistry.getInstance().getServerDefinition("goforge.gopls");
         serverEnabled = server.isEnabled(getProject()); server.setEnabled(false, getProject());
         previousGo = GoForgeSettings.getInstance().goPath;
+        previousBuildTags = dev.goforge.settings.GoProjectSettings.getInstance(getProject()).buildTags;
         GoForgeSettings.getInstance().goPath = Path.of(System.getProperty("java.home"), "bin", HostTools.executableName("java")).toString();
         directory = Files.createTempDirectory("goforge-context-").toRealPath();
         contentRoot = LocalFileSystem.getInstance().refreshAndFindFileByNioFile(directory); assertNotNull(contentRoot);
@@ -69,7 +71,10 @@ public final class GoTestContextProducerTest extends BasePlatformTestCase {
             PsiTestUtil.removeContentEntry(myFixture.getModule(), contentRoot);
             server.setEnabled(serverEnabled, getProject()); GoForgeSettings.getInstance().goPath = previousGo;
             try (var paths = Files.walk(directory)) { for (var p : paths.sorted(java.util.Comparator.reverseOrder()).toList()) Files.deleteIfExists(p); }
-        } finally { super.tearDown(); }
+        } finally {
+            dev.goforge.settings.GoProjectSettings.getInstance(getProject()).buildTags = previousBuildTags;
+            super.tearDown();
+        }
     }
     public void testTwoFunctionsHaveDistinctResolvedConfigurationsAndResolverRunsOffEdt() throws Exception {
         open(TEXT);
@@ -483,4 +488,51 @@ public final class GoTestContextProducerTest extends BasePlatformTestCase {
     private static void await(java.util.function.BooleanSupplier condition) {
         PlatformTestUtil.waitWithEventsDispatching("Go test context work did not finish",condition,15);
     }
+
+    private static final String BENCHMARK_TEXT="package fixture\nimport \"testing\"\nfunc BenchmarkOne(b *testing.B) {}\nfunc BenchmarkTwo(b *testing.B) {}\nfunc TestOne(t *testing.T) {}\n";
+    private static GoTestSourceIndex.Snapshot benchmarkSnapshot(Path file,String text,String kind){
+        var declarations=new java.util.ArrayList<GoTestSourceIndex.Declaration>();
+        for(String name:List.of("BenchmarkOne","BenchmarkTwo","TestOne")){
+            int nameOffset=text.indexOf(name),start=text.lastIndexOf("func",nameOffset),end=text.indexOf('}',nameOffset)+1;
+            declarations.add(new GoTestSourceIndex.Declaration(name,name.startsWith("Benchmark")?kind:"test",start,end,nameOffset));
+        }
+        return new GoTestSourceIndex.Snapshot(file,GoTestSourceIndex.sha256(text.getBytes(java.nio.charset.StandardCharsets.UTF_8)),text,declarations);
+    }
+    public void testCurrentFileLaunchCaretRetainsBenchmarkKindThroughCommitAndSavedConfiguration() throws Exception {
+        dev.goforge.settings.GoProjectSettings.getInstance(getProject()).buildTags="benchmark_fixture";
+        open(BENCHMARK_TEXT);installCurrentFileResolver((go,env,file,text,cancelled)->benchmarkSnapshot(file,text,"benchmark"));
+        var original=currentFileConfiguration();var copy=original.clone();
+        var pending=GoRunConfigurationProducer.capturePendingExecution(copy,environment(original,BENCHMARK_TEXT.indexOf("BenchmarkTwo"),true));
+        assertNull(backgroundFailure(()->GoRunConfigurationProducer.resolvePendingExecution(pending,()->false)));
+        assertEquals(GoTestSelection.benchmark("BenchmarkTwo"),copy.getTestSelection());
+        assertEquals(List.of("test","-tags=benchmark_fixture","-json","-run=^$","-bench=^BenchmarkTwo$","."),copy.createCommandLine().getParametersList().getList());
+        GoRunConfigurationProducer.commitPendingExecution(pending);assertEquals(copy.getTestSelection(),original.getTestSelection());
+        var xml=new org.jdom.Element("configuration");original.writeExternal(xml);var restored=configuration();restored.readExternal(xml);assertEquals(original.getTestSelection(),restored.getTestSelection());
+    }
+    public void testEditorContextFirstRunSelectsOnlyTheBenchmarkAtCaret() throws Exception {
+        dev.goforge.settings.GoProjectSettings.getInstance(getProject()).buildTags="benchmark_fixture";
+        open(BENCHMARK_TEXT);
+        var producer=new GoRunConfigurationProducer((go,env,file,text,cancelled)->benchmarkSnapshot(file,text,"benchmark"));
+        var from=produce(producer,BENCHMARK_TEXT.indexOf("BenchmarkOne"));var ran=new AtomicBoolean();
+        producer.onFirstRun(from,context(BENCHMARK_TEXT.indexOf("BenchmarkOne")),()->ran.set(true));await(ran::get);
+        var selected=(GoRunConfiguration)from.getConfiguration();assertEquals(GoTestSelection.benchmark("BenchmarkOne"),selected.getTestSelection());
+        assertEquals(List.of("test","-tags=benchmark_fixture","-json","-run=^$","-bench=^BenchmarkOne$","."),selected.createCommandLine().getParametersList().getList());
+    }
+    public void testUnsupportedBenchmarkSpanFailsWithoutChoosingPackageAndStillAllowsTestDeclaration() throws Exception {
+        open(BENCHMARK_TEXT);installCurrentFileResolver((go,env,file,text,cancelled)->benchmarkSnapshot(file,text,"unsupported-benchmark"));
+        var original=currentFileConfiguration();var pending=GoRunConfigurationProducer.capturePendingExecution(original.clone(),environment(original,BENCHMARK_TEXT.indexOf("BenchmarkOne"),true));
+        var error=backgroundFailure(()->GoRunConfigurationProducer.resolvePendingExecution(pending,()->false));assertNotNull(error);assertTrue(error.getMessage().contains("no package fallback"));
+        var ordinary=currentFileConfiguration();var copy=ordinary.clone();var test=GoRunConfigurationProducer.capturePendingExecution(copy,environment(ordinary,BENCHMARK_TEXT.indexOf("TestOne"),true));
+        assertNull(backgroundFailure(()->GoRunConfigurationProducer.resolvePendingExecution(test,()->false)));assertEquals(GoTestSelection.single("TestOne"),copy.getTestSelection());
+    }
+    public void testBenchmarkPendingSelectionRejectsNewConfigurationAndSourceEdits() throws Exception {
+        open(BENCHMARK_TEXT);installCurrentFileResolver((go,env,file,text,cancelled)->benchmarkSnapshot(file,text,"benchmark"));
+        var original=currentFileConfiguration();var copy=original.clone();var pending=GoRunConfigurationProducer.capturePendingExecution(copy,environment(original,BENCHMARK_TEXT.indexOf("BenchmarkOne"),true));
+        assertNull(backgroundFailure(()->GoRunConfigurationProducer.resolvePendingExecution(pending,()->false)));
+        original.setGoArguments("-benchtime=2x");assertThrows(com.intellij.execution.ExecutionException.class,()->GoRunConfigurationProducer.commitPendingExecution(pending));
+        assertEquals("-benchtime=2x",original.getGoArguments());assertNull(original.getTestSelection());
+        WriteAction.run(()->myFixture.getEditor().getDocument().setText(BENCHMARK_TEXT+"// changed\n"));
+        assertThrows(com.intellij.execution.ExecutionException.class,()->GoTestContextSelection.validateBeforeRun(copy));
+    }
+
 }

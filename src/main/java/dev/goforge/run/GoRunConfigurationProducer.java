@@ -168,6 +168,9 @@ public final class GoRunConfigurationProducer extends LazyRunConfigurationProduc
         var snapshot = request.resolver().inspect(go, line.getEffectiveEnvironment(), Path.of(request.file().getPath()), request.text(), stopping);
         if (snapshot == null || !snapshot.file().equals(Path.of(request.file().getPath()).toAbsolutePath().normalize())
                 || !snapshot.text().equals(request.text())) throw new ExecutionException("Go test discovery did not match the captured source.");
+        var selected = snapshot.containing(request.offset());
+        if (selected != null && "unsupported-benchmark".equals(selected.kind()))
+            throw new ExecutionException("This benchmark signature is unsupported. Select a top-level Benchmark function with one *testing.B parameter, using a direct testing import or named import alias, and no result or type parameters; no package fallback was started.");
         return snapshot;
     }
     @Override public @NotNull ConfigurationFactory getConfigurationFactory() {
@@ -195,6 +198,7 @@ public final class GoRunConfigurationProducer extends LazyRunConfigurationProduc
             GoTestSourceIndex.Snapshot cached = GoTestSourceIndex.cached(Path.of(file.getPath()), request.text());
             if (cached != null) {
                 var declaration = cached.containing(request.offset());
+                if (declaration != null && "unsupported-benchmark".equals(declaration.kind())) return false;
                 applySelection(configuration, declaration);
                 if (declaration != null) {
                     PsiElement identifier = psi.findElementAt(declaration.nameOffset());
@@ -220,7 +224,8 @@ public final class GoRunConfigurationProducer extends LazyRunConfigurationProduc
         var cached = GoTestSourceIndex.cached(Path.of(file.getPath()), current.text());
         if (cached != null) {
             var declaration = cached.containing(current.offset());
-            return Objects.equals(configuration.getTestSelection(), declaration == null ? null : GoTestSelection.single(declaration.name()));
+            if (declaration != null && "unsupported-benchmark".equals(declaration.kind())) return false;
+            return Objects.equals(configuration.getTestSelection(), declaration == null ? null : GoTestSelection.declaration(declaration.name(), declaration.kind()));
         }
         Request pending = configuration.getCopyableUserData(REQUEST);
         return pending != null && pending.file().equals(current.file()) && pending.offset() == current.offset()
@@ -246,7 +251,7 @@ public final class GoRunConfigurationProducer extends LazyRunConfigurationProduc
                 editor == null && location instanceof PsiFile, resolver);
     }
     private static void applySelection(GoRunConfiguration configuration, GoTestSourceIndex.Declaration declaration) {
-        configuration.setTestSelection(declaration == null ? null : GoTestSelection.single(declaration.name()));
+        configuration.setTestSelection(declaration == null ? null : GoTestSelection.declaration(declaration.name(), declaration.kind()));
         configuration.setName(declaration == null ? "test " + Path.of(configuration.getDirectory()).getFileName() : declaration.name());
     }
     private void resolveFirstRun(GoRunConfiguration configuration, Request request, Runnable performRunnable) {

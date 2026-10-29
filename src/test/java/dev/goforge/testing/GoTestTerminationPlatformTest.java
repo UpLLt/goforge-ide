@@ -165,12 +165,37 @@ public final class GoTestTerminationPlatformTest extends BasePlatformTestCase {
         assertTrue(session.root().getAllTests().stream().anyMatch(node -> node.isLeaf() && node.isDefect() && node.getLocationUrl() == null));
     }
 
+    public void testActualHandlerFinalizationDoesNotReportAnObservedSelectedBenchmarkMissing() throws Exception {
+        var session=start("benchmark",GoTestSelection.benchmark("BenchmarkOne"));session.awaitFinished();
+        assertEquals(Integer.valueOf(0),session.handler.getExitCode());assertFalse(session.root().isDefect());
+        assertTrue(session.node("BenchmarkOne").isPassed());assertTrue(session.registry.missingRequestedTests().isEmpty());
+        assertTrue(session.registry.knownTargets().isEmpty());
+        assertNull(session.properties.selectedConfiguration(session.node("BenchmarkOne")));
+        assertEquals(0,session.console.getResultsViewer().getFailedTestCount());
+    }
+    public void testActualHandlerStillFailsASelectedBenchmarkWhichWasNeverObserved() throws Exception {
+        var session=start("benchmark-missing",GoTestSelection.benchmark("BenchmarkOne"));session.awaitFinished();
+        assertEquals(Integer.valueOf(0),session.handler.getExitCode());assertTrue(session.root().isDefect());
+        assertEquals(List.of("BenchmarkOne"),session.registry.missingRequestedTests());
+        assertTrue(session.console.getResultsViewer().getFailedTestCount()>0);
+    }
+    public void testActualStopKeepsAnObservedBenchmarkInterruptedWithoutInventingSelectionFailure() throws Exception {
+        var session=start("benchmark-open",GoTestSelection.benchmark("BenchmarkOne"));session.awaitReady();
+        session.node("BenchmarkOne");session.handler.destroyProcess();session.awaitFinished();
+        assertTrue(session.registry.wasLocallyTerminated());assertTrue(session.node("BenchmarkOne").wasTerminated());
+        assertTrue(session.registry.missingRequestedTests().isEmpty());assertEquals(0,session.console.getResultsViewer().getFailedTestCount());
+    }
+
     private Session start(String mode, GoTestSelection selection) throws Exception {
         StringBuilder source = new StringBuilder("package p\nimport \"testing\"\n");
         var declarations = new ArrayList<GoTestSourceIndex.Declaration>();
         for (String name : NAMES) {
             int offset = source.length(); source.append("func ").append(name).append("(t *testing.T) {}\n");
             declarations.add(new GoTestSourceIndex.Declaration(name, "test", offset, source.length(), offset + 5));
+        }
+        if(selection!=null&&selection.kind()==GoTestSelection.Kind.BENCHMARK){
+            int offset=source.length();source.append("func BenchmarkOne(b *testing.B) {}\n");
+            declarations.add(new GoTestSourceIndex.Declaration("BenchmarkOne","benchmark",offset,source.length(),offset+5));
         }
         Path file = directory.resolve("fixture_test.go"); Files.writeString(file, source);
         var virtual = LocalFileSystem.getInstance().refreshAndFindFileByNioFile(file); assertNotNull(virtual);
