@@ -17,8 +17,8 @@ GoForge 使用原创代码、公开的 IntelliJ Community 平台、LSP4IJ、gopl
 
 | 平台 | 包与验证情况 |
 | --- | --- |
-| macOS / Apple Silicon | macOS 13.5+；Full 27 包已审计，103 个真实包内重构场景通过独立读回，44 条 gopls 关闭阶段警告保留；Mac 锁定，本轮未执行 Full 27 界面功能组。此前 Full 24 包保留其独立的 72 场景通过记录。此前原生结果保留各自构建身份。ad-hoc 签名，尚无 Developer ID 公证。 |
-| Windows x64 | Full 24 第 16 次的 914 项产品测试及既存 POSIX 跳过、插件独立读回已通过，随后打包任务触及一小时上限并取消；未上传原生/方法报告或发行归档，具体阻塞阶段未知；Full 22 第 15 次后续包内方法清理失败，未生成发行归档；此前 Full 19 第 13 次已审计测试、9 组限定原生检查及完整应用归档。交互界面未验收，启动器无签名。见 [Windows 安装状态](docs/INSTALL.md#windows-x64)。 |
+| macOS / Apple Silicon | macOS 13.5+；Full 28 包与 926 项产品测试通过，全部 141 个包内场景独立验证通过；交互界面未验收。ad-hoc 签名，尚无 Developer ID 公证。 |
+| Windows x64 | Full 27 第 17 次通过产品/原生检查及 103 个包内场景，完整归档读回待完成。交互界面未验收、启动器无签名；见[Windows 安装状态](docs/INSTALL.md#windows-x64)。 |
 | Linux / 其他架构 | 暂无已验证的独立发行包。 |
 
 已准备的内部平台包均内置运行时、Go SDK、gopls、Delve、Node、Dev Containers CLI 和 JDBC 驱动。Docker、kubectl、Git、OpenSSH、Cgo 的 C 编译器及 macOS 调试前置工具使用系统安装。包校验值及“已准备”与“已公开发布”的区别见[安装指南](docs/INSTALL.md#prepared-package-identities)。
@@ -31,7 +31,7 @@ GoForge 使用原创代码、公开的 IntelliJ Community 平台、LSP4IJ、gopl
 | --- | --- |
 | Go 编辑 | 本地行/块注释、配对括号、限定块/圆括号/方括号续行缩进及原始字符串回车；gopls 补全、诊断、跳转、引用、重命名及可用代码动作；等待响应完成的 Go 默认保存格式化及手动 Reformat；独立控制的保存时导入整理先于格式化，另有手动 Optimize Imports 与保存类型列表中的 Go 选项；既有流程保留 macOS/Windows 平台与限定 Mac 原生证据；新续行行为通过 macOS 宿主测试及 3 项与 GoLand 对照的限定原生回车检查，对应 Full 19 的 Windows 产品测试已通过，Windows 原生交互界面仍待验收。 |
 | 项目与运行 | 应用/库模块、运行/构建/测试；顶层 Test/Example 选择、运行时子测试重跑、所属声明跳转及单包失败顶层测试重跑；本地终止保留已完成结果，未完成节点标为中断。支持单个顶层 Benchmark Run、受保护的完成节点重跑及 Debug/源码跳转，以及保存后从编辑器声明运行一次迭代的 Debug Go Benchmark at Caret；直接子基准选择仍不可用。各构建证据见下方验证范围。 |
-| 重构 | 项目内多文件预览与可撤销应用、提取声明到新文件、受保护的跨包参数重排/删除；独立操作支持为项目内已验证的直接调用新增一个标量参数并统一插入字面量默认值，含限定泛型普通函数调用，以及经类型检查的私有具体方法直接调用；普通导入走单模块离线编译检查，保留类型参数、约束与实参顺序。当前源码还支持单模块内经编译检查的普通函数标量参数/单返回值类型修改，以及受限私有具体方法的单个标量参数类型修改。新增独立的私有普通函数标量参数重排：通过带类型临时变量与整模块类型/编译检查，保留常量及静态函数调用实参的求值顺序。文件清单变化会使预览失效；拒绝不支持的调用形态和文件操作。 |
+| 重构 | 项目内多文件预览与可撤销应用、提取声明到新文件、受保护的跨包参数重排/删除；独立操作支持为项目内已验证的直接调用新增一个标量参数并统一插入字面量默认值，含限定泛型普通函数调用，以及经类型检查的私有具体方法直接调用；普通导入走单模块离线编译检查，保留类型参数、约束与实参顺序。当前源码还支持单模块内经编译检查的普通函数标量参数/单返回值类型修改，以及受限私有具体方法的单个标量参数或具名/未命名单返回值类型修改。新增独立的私有普通函数标量参数重排：通过带类型临时变量与整模块类型/编译检查，保留常量及静态函数调用实参的求值顺序。文件清单变化会使预览失效；拒绝不支持的调用形态和文件操作。 |
 | 调试 | 本地 Delve，含保留受支持参数的指定 Test/Example/子树调试；SSH 远端 package/test/executable 启动和 PID attach，支持经审阅的项目根 `go.work` 多模块；断点、栈、变量、表达式、步进和停止；远端包/测试会话暂停时可查看限定 SDK 及已选缓存依赖只读快照；依赖查看须单独模块与校验/缓存证明，可执行文件/attach 的 SDK 及依赖源码快照仍不支持。 |
 | 覆盖率与性能 | 单模块覆盖率及源码着色；CPU/内存采集与 pprof。 |
 | 数据库 | SQLite、PostgreSQL、MySQL/MariaDB；SQL、事务、按主键编辑、CSV、基础 schema 补全和估计执行计划。 |
@@ -62,9 +62,9 @@ GRADLE_USER_HOME="$PWD/.gradle-user-home" ./gradlew \
 
 ## 验证范围
 
-**当前已验证源码——Full 27。** 924 项 macOS 宿主 JUnit 全部通过（549 component、375 platform，120 份 XML、395 项冻结输入），独立构建与 Mac 归档读回通过。103 个真实包内重构场景全部使用包内实现和工具通过，无开发覆盖，保留 44 条 gopls 关闭阶段警告。新增范围包括暂停远端 Package/Tests 会话的已选缓存依赖源码查看，以及保留受支持实参调用求值顺序的私有普通函数标量参数重排。Mac 锁定，本轮未执行 Full 27 IDE GUI 功能组，本源码的 Windows 验收也未执行。Windows [第 16 次](https://github.com/UpLLt/goforge-ide/actions/runs/40869160021)使用冻结 Full 24：914 项产品测试通过、1 项既存 POSIX 专用跳过，测试/插件独立读回通过；打包任务触及一小时上限后取消，未上传原生/方法报告或发行归档，验证内部的具体阻塞阶段未知。第 15 次清理失败保留；Full 19 第 13 次仍是最新已完整独立审计的 Windows 归档，交互 GUI 未验收。
+**Full 28（Mac）：**926 项产品测试、独立构建/归档检查及全部 141 个包内重构场景通过。Mac 锁定，本轮没有 Full 28 交互式 IDE GUI 验收，该版本也未进行 Windows 验收。
 
-**既有 Windows 基线：**[第 13 次 CI](https://github.com/UpLLt/goforge-ide/actions/runs/40844074829)使用 Full 19：834 通过、1 项既存 POSIX 专用跳过，打包及九组限定原生检查通过。下载的报告与插件已独立核对，完整应用归档已通过独立读回；Windows 交互式界面未验收。
+**Windows：**[第 17 次](https://github.com/UpLLt/goforge-ide/actions/runs/40884184711)通过 Full 27 产品/原生检查及 103 个包内重构场景，完整应用归档读回与交互界面仍待验收。[详细证据及历史失败](docs/KNOWN-LIMITATIONS.md#verification-scope--验证范围)保留各自构建身份。
 
 **尚未验证与 GoLand 完整对齐。**完整验收为 **0/101**，表示整项验收数量，不是功能实现率。仓库保持私有，无公开 Release。包哈希与安装方式见[安装指南](docs/INSTALL.md#prepared-package-identities)，具体缺口与历史验证范围见[已知差距](docs/KNOWN-LIMITATIONS.md#verification-scope--验证范围)。
 

@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.*;
 
 /** Opt-in actual gopls plus compile-only planner probe on disposable projects; separate from JUnit and native UI. */
 public final class GoMethodScalarTypeProtocolProbe {
-    private static final List<String> CASES=List.of("value-imports","pointer-imports","parameter-incompatible-caller","parameter-incompatible-body","shadow-old-refused","shadow-new-refused","alias-shadow-refused","method-result-refused","dirty-unicode","init-and-testmain-not-run","interface-old-refused","interface-new-refused","interface-alias-refused","constraint-refused","anonymous-interface-refused","method-value-refused","method-expression-refused","promoted-refused","public-method-refused","public-receiver-refused","generic-receiver-refused","alias-receiver-refused","missing-reference-refused","outside-reference-refused","metadata-change-after-preview","goenv-change-after-preview","sdk-change-after-preview","default-cgo-parameter","cancelled-after-references");
+    private static final List<String> CASES=List.of("value-imports","pointer-imports","parameter-incompatible-caller","parameter-incompatible-body","shadow-old-refused","shadow-new-refused","alias-shadow-refused","method-result-incompatible-body","dirty-unicode","init-and-testmain-not-run","interface-old-refused","interface-new-refused","interface-alias-refused","constraint-refused","anonymous-interface-refused","method-value-refused","method-expression-refused","promoted-refused","public-method-refused","public-receiver-refused","generic-receiver-refused","alias-receiver-refused","missing-reference-refused","outside-reference-refused","metadata-change-after-preview","goenv-change-after-preview","sdk-change-after-preview","default-cgo-parameter","cancelled-after-references");
     public static void main(String[] args)throws Exception{
         if(args.length!=1)throw new IllegalArgumentException("Supply an empty evidence directory.");
         Path out=Path.of(args[0]);Files.createDirectories(out);try(var files=Files.list(out)){if(files.findAny().isPresent())throw new IllegalStateException("Evidence directory is not empty.");}
@@ -114,11 +114,11 @@ public final class GoMethodScalarTypeProtocolProbe {
                 case "outside-reference-refused" -> "outside";
                 case "parameter-incompatible-caller","parameter-incompatible-body" -> "incompatible";
                 case "shadow-old-refused","shadow-new-refused","alias-shadow-refused" -> "shadow";
-                case "method-result-refused" -> "method result changes";
+                case "method-result-incompatible-body" -> "incompatible";
                 default -> null;
             };
             try{
-                var spec=new GoChangeScalarType.Spec(name.equals("method-result-refused"),0,"int64");
+                var spec=new GoChangeScalarType.Spec(name.equals("method-result-incompatible-body"),0,"int64");
                 var plan=GoChangeScalarType.plan(go.toString(),env,dir,sources,uri,position,spec,target->{
                     var refs=server.getTextDocumentService().references(new ReferenceParams(new TextDocumentIdentifier(target.getUri()),target.getRange().getStart(),new ReferenceContext(false))).get(30,TimeUnit.SECONDS);
                     if(refs==null)throw new AssertionError("Missing references.");record.put("references",refs);

@@ -69,7 +69,7 @@ func TestMethodScalarScopeRefusals(t *testing.T){
   {"generic","type worker[T any] struct{}\nfunc(w worker[T]) render(n int){}\n","non-generic",Spec{Type:"int64"}},
   {"nonstruct","type worker int\nfunc(w worker) render(n int){}\n","concrete local struct",Spec{Type:"int64"}},
   {"exportedreceiver","type Worker struct{}\nfunc(w Worker) render(n int){}\n","private non-generic",Spec{Type:"int64"}},
-  {"methodresult","type worker struct{}\nfunc(w worker) render()int{return 1}\n","result changes",Spec{Result:true,Type:"int64"}},
+  {"methodmultipleresults","type worker struct{}\nfunc(w worker) render()(int,int){return 1,2}\n","multiple results",Spec{Result:true,Type:"int64"}},
   {"shadowold","type worker struct{}\ntype int=int32\nfunc(w worker) render(n int){}\n","shadowed",Spec{Type:"int64"}},
   {"shadownew","type worker struct{}\ntype int64=int\nfunc(w worker) render(n int){}\n","shadowed",Spec{Type:"int64"}},
  }{t.Run(c.name,func(t *testing.T){out:=run(methodRequest(t,"package p\n"+c.decl,c.spec));if out.Passed||!strings.Contains(out.Reason,c.reason){t.Fatalf("%#v",out)}})}

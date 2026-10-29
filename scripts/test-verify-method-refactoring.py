@@ -181,6 +181,15 @@ class MethodRunnerContracts(unittest.TestCase):
                 if item['case'] in verify.REORDER_BEHAVIOR:
                     output=verify.REORDER_BEHAVIOR[item['case']]
                     item.update(fixtureAppliedExecutedAndRestored=True,beforeOutput=output,afterOutput=output,expectedOutput=output)
+        if group=='method-result':
+            for item in result['checks']:
+                item['serverMessages']=[]
+                if item['case'] in verify.METHOD_RESULT_BEHAVIOR:
+                    expected=verify.METHOD_RESULT_BEHAVIOR[item['case']]
+                    item.update(fixtureAppliedTestedAndRestored=True,changedFiles=1,compiledPackagesBeforeAndAfter=1,compileOnlyProjectCodeNotExecuted=True,
+                        expectedBeforeMarker=expected['before'],expectedAfterMarker=expected['after'],
+                        beforeGoTestOutput='=== RUN   TestCall\n    method_test.go:3: '+expected['before']+'\n--- PASS: TestCall (0.01s)\nPASS\n',
+                        afterGoTestOutput='=== RUN   TestCall\n    method_test.go:3: '+expected['after']+'\n--- PASS: TestCall (0.01s)\nPASS\n')
         return result
 
     def group_summary(self, group, overlay=None):
@@ -188,6 +197,7 @@ class MethodRunnerContracts(unittest.TestCase):
         result={'passed':True,'packagedFeaturePassed':overlay is None,'developmentOverlayOnly':overlay is not None,
                 'cases':len(cases),'actualCaseIds':['dev.goforge.refactor.'+name+'#'+case for case in cases]}
         if group=='free-function-reorder':result['behaviorComparisons']=dict(verify.REORDER_BEHAVIOR)
+        if group=='method-result':result['resultTypeEvidence']=verify.require_method_result_behavior(self.group_result(group))
         return result
 
     def test_suite_requires_all_72_exact_class_qualified_cases(self):
@@ -198,10 +208,10 @@ class MethodRunnerContracts(unittest.TestCase):
         with patch.object(verify,'verify',side_effect=group_run):
             result=verify.verify_suite(self.root,self.root/'suite',self.root)
         self.assertTrue(result['passed']);self.assertTrue(result['packagedFeaturePassed'])
-        self.assertEqual(['method-add','method-scalar','free-scalar','free-function-reorder'],seen)
-        self.assertEqual(3,result['schemaVersion']);self.assertEqual(103,result['cases'])
+        self.assertEqual(['method-add','method-scalar','free-scalar','free-function-reorder','method-result'],seen)
+        self.assertEqual(3,result['schemaVersion']);self.assertEqual(141,result['cases'])
         self.assertEqual(72,len(set(result['actualCaseIds'][:72])))
-        self.assertEqual(103,len(set(result['actualCaseIds'])))
+        self.assertEqual(141,len(set(result['actualCaseIds'])))
         self.assertEqual(result['expectedCaseIds'],result['actualCaseIds'])
         self.assertEqual([23,29,20],[result['groups'][key]['cases'] for key in seen[:3]])
         self.assertEqual(31,result['groups']['free-function-reorder']['cases'])
@@ -309,7 +319,7 @@ class MethodRunnerContracts(unittest.TestCase):
             with self.subTest(mode=mode),patch.object(verify,'CASE_GROUPS',groups),patch.object(verify,'verify',side_effect=group_run):
                 result=verify.verify_suite(self.root,self.root/('group-'+mode),self.root)
             self.assertFalse(result['passed']);self.assertFalse(result['packagedFeaturePassed'])
-            self.assertIn('103 unique class-qualified',result['failure'])
+            self.assertIn('141 unique class-qualified',result['failure'])
 
     def test_cli_default_is_suite_and_legacy_flag_keeps_original_report_shape(self):
         for legacy in [False,True]:
@@ -323,7 +333,7 @@ class MethodRunnerContracts(unittest.TestCase):
             self.assertEqual(not legacy,'groups' in result)
             if not legacy:
                 self.assertTrue((report/'method-add/verification.json').is_file())
-                self.assertEqual(103,len(result['expectedCaseIds']))
+                self.assertEqual(141,len(result['expectedCaseIds']))
 
     def test_reorder_fixed_outputs_reject_equal_but_wrong_triples(self):
         good=self.group_result('free-function-reorder')
@@ -385,12 +395,12 @@ class MethodRunnerContracts(unittest.TestCase):
         def group_run(app,report,source_root,overlay,*,group,strict_sources):return self.group_summary(group)
         with patch.object(verify,'verify',side_effect=group_run),patch('builtins.print') as output:
             result=verify.verify_suite(self.root,self.root/'progress',self.root)
-        self.assertTrue(result['passed']);self.assertEqual(8,output.call_count)
-        expected_completed=[0,23,23,52,52,72,72,103]
+        self.assertTrue(result['passed']);self.assertEqual(10,output.call_count)
+        expected_completed=[0,23,23,52,52,72,72,103,103,141]
         for i,call in enumerate(output.call_args_list):
             self.assertEqual({'flush':True},call.kwargs)
             message=call.args[0];group=verify.SUITE_GROUPS[i//2]
-            self.assertRegex(message,r'^\[method-refactoring\] '+('start' if i%2==0 else 'end')+' group='+group+r' cases=(23|29|20|31) completed='+str(expected_completed[i])+r'/103 elapsed=\d+\.\d{3}s'+('' if i%2==0 else ' status=passed')+'$')
+            self.assertRegex(message,r'^\[method-refactoring\] '+('start' if i%2==0 else 'end')+' group='+group+r' cases=(23|29|20|31|38) completed='+str(expected_completed[i])+r'/141 elapsed=\d+\.\d{3}s'+('' if i%2==0 else ' status=passed')+'$')
             self.assertNotIn(str(self.root),message)
 
     def test_failed_progress_does_not_expose_failure_payload_or_start_later_groups(self):
@@ -402,7 +412,7 @@ class MethodRunnerContracts(unittest.TestCase):
             result=verify.verify_suite(self.root,self.root/'progress-failed',self.root)
         self.assertFalse(result['passed']);self.assertEqual(4,output.call_count)
         messages=[call.args[0] for call in output.call_args_list]
-        self.assertIn('end group=method-scalar cases=29 completed=23/103',messages[-1])
+        self.assertIn('end group=method-scalar cases=29 completed=23/141',messages[-1])
         self.assertTrue(messages[-1].endswith('status=failed'))
         for call in output.call_args_list:
             self.assertEqual({'flush':True},call.kwargs);self.assertNotIn(secret,call.args[0]);self.assertNotIn(str(self.root),call.args[0])
@@ -428,6 +438,106 @@ class MethodRunnerContracts(unittest.TestCase):
             self.assertEqual(valid,result['passed']);self.assertEqual(valid,result['packagedFeaturePassed'])
             if valid:self.assertEqual(verify.REORDER_BEHAVIOR,result['behaviorComparisons'])
             else:self.assertIn('fixed behavior output',result['failure'])
+
+    def test_method_result_fixed_types_values_and_runtime_output_are_independent(self):
+        good=self.group_result('method-result');expected=verify.require_method_result_behavior(good)
+        self.assertEqual(9,len(expected['comparisons']))
+        self.assertEqual({'before':'result=int:0','after':'result=int64:0'},expected['comparisons']['zero-named-result'])
+        self.assertEqual({'before':'result=uint8:65','after':'result=int32:65'},expected['comparisons']['byte-rune-result'])
+        self.assertIn('same-line-unicode-caller',expected['comparisons'])
+        for case in expected['comparisons']:
+            for mode in ('same-wrong-markers','missing-output','wrong-type','appended-value','duplicate-log','no-test-pass','failed-test'):
+                bad=copy.deepcopy(good);row=next(x for x in bad['checks'] if x['case']==case)
+                if mode=='same-wrong-markers':row.update(expectedBeforeMarker='result=int:999',expectedAfterMarker='result=int:999',beforeGoTestOutput='result=int:999',afterGoTestOutput='result=int:999')
+                elif mode=='missing-output':row.pop('afterGoTestOutput')
+                elif mode=='wrong-type':row['afterGoTestOutput']=row['beforeGoTestOutput']
+                elif mode=='appended-value':row['afterGoTestOutput']=row['afterGoTestOutput'].replace(row['expectedAfterMarker'],row['expectedAfterMarker']+'0')
+                elif mode=='duplicate-log':row['afterGoTestOutput']+='    method_test.go:3: '+row['expectedAfterMarker']+'\n'
+                elif mode=='no-test-pass':row['afterGoTestOutput']=row['afterGoTestOutput'].replace('--- PASS: TestCall','--- SKIP: TestCall')
+                else:row['afterGoTestOutput']+='FAIL\n'
+                with self.subTest(case=case,mode=mode),self.assertRaisesRegex(RuntimeError,'fixed runtime type/value'):verify.require_method_result_behavior(bad)
+
+    def test_method_result_positive_proof_and_negative_execution_claims_are_strict(self):
+        good=self.group_result('method-result')
+        for key,value in [('fixtureAppliedTestedAndRestored',False),('changedFiles',2),('changedFiles',True),('compiledPackagesBeforeAndAfter',0),('compiledPackagesBeforeAndAfter',True),('compileOnlyProjectCodeNotExecuted',False)]:
+            bad=copy.deepcopy(good);bad['checks'][0][key]=value
+            with self.subTest(key=key,value=value),self.assertRaisesRegex(RuntimeError,'positive execution/compile proof'):verify.require_method_result_behavior(bad)
+        for key,value in [('fixtureAppliedTestedAndRestored',True),('beforeGoTestOutput','PASS'),('expectedBeforeMarker','result=int:7')]:
+            bad=copy.deepcopy(good);next(x for x in bad['checks'] if x['case']=='result-incompatible-body')[key]=value
+            with self.subTest(key=key),self.assertRaisesRegex(RuntimeError,'Unexpected method result'):verify.require_method_result_behavior(bad)
+
+    def test_method_result_failure_cleanup_or_readiness_never_becomes_success(self):
+        good=self.group_result('method-result')
+        for key,value in [('passed',False),('versionedDiagnosticsReady',False),('fixtureDeleted',False),('goplsAliveAfterCleanup',True),('goplsExit',137),('cleanupFailure','owned file busy'),('failure','compile failed'),('suppressedFailures',['busy']),('originalSourceBytesUnchangedOrRestoredAfterExplicitFixtureTest',False)]:
+            bad=copy.deepcopy(good);bad['checks'][-1][key]=value
+            with self.subTest(key=key),self.assertRaisesRegex(RuntimeError,'failed readiness, source or cleanup'):verify.require_method_result_behavior(bad)
+        for mode in ('missing','duplicate','foreign'):
+            bad=copy.deepcopy(good)
+            if mode=='missing':bad['checks'].pop()
+            elif mode=='duplicate':bad['checks'][0]=copy.deepcopy(bad['checks'][1])
+            else:bad['checks'][0]['case']='method-result-refused'
+            with self.subTest(mode=mode),self.assertRaisesRegex(RuntimeError,'exact 38'):verify.require_method_result_behavior(bad)
+
+    def test_method_result_warnings_are_retained_without_masking_failures(self):
+        raw=self.group_result('method-result');raw['checks'][0]['serverMessages']=['loading packages','diagnoseOrphanedFiles: warning for orphaned files']
+        evidence=verify.require_method_result_behavior(raw)
+        self.assertEqual(2,evidence['serverMessageCount']);self.assertEqual(1,evidence['orphanedFileWarningCount'])
+        self.assertEqual(2,len(raw['checks'][0]['serverMessages']))
+        raw['checks'][0]['cleanupFailure']='busy'
+        with self.assertRaisesRegex(RuntimeError,'cleanup'):verify.require_method_result_behavior(raw)
+        for messages in (None,'orphaned files',[42],['x'*2001],['x']*101):
+            bad=self.group_result('method-result');bad['checks'][0]['serverMessages']=messages
+            with self.subTest(messages=type(messages).__name__),self.assertRaisesRegex(RuntimeError,'messages'):verify.require_method_result_behavior(bad)
+
+    def test_fifth_result_group_failure_cannot_reuse_successful_103(self):
+        for mode in ('failed','exception','missing-evidence','wrong-type','missing-warning-count','negative-warning','warning-overflow','wrong-count','missing-id','duplicate-id','foreign-id'):
+            def group_run(app,report,source_root,overlay,*,group,strict_sources):
+                result=self.group_summary(group)
+                if group=='method-result':
+                    if mode=='exception':raise PermissionError('owned last-group cleanup failed')
+                    if mode=='failed':result.update(passed=False,failure='owned cleanup failed')
+                    elif mode=='missing-evidence':result.pop('resultTypeEvidence')
+                    elif mode=='wrong-type':result['resultTypeEvidence']['comparisons']['named-result']['after']='result=int:7'
+                    elif mode=='missing-warning-count':result['resultTypeEvidence'].pop('orphanedFileWarningCount')
+                    elif mode=='negative-warning':result['resultTypeEvidence']['orphanedFileWarningCount']=-1
+                    elif mode=='warning-overflow':result['resultTypeEvidence']['orphanedFileWarningCount']=1
+                    elif mode=='wrong-count':result['cases']=37
+                    elif mode=='missing-id':result['actualCaseIds'].pop()
+                    elif mode=='duplicate-id':result['actualCaseIds'][0]=result['actualCaseIds'][1]
+                    elif mode=='foreign-id':result['actualCaseIds'][0]='dev.goforge.refactor.GoMethodScalarTypeProtocolProbe#method-result-incompatible-body'
+                return result
+            with self.subTest(mode=mode),patch.object(verify,'verify',side_effect=group_run):result=verify.verify_suite(self.root,self.root/('result-last-'+mode),self.root)
+            self.assertFalse(result['passed']);self.assertFalse(result['packagedFeaturePassed']);self.assertNotIn('cases',result)
+            self.assertEqual(103,sum(x['cases'] for name,x in result['groups'].items() if name!='method-result'))
+            self.assertFalse(json.loads((self.root/('result-last-'+mode)/'verification.json').read_text())['passed'])
+
+    def test_result_source_native_and_phase_checks_run_in_the_real_verify_entry(self):
+        import zipfile
+        with zipfile.ZipFile(self.layout['plugin'],'w') as archive:archive.writestr('dev/goforge/refactor/GoMethodParameterSafety.class',b'fixture')
+        layout={**self.layout,**self.native_fixture(),'jars':[self.layout['plugin'],self.layout['lsp']]}
+        source=self.root/'src/test/java/dev/goforge/refactor/GoMethodResultTypeProtocolProbe.java';source.parent.mkdir(parents=True);source.write_text('// owned result probe fixture')
+        for mode in ('pass','wrong-value','cleanup','wrong-provider','wrong-native'):
+            def command(executable,args,out,phase,*rest):
+                state=json.loads((out/'phase-checkpoint.json').read_text())
+                self.assertEqual('method-result',state['group']);self.assertEqual('start',state['current']['event'])
+                if phase=='compile':
+                    self.assertEqual('javac',state['current']['phase']);self.assertIn(str(source),args)
+                    path=out/'classes/dev/goforge/refactor/GoMethodResultTypeProtocolProbe.class';path.parent.mkdir(parents=True);path.write_bytes(b'fixture');(out/'classes'/(verify.NATIVE_BOOTSTRAP+'.class')).write_bytes(b'fixture')
+                else:
+                    self.assertEqual('jvm',state['current']['phase']);self.assertIn(verify.NATIVE_BOOTSTRAP,args);self.assertIn('dev.goforge.refactor.GoMethodResultTypeProtocolProbe',args)
+                    raw=self.group_result('method-result');raw['checks'][0]['serverMessages']=['orphaned files shutdown warning'];native=self.native_result(layout)
+                    if mode=='wrong-value':raw['checks'][0]['afterGoTestOutput']=raw['checks'][0]['beforeGoTestOutput']
+                    if mode=='cleanup':raw['checks'][-1]['cleanupFailure']='busy'
+                    if mode=='wrong-provider':raw['plannerCodeSource']=self.layout['lsp'].as_uri()
+                    if mode=='wrong-native':native['dispatchPath']=str(self.layout['java'])
+                    (out/'protocol').mkdir();(out/'protocol/result.json').write_text(json.dumps(raw));(out/'native-binding.json').write_text(json.dumps(native))
+                return {'exit':0}
+            with self.subTest(mode=mode),patch.object(verify,'package_layout',return_value=layout),patch.object(verify,'run_java_tool',side_effect=command):
+                result=verify.verify(self.root,self.root/('result-entry-'+mode),self.root,group='method-result',strict_sources=True)
+            self.assertEqual(mode=='pass',result['passed']);self.assertEqual(mode=='pass',result['packagedFeaturePassed']);self.assertEqual(str(source),result['source']['path'])
+            state=json.loads((self.root/('result-entry-'+mode)/'phase-checkpoint.json').read_text())
+            self.assertEqual(('temp-cleanup','completed'),(state['current']['phase'],state['current']['event']))
+            if mode=='pass':self.assertEqual(1,result['resultTypeEvidence']['orphanedFileWarningCount']);self.assertEqual(14,len(state['events']))
 
     def phase_fixture(self):
         import zipfile

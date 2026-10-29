@@ -34,14 +34,17 @@ EXPECTED_CASES=('value-imports','pointer-imports','dirty-unicode','init-and-test
 # The original 23-case API remains the default for programmatic callers.
 CASE_GROUPS={
     'method-add': ('GoMethodAddParameterProtocolProbe', True, EXPECTED_CASES),
-    'method-scalar': ('GoMethodScalarTypeProtocolProbe', True, ('value-imports', 'pointer-imports', 'parameter-incompatible-caller', 'parameter-incompatible-body', 'shadow-old-refused', 'shadow-new-refused', 'alias-shadow-refused', 'method-result-refused', 'dirty-unicode', 'init-and-testmain-not-run', 'interface-old-refused', 'interface-new-refused', 'interface-alias-refused', 'constraint-refused', 'anonymous-interface-refused', 'method-value-refused', 'method-expression-refused', 'promoted-refused', 'public-method-refused', 'public-receiver-refused', 'generic-receiver-refused', 'alias-receiver-refused', 'missing-reference-refused', 'outside-reference-refused', 'metadata-change-after-preview', 'goenv-change-after-preview', 'sdk-change-after-preview', 'default-cgo-parameter', 'cancelled-after-references')),
+    'method-scalar': ('GoMethodScalarTypeProtocolProbe', True, ('value-imports', 'pointer-imports', 'parameter-incompatible-caller', 'parameter-incompatible-body', 'shadow-old-refused', 'shadow-new-refused', 'alias-shadow-refused', 'method-result-incompatible-body', 'dirty-unicode', 'init-and-testmain-not-run', 'interface-old-refused', 'interface-new-refused', 'interface-alias-refused', 'constraint-refused', 'anonymous-interface-refused', 'method-value-refused', 'method-expression-refused', 'promoted-refused', 'public-method-refused', 'public-receiver-refused', 'generic-receiver-refused', 'alias-receiver-refused', 'missing-reference-refused', 'outside-reference-refused', 'metadata-change-after-preview', 'goenv-change-after-preview', 'sdk-change-after-preview', 'default-cgo-parameter', 'cancelled-after-references')),
     'free-scalar': ('GoChangeScalarTypeProtocolProbe', True, ('goenv-change-after-preview', 'sdk-change-after-preview', 'default-cgo-parameter', 'parameter-default-import', 'alias-shadow-refused', 'parameter-constant', 'result-inferred', 'named-result', 'generic-parameter', 'generic-result', 'dirty-unicode', 'init-and-testmain-not-run', 'parameter-incompatible-caller', 'result-incompatible-consumer', 'result-incompatible-body', 'function-value-refused', 'missing-reference-refused', 'outside-reference-refused', 'metadata-change-after-preview', 'cancelled-after-references')),
 }
 
 REORDER_CASES=('shared-state', 'static-imported-argument', 'constants-exact-conversion', 'typed-float-argument', 'byte-rune-aliases', 'temporary-name-collision', 'panic-first-argument', 'recover-in-argument', 'dirty-unicode', 'init-and-testmain-not-run', 'mutable-variable-refused', 'function-variable-refused', 'shadowed-function-refused', 'method-argument-refused', 'conversion-refused', 'builtin-refused', 'caller-type-shadow-refused', 'declaration-alias-refused', 'function-value-refused', 'return-refused', 'go-refused', 'defer-refused', 'label-refused', 'tuple-refused', 'ellipsis-refused', 'generic-argument-refused', 'missing-reference-refused', 'outside-reference-refused', 'metadata-change-after-preview', 'sdk-change-after-preview', 'cancelled-after-references')
 REORDER_BEHAVIOR={'shared-state': 'g|h|1,11|', 'static-imported-argument': 'h|-1,10|', 'constants-exact-conversion': '0.300000012,1099511627776|', 'typed-float-argument': 'g|h|0.300000012,1099511627776|', 'byte-rune-aliases': '255,30028|', 'temporary-name-collision': 'g|h|1,11|', 'panic-first-argument': 'g|boom1', 'recover-in-argument': 'g-recover:<nil>|h|1,11|boom', 'dirty-unicode': 'g|h|1,11|'}
 CASE_GROUPS['free-function-reorder']=('GoFunctionReorderProtocolProbe', True, REORDER_CASES)
-SUITE_GROUPS=('method-add','method-scalar','free-scalar','free-function-reorder')
+METHOD_RESULT_CASES=('unnamed-constant', 'named-result', 'named-deferred-result', 'zero-named-result', 'pointer-result', 'byte-rune-result', 'generic-caller', 'same-line-unicode-caller', 'dirty-unicode', 'init-and-testmain-not-run', 'result-incompatible-caller', 'result-incompatible-body', 'constant-overflow', 'multiple-results-refused', 'grouped-results-refused', 'no-result-refused', 'named-type-refused', 'shadow-old-refused', 'shadow-new-refused', 'alias-shadow-refused', 'interface-old-refused', 'interface-new-refused', 'interface-alias-refused', 'constraint-refused', 'anonymous-interface-refused', 'method-value-refused', 'method-expression-refused', 'promoted-refused', 'public-method-refused', 'public-receiver-refused', 'generic-receiver-refused', 'alias-receiver-refused', 'missing-reference-refused', 'outside-reference-refused', 'metadata-change-after-preview', 'goenv-change-after-preview', 'sdk-change-after-preview', 'cancelled-after-references')
+METHOD_RESULT_BEHAVIOR={'unnamed-constant': {'before': 'result=int:7', 'after': 'result=int64:7'}, 'named-result': {'before': 'result=int:7', 'after': 'result=int64:7'}, 'named-deferred-result': {'before': 'result=int:7', 'after': 'result=int64:7'}, 'pointer-result': {'before': 'result=int:7', 'after': 'result=int64:7'}, 'generic-caller': {'before': 'result=int:7', 'after': 'result=int64:7'}, 'same-line-unicode-caller': {'before': 'result=int:7', 'after': 'result=int64:7'}, 'dirty-unicode': {'before': 'result=int:7', 'after': 'result=int64:7'}, 'zero-named-result': {'before': 'result=int:0', 'after': 'result=int64:0'}, 'byte-rune-result': {'before': 'result=uint8:65', 'after': 'result=int32:65'}}
+CASE_GROUPS['method-result']=('GoMethodResultTypeProtocolProbe', True, METHOD_RESULT_CASES)
+SUITE_GROUPS=('method-add','method-scalar','free-scalar','free-function-reorder','method-result')
 SUITE_CASE_IDS=tuple('dev.goforge.refactor.'+name+'#'+case
                      for name,_,cases in CASE_GROUPS.values() for case in cases)
 
@@ -250,9 +253,40 @@ def require_reorder_behavior(result):
     return comparisons
 
 
+def require_method_result_behavior(result):
+    """Require independently fixed runtime types/values, not merely self-reported equal markers."""
+    checks=result.get('checks')
+    if result.get('passed') is not True or not isinstance(checks,list) or len(checks)!=38 or {c.get('case') for c in checks}!=set(METHOD_RESULT_CASES):
+        raise RuntimeError('Method result protocol did not return the exact 38 cases')
+    comparisons={};messages=0;warnings=0
+    for item in checks:
+        case=item['case']
+        if item.get('passed') is not True or item.get('versionedDiagnosticsReady') is not True or item.get('fixtureDeleted') is not True or item.get('goplsAliveAfterCleanup') is not False or item.get('goplsExit')!=0 or item.get('originalSourceBytesUnchangedOrRestoredAfterExplicitFixtureTest') is not True or any(key in item for key in ('failure','cleanupFailure','suppressedFailures')):
+            raise RuntimeError('Method result case failed readiness, source or cleanup: '+case)
+        logged=item.get('serverMessages')
+        if not isinstance(logged,list) or len(logged)>100 or any(not isinstance(message,str) or len(message)>2000 for message in logged):
+            raise RuntimeError('Method result server messages are missing or malformed: '+case)
+        messages+=len(logged);warnings+=sum('orphaned files' in message.lower() for message in logged)
+        if case in METHOD_RESULT_BEHAVIOR:
+            expected=METHOD_RESULT_BEHAVIOR[case]
+            if item.get('fixtureAppliedTestedAndRestored') is not True or type(item.get('changedFiles')) is not int or item['changedFiles']!=1 or type(item.get('compiledPackagesBeforeAndAfter')) is not int or item['compiledPackagesBeforeAndAfter']!=1 or item.get('compileOnlyProjectCodeNotExecuted') is not True:
+                raise RuntimeError('Method result positive execution/compile proof is missing: '+case)
+            for phase in ('before','after'):
+                output=item.get(phase+'GoTestOutput')
+                marker=item.get('expected'+phase.title()+'Marker')
+                actual=re.findall(r'^[ \t]+method_test\.go:\d+: (result=[^\r\n]*)\r?$',output,re.MULTILINE) if isinstance(output,str) else []
+                if marker!=expected[phase] or actual!=[expected[phase]] or not re.search(r'^--- PASS: TestCall \(',output,re.MULTILINE) or not re.search(r'^PASS\r?$',output,re.MULTILINE) or re.search(r'^(?:--- )?FAIL',output,re.MULTILINE):
+                    raise RuntimeError('Method result fixed runtime type/value differs: '+case+' '+phase)
+            comparisons[case]=dict(expected)
+        elif any(key in item for key in ('fixtureAppliedTestedAndRestored','beforeGoTestOutput','afterGoTestOutput','expectedBeforeMarker','expectedAfterMarker')):
+            raise RuntimeError('Unexpected method result fixture execution claim: '+case)
+    if comparisons!=METHOD_RESULT_BEHAVIOR:raise RuntimeError('Missing fixed method result comparison')
+    return {'comparisons':comparisons,'serverMessageCount':messages,'orphanedFileWarningCount':warnings}
+
+
 def group_progress(event,group,planned,completed,started,status=None):
     # Only fixed group identifiers/counts and elapsed time: no environment or fixture paths.
-    message='[method-refactoring] '+event+' group='+group+' cases='+str(planned)+' completed='+str(completed)+'/103 elapsed='+format(time.monotonic()-started,'.3f')+'s'
+    message='[method-refactoring] '+event+' group='+group+' cases='+str(planned)+' completed='+str(completed)+'/141 elapsed='+format(time.monotonic()-started,'.3f')+'s'
     if status is not None:message+=' status='+status
     print(message,flush=True)
 
@@ -363,6 +397,7 @@ def verify(app,report,source_root=ROOT,development_overlay=None,*,group="method-
                 validated=require_results(result,layout,overlay,expected_cases=expected,require_ready=ready,source_preservation=preservation)
                 summary['actualCaseIds']=[main+'#'+item['case'] for item in result['checks']]
                 if group=='free-function-reorder':summary['behaviorComparisons']=require_reorder_behavior(result)
+                if group=='method-result':summary['resultTypeEvidence']=require_method_result_behavior(result)
         recorder.require_recorded()
         summary.update(validated);summary['passed']=True
     except Exception as failure:
@@ -374,15 +409,15 @@ def verify(app,report,source_root=ROOT,development_overlay=None,*,group="method-
 
 
 def verify_suite(app,report,source_root=ROOT,development_overlay=None):
-    """Default CI entry: all 103 cases must pass; the original verify() API stays at 23."""
+    """Default CI entry: all 141 cases must pass; the original verify() API stays at 23."""
     report=Path(report).absolute();report.mkdir(parents=True,exist_ok=False)
     summary={'passed':False,'packagedFeaturePassed':False,'developmentOverlayOnly':development_overlay is not None,
-             'schemaVersion':3,'scope':'103 packaged method/scalar/reorder protocol cases; no IDE GUI or complete parity claim.','groups':{},
+             'schemaVersion':3,'scope':'141 packaged method/scalar/reorder/result protocol cases; no IDE GUI or complete parity claim.','groups':{},
              'expectedCaseIds':list(SUITE_CASE_IDS)}
     try:
         configured=tuple('dev.goforge.refactor.'+name+'#'+case for name,_,cases in CASE_GROUPS.values() for case in cases)
-        if tuple(CASE_GROUPS)!=SUITE_GROUPS or configured!=SUITE_CASE_IDS or len(set(configured))!=103:
-            raise RuntimeError('Expected the fixed four groups and 103 unique class-qualified cases')
+        if tuple(CASE_GROUPS)!=SUITE_GROUPS or configured!=SUITE_CASE_IDS or len(set(configured))!=141:
+            raise RuntimeError('Expected the fixed five groups and 141 unique class-qualified cases')
         actual=[]
         for group in SUITE_GROUPS:
             name,_,expected=CASE_GROUPS[group];started=time.monotonic();group_passed=False
@@ -399,11 +434,16 @@ def verify_suite(app,report,source_root=ROOT,development_overlay=None):
                 if group=='free-function-reorder':
                     if result.get('behaviorComparisons')!=REORDER_BEHAVIOR:raise RuntimeError('Reorder group lost its fixed behavior comparisons')
                     summary['behaviorComparisons']=dict(result['behaviorComparisons'])
+                if group=='method-result':
+                    evidence=result.get('resultTypeEvidence')
+                    if not isinstance(evidence,dict) or evidence.get('comparisons')!=METHOD_RESULT_BEHAVIOR or any(type(evidence.get(key)) is not int or evidence[key]<0 for key in ('serverMessageCount','orphanedFileWarningCount')) or evidence['orphanedFileWarningCount']>evidence['serverMessageCount']:
+                        raise RuntimeError('Method result group lost its fixed runtime evidence or warning accounting')
+                    summary['resultTypeEvidence']=evidence
                 actual.extend(ids);group_passed=True
             finally:
                 group_progress('end',group,len(expected),len(actual),started,'passed' if group_passed else 'failed')
-        if len(actual)!=103 or len(set(actual))!=103:raise RuntimeError('Expected 103 unique class-qualified cases')
-        summary.update(passed=True,packagedFeaturePassed=development_overlay is None,cases=103,actualCaseIds=actual)
+        if len(actual)!=141 or len(set(actual))!=141:raise RuntimeError('Expected 141 unique class-qualified cases')
+        summary.update(passed=True,packagedFeaturePassed=development_overlay is None,cases=141,actualCaseIds=actual)
     except Exception as failure:
         summary.update(passed=False,packagedFeaturePassed=False,failure=type(failure).__name__+': '+str(failure))
     finally:

@@ -54,11 +54,10 @@ final class GoChangeScalarTypeSource {
          if decl==nil||decl.Body==nil{return fail("select a free-function or supported private-method declaration with a body")}
          method:=decl.Recv!=nil
          if method{
-          if in.Spec.Result{return fail("private method result changes are not supported; select one existing parameter")}
           if len(decl.Recv.List)!=1||len(decl.Recv.List[0].Names)!=1||decl.Recv.List[0].Names[0].Name=="_"{return fail("method type changes require a private method and one named concrete receiver")}
           recv:=decl.Recv.List[0].Type;if star,ok:=recv.(*ast.StarExpr);ok{recv=star.X};name,ok:=recv.(*ast.Ident)
-          if !ok||name.IsExported(){return fail("only private non-generic struct receivers support scalar parameter type changes")}
-          if decl.Name.IsExported(){return fail("scalar parameter type changes require a private method")}
+          if !ok||name.IsExported(){return fail("only private non-generic struct receivers support scalar type changes")}
+          if decl.Name.IsExported(){return fail("scalar type changes require a private method")}
           var receiver *ast.TypeSpec
           for _,p:=range files{if parent(p.URI)!=parent(target.URI)||p.File.Name.Name!=target.File.Name.Name{continue};for _,d:=range p.File.Decls{if gen,ok:=d.(*ast.GenDecl);ok{for _,sp:=range gen.Specs{if typ,ok:=sp.(*ast.TypeSpec);ok&&typ.Name.Name==name.Name{if receiver!=nil{return fail("ambiguous receiver declaration")};receiver=typ}}}}}
           if receiver==nil||receiver.Assign.IsValid()||receiver.TypeParams!=nil{return fail("method receiver must be a private non-alias, non-generic local struct")};if _,ok:=receiver.Type.(*ast.StructType);!ok{return fail("method receiver must be a concrete local struct")}
