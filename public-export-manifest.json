@@ -18,13 +18,13 @@
     },
     {
       "path": "README.md",
-      "sha256": "e4570ac6b21f957b292393b44e3d6ecf78e084731083ff45270ff661ea7d63b9",
-      "size": 10131
+      "sha256": "8577b5674a76d701fa4781b9ede2e73d681be404ec10141df00a257e036431e2",
+      "size": 10930
     },
     {
       "path": "README.zh-CN.md",
-      "sha256": "2292f84720375fca8fb79a271ff3a6a3870b3e9c16143cc517a3d27d8cb5fa21",
-      "size": 9222
+      "sha256": "ea8710a81ab7fda848fd245cf93f8b17507e23c01f4ce989105257119a12558b",
+      "size": 9902
     },
     {
       "path": "THIRD-PARTY-NOTICES.md",
@@ -38,13 +38,13 @@
     },
     {
       "path": "docs/INSTALL.md",
-      "sha256": "e3b190d418ceb471724f7e7ef66e9bd8f228bcb5398bad3c34934f94df1d4b05",
-      "size": 30887
+      "sha256": "731ea93b717493f417d2c1f5746b9c9bcd8333ac12b5b19c9c1dcbed6dd9ce6d",
+      "size": 32983
     },
     {
       "path": "docs/KNOWN-LIMITATIONS.md",
-      "sha256": "5a8006795ebdf90028198938a7b2e25d6ed201b4840bf98b459896bcb7d269d9",
-      "size": 24129
+      "sha256": "e0d32b847a2c4f4532a069433347dbaeb0b681416509bf823813b7030fa842cf",
+      "size": 27270
     },
     {
       "path": "docs/PUBLIC-RELEASE.md",
@@ -247,14 +247,19 @@
       "size": 7446
     },
     {
+      "path": "scripts/debug-cleanup-probe.py",
+      "sha256": "859097982bdf6dd8eb4c66b61f0aa7bb300d6b1f39a48e65a6fb6bdaafea545a",
+      "size": 2511
+    },
+    {
       "path": "scripts/dev-ide.sh",
       "sha256": "cc06b8f94c0acff9c71db688f72397c055d769e8a4066a79f856cabe6edc5403",
       "size": 651
     },
     {
       "path": "scripts/export-public-source.py",
-      "sha256": "6ad88e8ae516b850eb8512e2c9e3d9c6eefd7b93e5597f13030cf5ec01759b48",
-      "size": 7253
+      "sha256": "4688d8759c2990b54b912c3458a08dc73983e0c6f530b9dd51cf1d7017cbd46c",
+      "size": 7284
     },
     {
       "path": "scripts/package-macos.py",
@@ -338,8 +343,8 @@
     },
     {
       "path": "scripts/test-verify-windows-package.py",
-      "sha256": "f7b9bbef311a8d01037b00c3c902d18952f6651a06167c3eeb2d2bf0e9d4e0ee",
-      "size": 8366
+      "sha256": "82629a4e061e6be80cf64208f15973ed2a97a3c03653cee3d61667e63a3a31ba",
+      "size": 20358
     },
     {
       "path": "scripts/verify-protocols.py",
@@ -348,8 +353,8 @@
     },
     {
       "path": "scripts/verify-windows-package.py",
-      "sha256": "ae8aaeac12a8b97a558f0de9eeeb600d11a358c320896982a8fcded6a0e00fa3",
-      "size": 18534
+      "sha256": "bfb53619f325e978ef2219793ab0b1fffcc94f7474b23fbd0026740d592e4c6a",
+      "size": 22535
     },
     {
       "path": "settings.gradle.kts",

@@ -31,7 +31,7 @@ Per-user settings are isolated under `~/Library/Application Support/GoForge/GoFo
 
 ## Windows x64
 
-**Current status: the older frozen a252 portable ZIP passed macOS cross-assembly and static readback checks only. Actual Windows Run 4 reported 644 passed / 14 failed / 1 skipped; packaging was skipped. The 318d repair build passed on macOS; Windows Run 5 is pending. Native Windows launch and UI acceptance remain unverified.**
+**Current status: Windows Run 5 passed 677 of 678 product/platform tests, with one explicit POSIX-shell skip and zero failures/errors. Windows assembly passed, but native-verifier preflight failed; no final package export or native launch/UI acceptance. The older a252 archive remains a historical macOS cross-assembly.**
 
 The prepared archive is `GoForge-0.1.0-dev-windows-x64.zip`, targeting Windows 10/11 x64. Preparation does not mean it has been publicly released. When a release includes it:
 
@@ -45,25 +45,35 @@ The prepared archive is `GoForge-0.1.0-dev-windows-x64.zip`, targeting Windows 1
 
 The distribution has no GoForge Authenticode signature or installer. The native launcher receives GoForge icon/version resources, which invalidates its original signature; the derivative launcher is unsigned. Follow normal Windows security prompts; do not turn off SmartScreen or antivirus. Remote SSH features additionally require the Windows OpenSSH client; Docker and Kubernetes require their own installations.
 
-**当前状态：较早的冻结 a252 便携 ZIP 仅通过 macOS 跨平台组装与静态读回。实际 Windows 第 4 次 CI 为 644 通过 / 14 失败 / 1 跳过，打包跳过；318d 修复构建已通过 macOS 自动化检查，Windows 第 5 次 CI 待完成。原生启动与界面仍未验证。** 目标为 Windows 10/11 x64。“已准备”不表示“已公开发布”。发行页实际提供 ZIP 后，使用 `Get-FileHash` 校验，完整解压，再打开 `GoForge\bin\goforge64.exe`。不要在 ZIP 内直接启动。包内置 Java 与 Go 工具，但没有 GoForge Authenticode 签名或安装器。通过正常安全提示处理，不关闭 SmartScreen/杀毒软件。SSH、Docker、kubectl 使用各自系统安装。
+**当前状态：Windows 第 5 次产品/平台测试共 678 项，677 通过，1 项明确的 POSIX shell 跳过，0 失败/错误。Windows 组装通过，但原生验证器预检失败；最终包导出跳过，原生启动和界面仍未验证；a252 便携 ZIP 保留为历史 macOS 跨平台组装包。** 目标为 Windows 10/11 x64。“已准备”不表示“已公开发布”。发行页实际提供 ZIP 后，使用 `Get-FileHash` 校验，完整解压，再打开 `GoForge\bin\goforge64.exe`。不要在 ZIP 内直接启动。包内置 Java 与 Go 工具，但没有 GoForge Authenticode 签名或安装器。通过正常安全提示处理，不关闭 SmartScreen/杀毒软件。SSH、Docker、kubectl 使用各自系统安装。
 
 ### Windows CI status / Windows CI 状态
 
-**Windows Run 4 reached the actual product/platform tests:** source commit `9036d0a76e15882603d45d05ce0fc295bad2c861`, reviewed source ZIP SHA-256 `17a2e91af959fb525fdf381ead90e6560455f4ae2a0117cc41b9c8b0558c3198`. Of 659 reported tests, **644 passed, 14 failed and 1 was skipped**. Packaging was skipped; this run did not produce an accepted Windows package. The frozen 318d repair build passed macOS automated checks; Windows Run 5 is pending. The available frozen Windows archive remains the older **a252** macOS cross-assembly, with static readback only; native launch/UI have not passed. See the [attempts and verification limits](KNOWN-LIMITATIONS.md#private-validation-and-publication--私有验证与发布).
+**Windows Run 5 product/platform tests passed:** [private CI run `40808662484`](https://github.com/UpLLt/goforge-ide/actions/runs/40808662484), source commit `cf208a581836640331c24d9ec5eb8c71d1a6e7d1`. The 95 XML reports contain **678 tests: 677 passed, 0 failures/errors, and 1 explicit POSIX-shell skip** (`GoRemoteProfileTest.shellQuotedDataRemainsExactlyOneLiteralArgument`). All 14 tests that failed in Run 4 passed in Run 5. The reviewed source ZIP SHA-256 is `7a5fd28aa330c816e33912edde4dcd65055f8e3a077d989780699e8bdab42f05` (**878,196 bytes**). Windows assembly and both platform-patch checks passed. **Run 5 ultimately failed at native-verifier preflight:** `Get-AuthenticodeSignature` could not load `Microsoft.PowerShell.Security`. The native report has `checks: {}`: launcher, Go, gopls and Delve probes were not reached. Final release-file export was skipped; native launch and GUI acceptance remain unverified. The older a252 Windows archive retains its separate cross-assembly identity. `publish=false`; this is private validation.
 
-**Windows 第 4 次 CI 已实际运行产品/平台测试：** 源码提交为 `9036d0a76e15882603d45d05ce0fc295bad2c861`，经审阅的源码 ZIP SHA-256 为 `17a2e91af959fb525fdf381ead90e6560455f4ae2a0117cc41b9c8b0558c3198`。659 项报告中，**644 项通过、14 项失败、1 项跳过**。打包步骤跳过，该轮未产出通过验收的 Windows 包。冻结 318d 修复构建已通过 macOS 自动化检查，Windows 第 5 次 CI 仍待完成。已有冻结 Windows 包仍是较早的 **a252** macOS 跨平台组装，仅有静态读回验证，原生启动/界面尚未通过。 详见[逐次记录与验证边界](KNOWN-LIMITATIONS.md#private-validation-and-publication--私有验证与发布)。
+**Windows 第 5 次产品/平台测试已通过：** [私有 CI `40808662484`](https://github.com/UpLLt/goforge-ide/actions/runs/40808662484)，源码提交 `cf208a581836640331c24d9ec5eb8c71d1a6e7d1`。95 份 XML 报告共 **678 项：677 项通过，0 失败/错误，1 项明确的 POSIX shell 跳过**（`GoRemoteProfileTest.shellQuotedDataRemainsExactlyOneLiteralArgument`）。第 4 次失败的 14 项全部在本轮通过。审阅源码 ZIP 的 SHA-256 为 `7a5fd28aa330c816e33912edde4dcd65055f8e3a077d989780699e8bdab42f05`（**878,196 字节**）。Windows 组装及两项平台补丁检查通过。**第 5 次最终在原生验证器预检失败：** `Get-AuthenticodeSignature` 无法加载 `Microsoft.PowerShell.Security`。原生报告为 `checks: {}`，尚未执行启动器、Go、gopls 或 Delve 探针；最终发行文件导出跳过，原生启动和界面仍未验证。较早 a252 Windows 包继续保留独立的跨平台组装身份。保持 `publish=false`，本轮仅为私有验证。
 
 ## Prepared package identities
 
-The current frozen **318d repair source build** passed **678/678 macOS-host JUnit tests** (397 component + 281 platform; 95 XML reports; zero failures/errors/skips), plugin build and structure checks. Its 326 build inputs are frozen. Plugin ZIP: **14,941,918 bytes**, SHA-256 `318d7205541d0fd00b51f74c13ec7ecc22297a3dd19d6da0e1da7f342918fb93`. **Windows Run 5 is still pending.** This macOS automated result does not establish the Windows-specific repairs or a new native application result; the latest verified macOS application archive/native record remains 5259.
+The current frozen **318d repair source build** passed **678/678 macOS-host JUnit tests** (397 component + 281 platform; 95 XML reports; zero failures/errors/skips), plugin build and structure checks. Its 326 build inputs are frozen. Plugin ZIP: **14,941,918 bytes**, SHA-256 `318d7205541d0fd00b51f74c13ec7ecc22297a3dd19d6da0e1da7f342918fb93`. Windows Run 5 separately passed its product/platform tests; automated checks do not establish application GUI acceptance. The current Mac package is 318d, while the latest actual GUI record remains 5259.
 
 The frozen **2026-10-29 baseline 5259** passed **659/659 macOS-host JUnit tests** (389 component + 270 platform; 94 reports; zero failures/errors/skips), plugin build and structure checks. Plugin ZIP: **14,931,387 bytes**, SHA-256 `52598058b70ba2329bb1447be52d6874596fabf02eeb3b76ecaf30fe6c7fb354`; 324 build inputs were frozen. Separate checks passed 20 scalar-refactoring protocol cases, 31 helper subcases, 3 compiler-context regressions and 18 multi-module SSH/gopls checks; these are not additions to the JUnit count.
 
-当前冻结的 **318d 修复源码构建**在 macOS 主机通过 **678/678 项 JUnit 测试**（397 component + 281 platform，95 份 XML 报告，零失败/错误/跳过），插件构建及结构检查通过，326 项构建输入冻结。插件 **14,941,918 字节**，SHA-256：`318d7205541d0fd00b51f74c13ec7ecc22297a3dd19d6da0e1da7f342918fb93`。**Windows 第 5 次 CI 仍待完成。** 这项 macOS 自动化结果不代表 Windows 专属修复已在 Windows 验证，也不代表新应用原生验收；最近已验证的 macOS 应用包及原生记录仍为 5259。
+当前冻结的 **318d 修复源码构建**在 macOS 主机通过 **678/678 项 JUnit 测试**（397 component + 281 platform，95 份 XML 报告，零失败/错误/跳过），插件构建及结构检查通过，326 项构建输入冻结。插件 **14,941,918 字节**，SHA-256：`318d7205541d0fd00b51f74c13ec7ecc22297a3dd19d6da0e1da7f342918fb93`。Windows 第 5 次另已通过产品/平台测试；自动化结果不代表应用界面验收。当前 Mac 包为 318d，最近实际界面记录仍为 5259。
 
 **2026-10-29 冻结基线 5259** 在 macOS 主机通过 **659/659 项 JUnit 测试**（389 component + 270 platform，94 份报告，零失败/错误/跳过），插件构建和结构校验通过。插件 **14,931,387 字节**，SHA-256：`52598058b70ba2329bb1447be52d6874596fabf02eeb3b76ecaf30fe6c7fb354`，当时冻结 324 项构建输入。另有 20 项标量重构协议、31 个 helper 子案例、3 项编译配置回归及 18 项多模块 SSH/gopls 检查通过，不累加到 JUnit 总数。
 
-| Frozen 5259 internal archive | Bytes | SHA-256 |
+The current **318d macOS archive** is frozen: **751,553,996 bytes**, SHA-256 `7a53be4464eb41afe752b069201f08ec7f5c4a6987b0c9903b8b1c70af8dbb02`. Independent archive/plugin/source/license readback passed; the bound packager receipts report ad-hoc signature, headless, relocation and extracted-archive checks passed. Audit SHA-256: `cffe0e152a10d2bd2a498ea5ad6e1ea45708ca8ba1447b5f7a531bdb13e832da`. **318d GUI acceptance is pending; the latest actual GUI checks remain the two bounded 5259 groups below.**
+
+当前 **318d macOS 包**已冻结：**751,553,996 字节**，SHA-256：`7a53be4464eb41afe752b069201f08ec7f5c4a6987b0c9903b8b1c70af8dbb02`。独立归档、插件、源码与许可证读回通过；绑定的打包记录显示 ad-hoc 验签、无界面、迁移路径及解压检查通过。审计 SHA-256：`cffe0e152a10d2bd2a498ea5ad6e1ea45708ca8ba1447b5f7a531bdb13e832da`。**318d 界面验收仍待完成；最近实际界面检查保留为下述 5259 两组限定结果。**
+
+| Current 318d internal archive | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `GoForge-318d-macos-aarch64.zip` | 751553996 | `7a53be4464eb41afe752b069201f08ec7f5c4a6987b0c9903b8b1c70af8dbb02` |
+
+### Previous 5259 package and latest actual GUI acceptance
+
+| Historical 5259 internal archive | Bytes | SHA-256 |
 | --- | ---: | --- |
 | `GoForge-5259-macos-aarch64.zip` | 751543468 | `c2c27d6b42cc98deaa95f8138b06cddd2cb7beac1042ccf5a3d85d08c4d87ecb` |
 
@@ -71,11 +81,11 @@ The macOS archive passed static archive/plugin/source readback and its recorded 
 
 macOS 包的静态归档/插件/源码读回，以及记录中的验签、无界面、迁移路径和解压检查通过。第 4 次 CI 未产生通过验收的 5259 Windows 包；较早的 a252 Windows 身份保留如下。
 
-The **5259 macOS archive** is frozen: **751,543,468 bytes**, SHA-256 `c2c27d6b42cc98deaa95f8138b06cddd2cb7beac1042ccf5a3d85d08c4d87ecb`. Two bounded native groups passed: scalar parameter type change and generic single-result type change, each with preview, Apply, explicit Save, Undo/Redo and stable saved-byte/bundled-Go test checks. All four fixture files were restored; normal exit left no owned processes, 0 errors and 2 retained warnings, and post-exit signature verification passed. The parameter result is validated by the stable redo/test receipt. These are candidate-only checks, not a GoLand comparison; remote-analysis native acceptance and Windows desktop acceptance remain incomplete.
+The historical **5259 macOS archive** is frozen: **751,543,468 bytes**, SHA-256 `c2c27d6b42cc98deaa95f8138b06cddd2cb7beac1042ccf5a3d85d08c4d87ecb`. Two bounded native groups passed: scalar parameter type change and generic single-result type change, each with preview, Apply, explicit Save, Undo/Redo and stable saved-byte/bundled-Go test checks. All four fixture files were restored; normal exit left no owned processes, 0 errors and 2 retained warnings, and post-exit signature verification passed. The parameter result is validated by the stable redo/test receipt. These are candidate-only checks, not a GoLand comparison; remote-analysis native acceptance and Windows desktop acceptance remain incomplete.
 
-**5259 macOS 包**已冻结：**751,543,468 字节**，SHA-256：`c2c27d6b42cc98deaa95f8138b06cddd2cb7beac1042ccf5a3d85d08c4d87ecb`。两组限定原生检查通过：标量参数类型修改、泛型单返回值类型修改，均覆盖预览、Apply、显式保存、Undo/Redo，以及稳定状态下的保存字节和包内 Go 测试检查。4 个夹具文件全部恢复；正常退出无所属进程，保留 0 条错误、2 条警告，退出后验签通过。参数修改以稳定状态的 Redo/测试回执为准。这些是候选应用检查，不是 GoLand 对照；远程分析原生验收与 Windows 桌面验收仍未完成。
+历史 **5259 macOS 包**已冻结：**751,543,468 字节**，SHA-256：`c2c27d6b42cc98deaa95f8138b06cddd2cb7beac1042ccf5a3d85d08c4d87ecb`。两组限定原生检查通过：标量参数类型修改、泛型单返回值类型修改，均覆盖预览、Apply、显式保存、Undo/Redo，以及稳定状态下的保存字节和包内 Go 测试检查。4 个夹具文件全部恢复；正常退出无所属进程，保留 0 条错误、2 条警告，退出后验签通过。参数修改以稳定状态的 Redo/测试回执为准。这些是候选应用检查，不是 GoLand 对照；远程分析原生验收与 Windows 桌面验收仍未完成。
 
-Checkout-local evidence (excluded from source exports): `.artifacts/alignment-20261029/full-2/verified-build/`, `macos-package/summary.json`, and `native-scalar/summary.json` with `native-scalar/verification-receipt.json`.
+Checkout-local evidence (excluded from source exports): `.artifacts/alignment-20261029/full-4/verified-build/`, `macos-package-318d/independent-audit/summary.json`, and `windows/run5/tests-summary.json`. The separate 5259 GUI evidence remains `native-scalar/summary.json` with `native-scalar/verification-receipt.json`.
 
 ### Previous a252 package identities
 
@@ -177,11 +187,11 @@ Current and historical checkout-local records (excluded from source exports):
 
 Read the manifest for the exact archive you install. **Settings → GoForge** opens tool configuration; a Find Action **Plugins:** entry is a plugin toggle, not that settings page.
 
-The current Windows result is Run 4: 644 passed / 14 failed / 1 skipped, with packaging skipped. See the [current Windows CI status](#windows-ci-status--windows-ci-状态). The historical package identities below remain unchanged.
+The current Windows product result is Run 5: 677 passed / 0 failed / 1 explicit POSIX-shell skip; assembly passed but native-verifier preflight failed, so final release-file export was skipped. See the [current Windows CI status](#windows-ci-status--windows-ci-状态). The historical package identities below remain unchanged.
 
 历史 1caa 的 449 项测试与限定原生稳定性复验保留在各自记录中，不作为 9abc 的编辑原生验收。1caa 的完整包身份见下表；该历史 Windows 包只有跨平台组装与静态验证。
 
-当前 Windows 第 4 次 CI 为 644 通过 / 14 失败 / 1 跳过，打包跳过，见[当前 Windows CI 状态](#windows-ci-status--windows-ci-状态)。下方历史包身份保持不变。
+当前 Windows 第 5 次产品测试为 677 通过 / 0 失败 / 1 项明确的 POSIX shell 跳过，组装通过，但原生验证器预检失败，最终发行文件导出跳过，见[当前 Windows CI 状态](#windows-ci-status--windows-ci-状态)。下方历史包身份保持不变。
 
 ### Historical archive identities / 历史包身份
 
@@ -192,14 +202,14 @@ The previous **1caa** plugin passed 449 macOS-host tests (313 component + 136 pl
 | macOS ARM64 | 751301187 | `f953c343f00624d09f16b08021bdac0fd0d76abc4a9ca267859fe2be4f9f0669` |
 | Windows x64 | 770934771 | `ccc6bd6d08957f5cb8740622e895267d2a8295d480db54b81012e269946faab2` |
 
-These 2026-10-27 archives are retained as historical artifacts, not the current 5259 macOS baseline or a public release. Their d3d7 native passes remain tied to that build, alongside its observed Plugins Settings search initialization error. That search repair is included in 7bff; later essential-toggle protection is separate.
+These 2026-10-27 archives are retained as historical artifacts, not the current 318d macOS package or a public release. Their d3d7 native passes remain tied to that build, alongside its observed Plugins Settings search initialization error. That search repair is included in 7bff; later essential-toggle protection is separate.
 
 | Historical archive | Bytes | SHA-256 |
 | --- | ---: | --- |
 | macOS ARM64 d3d7 | 752381187 | `e6fa4390a10de749a7c095f7a694df20f6e1ec6a960d207bfc98553d9f0ea5bd` |
 | Windows x64 d3d7 | 772025428 | `df11cdaabeba5676e62eec95caed57b7ba49e584e08ccc6f333760e4257ac642` |
 
-以上为 2026-10-27 历史包，不是当前 5259 macOS 基线包，也不表示公开发布。d3d7 的限定原生通过和插件设置搜索初始化失败均保留在该构建下；搜索修复已纳入 7bff，之后发现的 essential 插件开关保护另行处理。Windows 原生运行与界面仍待验。
+以上为 2026-10-27 历史包，不是当前 318d macOS 包，也不表示公开发布。d3d7 的限定原生通过和插件设置搜索初始化失败均保留在该构建下；搜索修复已纳入 7bff，之后发现的 essential 插件开关保护另行处理。Windows 原生运行与界面仍待验。
 
 ## Building on Windows
 

@@ -16,6 +16,8 @@ import re
 import shutil
 import socket
 import subprocess
+import sys
+import threading
 import tempfile
 import time
 from urllib.parse import unquote
@@ -29,7 +31,8 @@ def native_environment(app, temporary, inherited):
              'GOEXPERIMENT','GOPACKAGESDRIVER','GOMODCACHE','GOPROXY','GOSUMDB',
              'GOPRIVATE','GONOPROXY','GONOSUMDB','GOVCS','GOFORGE_JDK',
              'GOFORGE_VM_OPTIONS','GOFORGE_PROPERTIES','JAVA_TOOL_OPTIONS','JDK_JAVA_OPTIONS',
-             '_JAVA_OPTIONS','JAVA_HOME','JDK_HOME','IDEA_JDK','IDEA_VM_OPTIONS','IDEA_PROPERTIES'}
+             '_JAVA_OPTIONS','JAVA_HOME','JDK_HOME','IDEA_JDK','IDEA_VM_OPTIONS','IDEA_PROPERTIES',
+             'PSMODULEPATH'}
     env={k.upper():v for k,v in inherited.items() if k.upper() not in blocked}
     if not env.get('SYSTEMROOT'):
         raise RuntimeError('Windows verification requires SystemRoot')
@@ -107,6 +110,40 @@ def command(args, **kwargs):
     return p.stdout
 
 
+def windows_file_metadata(executable, inherited):
+    """Read PE metadata with the Windows PowerShell built-in modules, not inherited PS7 modules."""
+    env={key.upper():value for key,value in inherited.items() if key.upper()!='PSMODULEPATH'}
+    if not env.get('SYSTEMROOT'):
+        raise RuntimeError('Windows metadata verification requires SystemRoot')
+    home=Path(env['SYSTEMROOT'])/'System32/WindowsPowerShell/v1.0'
+    env['GOFORGE_VERIFY_EXE']=str(executable)
+    script=(
+        "$ErrorActionPreference='Stop'; "
+        "$env:PSModulePath=[System.IO.Path]::Combine($PSHOME,'Modules'); "
+        "$PSModuleAutoLoadingPreference='None'; "
+        "$security=Import-Module -Name ([System.IO.Path]::Combine($PSHOME,'Modules','Microsoft.PowerShell.Security','Microsoft.PowerShell.Security.psd1')) -PassThru -ErrorAction Stop; "
+        "$utility=Import-Module -Name ([System.IO.Path]::Combine($PSHOME,'Modules','Microsoft.PowerShell.Utility','Microsoft.PowerShell.Utility.psd1')) -PassThru -ErrorAction Stop; "
+        "$v=[System.Diagnostics.FileVersionInfo]::GetVersionInfo($env:GOFORGE_VERIFY_EXE); "
+        "$s=Microsoft.PowerShell.Security\\Get-AuthenticodeSignature -LiteralPath $env:GOFORGE_VERIFY_EXE -ErrorAction Stop; "
+        "@{properties=@{product=$v.ProductName; description=$v.FileDescription; original=$v.OriginalFilename; signature=$s.Status.ToString()}; "
+        "powershell=@{home=$PSHOME; edition=$PSVersionTable.PSEdition; version=$PSVersionTable.PSVersion.ToString(); securityModule=$security.ModuleBase; utilityModule=$utility.ModuleBase}} "
+        "| Microsoft.PowerShell.Utility\\ConvertTo-Json -Compress -Depth 3")
+    metadata=json.loads(command([home/'powershell.exe','-NoProfile','-NonInteractive','-Command',script],env=env))
+    properties=metadata.get('properties') if isinstance(metadata,dict) else None
+    runtime=metadata.get('powershell') if isinstance(metadata,dict) else None
+    if not isinstance(properties,dict) or not all(isinstance(properties.get(key),str) for key in
+            ('product','description','original','signature')) or not properties['signature']:
+        raise RuntimeError('Windows metadata query did not return version and signature properties')
+    if not isinstance(runtime,dict) or runtime.get('edition')!='Desktop' or not str(runtime.get('version','')).startswith('5.1.'):
+        raise RuntimeError('Windows metadata query did not use Windows PowerShell 5.1 Desktop')
+    for key,expected in [('home',home),('securityModule',home/'Modules/Microsoft.PowerShell.Security'),
+                         ('utilityModule',home/'Modules/Microsoft.PowerShell.Utility')]:
+        actual=runtime.get(key)
+        if not isinstance(actual,str) or Path(actual).resolve()!=expected.resolve():
+            raise RuntimeError('Windows metadata query used an unexpected PowerShell module path: '+key)
+    return metadata
+
+
 def terminate_owned(p):
     if p and p.poll() is None:
         subprocess.run(['taskkill','/PID',str(p.pid),'/T','/F'],capture_output=True,timeout=15)
@@ -128,6 +165,32 @@ def require_exited(handle):
     try:
         if kernel.WaitForSingleObject(handle,10000)!=0: raise RuntimeError('Generated debuggee did not exit')
     finally:kernel.CloseHandle(handle)
+
+
+
+def cleanup_debug_session(process, conn, reader, writer, target, original_error):
+    """Unblock protocol reads before closing buffered streams; preserve the primary failure."""
+    failures=[]
+    def attempt(operation, action):
+        try:action()
+        except Exception as error:failures.append((operation,error))
+    if conn:
+        try:conn.shutdown(socket.SHUT_RDWR)
+        except OSError:pass  # The peer may have completed its normal disconnect already.
+    attempt('terminate owned adapter',lambda:terminate_owned(process))
+    if target:attempt('wait for generated debuggee',lambda:require_exited(target))
+    def close_streams():
+        for name,stream in (('writer',writer),('reader',reader),('socket',conn)):
+            if stream:attempt('close '+name,stream.close)
+    closer=threading.Thread(target=close_streams,name='GoForge debugger stream cleanup',daemon=True)
+    closer.start();closer.join(timeout=2)
+    if closer.is_alive():failures.append(('close protocol streams',TimeoutError('Protocol stream cleanup exceeded 2 seconds')))
+    if failures:
+        details=[operation+': '+type(error).__name__+': '+str(error) for operation,error in failures]
+        if original_error is not None:
+            # BaseException.add_note is only available in Python 3.11+.
+            original_error.__notes__=list(getattr(original_error,'__notes__',[]))+['Native debugger cleanup: '+detail for detail in details]
+        else:raise RuntimeError('Native debugger cleanup failed: '+'; '.join(details)) from failures[0][1]
 
 
 def debug(wire, app, project, env, out, cancel=False):
@@ -182,11 +245,7 @@ def debug(wire, app, project, env, out, cancel=False):
                     'scope':'launch/breakpoint/locals/evaluate/'+('cancel cleanup' if cancel else 'step/continue/exit cleanup'),
                     'protocol':rpc.dap_diagnostics()}
         finally:
-            if writer:writer.close()
-            if reader:reader.close()
-            if conn:conn.close()
-            terminate_owned(process)
-            if target:require_exited(target)
+            cleanup_debug_session(process,conn,reader,writer,target,sys.exc_info()[1])
 
 
 def lsp(wire,app,project,env,out):
@@ -249,14 +308,10 @@ def main(app,report):
             temp=Path(temporary);relocated=temp/'GoForge relocated';shutil.copytree(app,relocated)
             env=native_environment(relocated,temp,os.environ)
             for name in ('APPDATA','LOCALAPPDATA'):Path(env[name]).mkdir()
-            powershell=Path(env['SYSTEMROOT'])/'System32/WindowsPowerShell/v1.0/powershell.exe'
-            resources=json.loads(command([powershell,'-NoProfile','-NonInteractive','-Command',
-                '$v=(Get-Item -LiteralPath $env:GOFORGE_VERIFY_EXE).VersionInfo; '
-                '$s=Get-AuthenticodeSignature -LiteralPath $env:GOFORGE_VERIFY_EXE; '
-                '@{product=$v.ProductName; description=$v.FileDescription; original=$v.OriginalFilename; signature=$s.Status.ToString()} | ConvertTo-Json -Compress'],
-                env={**env,'GOFORGE_VERIFY_EXE':str(relocated/'bin/goforge64.exe')}))
+            metadata=windows_file_metadata(relocated/'bin/goforge64.exe',env)
+            resources=metadata['properties']
             assert resources=={'product':'GoForge','description':'GoForge','original':'goforge64.exe','signature':'NotSigned'},resources
-            result['checks']['windowsVersionAndSignature']={'passed':True,'properties':resources}
+            result['checks']['windowsVersionAndSignature']={'passed':True,**metadata}
             probe=command([relocated/'bin/goforge64.exe','goforge-package-info'],env=env,timeout=120)
             assert 'product=GoForge' in probe and str(relocated).lower() in probe.lower(),probe
             runtime=next(x.removeprefix('runtime=') for x in probe.splitlines() if x.startswith('runtime='))
@@ -287,7 +342,10 @@ def main(app,report):
             result['checks']['fixtureUnchanged']=require_fixture_unchanged(project,baseline)
             result['passed']=True
     except BaseException as error:
-        result['error']=type(error).__name__+': '+str(error);raise
+        result['passed']=False
+        result['error']=type(error).__name__+': '+str(error)
+        if getattr(error,'__notes__',None):result['cleanupNotes']=list(error.__notes__)
+        raise
     finally:
         (report/'native-verification.json').write_text(json.dumps(result,indent=2,ensure_ascii=False)+'\n',encoding='utf-8')
         print(json.dumps(result,indent=2,ensure_ascii=True))
