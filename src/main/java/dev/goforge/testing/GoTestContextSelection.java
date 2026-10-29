@@ -20,13 +20,14 @@ public final class GoTestContextSelection {
     private static final int MAX_SOURCE_BYTES = 8 * 1024 * 1024;
     private static final class Guard {
         final VirtualFile file;
+        final String filePath;
         final String text;
         final long documentStamp;
         final GoTestSelection selection;
         volatile long verifiedFileStamp = Long.MIN_VALUE;
         volatile boolean started;
         Guard(VirtualFile file, String text, long documentStamp, GoTestSelection selection) {
-            this.file = file; this.text = text; this.documentStamp = documentStamp; this.selection = selection;
+            this.file = file; this.filePath = file.getPath(); this.text = text; this.documentStamp = documentStamp; this.selection = selection;
         }
     }
     private record State(boolean valid, long fileStamp) { }
@@ -34,7 +35,7 @@ public final class GoTestContextSelection {
     public static void bind(GoRunConfiguration configuration, VirtualFile file, String text, long stamp) {
         configuration.putCopyableUserData(KEY, new Guard(file, text, stamp, configuration.getTestSelection()));
     }
-    /** Explicit tree reruns select a current name, rather than reusing the original caret snapshot. */
+    /** Ordinary tree reruns clear the caret snapshot; benchmark results then bind their observed source. */
     public static void clear(GoRunConfiguration configuration) { configuration.putCopyableUserData(KEY, null); }
     /** The execution copy and the saved configuration consume the same initial snapshot after process creation. */
     public static void copyBinding(GoRunConfiguration source, GoRunConfiguration destination) {
@@ -45,7 +46,7 @@ public final class GoTestContextSelection {
         Guard guard = configuration.getCopyableUserData(KEY);
         if (guard == null || guard.started || !Objects.equals(guard.selection, configuration.getTestSelection())) return;
         State state = ReadAction.compute(() -> {
-            if (!guard.file.isValid()) return new State(false, -1);
+            if (!guard.file.isValid() || !guard.filePath.equals(guard.file.getPath())) return new State(false, -1);
             Document document = FileDocumentManager.getInstance().getCachedDocument(guard.file);
             if (document != null && (document.getModificationStamp() != guard.documentStamp
                     || !document.getText().equals(guard.text) || FileDocumentManager.getInstance().isDocumentUnsaved(document)))
@@ -63,6 +64,7 @@ public final class GoTestContextSelection {
             String saved = Files.readString(path, StandardCharsets.UTF_8).replace("\r\n", "\n").replace('\r', '\n');
             if (!saved.equals(guard.text)) throw stale();
             boolean current = ReadAction.compute(() -> guard.file.isValid()
+                    && guard.filePath.equals(guard.file.getPath())
                     && guard.file.getModificationStamp() == state.fileStamp()
                     && (FileDocumentManager.getInstance().getCachedDocument(guard.file) == null
                     || FileDocumentManager.getInstance().getCachedDocument(guard.file).getModificationStamp() == guard.documentStamp));

@@ -62,9 +62,9 @@ public final class RemoteDelveDebugAdapterDescriptor extends DefaultDebugAdapter
     @Override public @NotNull ServerReadyConfig getServerReadyConfig(@NotNull DebugMode mode){return new ServerReadyConfig(0);}
     @Override public @NotNull DAPClient createClient(@NotNull DAPDebugProcess process,@NotNull Map<String,Object> parameters,
             boolean debug,@NotNull DebugMode ignored,@NotNull ServerTrace trace,@Nullable DAPClient parent){
-        return new DAPClient(process,parameters,debug,clientMode(),ServerTrace.off,parent);
+        return new GoRemoteDapClient(environment.getProject(),process,parameters,debug,clientMode(),parent);
     }
     @Override public FileType getFileType(){return GoFileType.INSTANCE;}
     @Override public @NotNull XDebuggerEditorsProvider createDebuggerEditorsProvider(@Nullable FileType type,@NotNull DAPDebugProcess process){return new GoDebuggerEditorsProvider(process);}
-    @Override public boolean isDebuggableFile(@NotNull VirtualFile file,@NotNull Project project){return "go".equals(file.getExtension());}
+    @Override public boolean isDebuggableFile(@NotNull VirtualFile file,@NotNull Project project){return !(file instanceof com.redhat.devtools.lsp4ij.dap.client.files.DAPFile)&&"go".equals(file.getExtension());}
 }

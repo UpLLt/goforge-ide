@@ -19,7 +19,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-/** Opt-in bounded redirects; no ambient credentials, cookie jar, scripts, or disk history. Normal TLS verification. */
+/** Default bounded redirects; no ambient credentials, cookie jar, scripts, or disk history. Normal TLS verification. */
 public final class HttpRequestEngine implements AutoCloseable {
     public record Body(byte[] bytes, boolean truncated) { }
     public enum RedirectPolicy { NEVER, FOLLOW }
@@ -41,7 +41,7 @@ public final class HttpRequestEngine implements AutoCloseable {
     private volatile boolean closed;
 
     public CompletableFuture<Result> send(HttpRequestFile.Request source, Duration timeout, int maximumBytes) {
-        return send(source, timeout, maximumBytes, RedirectPolicy.NEVER);
+        return send(source, timeout, maximumBytes, RedirectPolicy.FOLLOW);
     }
 
     public CompletableFuture<Result> send(HttpRequestFile.Request source, Duration timeout, int maximumBytes,

@@ -25,7 +25,7 @@ final class HttpClientPanel extends JPanel {
     private final JComboBox<String> environmentNames=new JComboBox<>(new String[]{HttpEnvironment.NONE.name()});
     private final JLabel status=new JLabel("Responses stay in memory. Choose environments explicitly; no scripts execute.");
     private final JButton send=new JButton("Send"),cancel=new JButton("Cancel"),save=new JButton("Save Response…"),saveSummary=new JButton("Save Summary…");
-    private final JCheckBox followRedirects=new JCheckBox("Follow redirects");
+    private final JCheckBox followRedirects=new JCheckBox("Follow redirects", true);
     private final List<JComponent> idleControls=new ArrayList<>();
     private final DefaultTableModel resultsModel=new DefaultTableModel(new String[]{"Request","Outcome","HTTP","Checks","ms"},0){@Override public boolean isCellEditable(int row,int column){return false;}};
     private final JTable results=new JTable(resultsModel);
@@ -42,7 +42,7 @@ final class HttpClientPanel extends JPanel {
         requests.setPreferredSize(new Dimension(180,26));requests.setName("http-request-selection");
         first.add(open);first.add(refresh);first.add(requests);first.add(send);first.add(button("Run All",this::runAll));first.add(button("Run Selected…",this::selectRequests));first.add(cancel);
         followRedirects.setName("http-follow-redirects");
-        followRedirects.setToolTipText("Up to 5 redirects. Off by default. @no-redirect overrides this. Cross-origin requests drop all original headers; preserved bodies and HTTPS downgrade are refused.");
+        followRedirects.setToolTipText("Up to 5 redirects. On by default. @no-redirect overrides this. Cross-origin requests drop all original headers; preserved bodies and HTTPS downgrade are refused.");
         first.add(followRedirects);
         environmentNames.setPreferredSize(new Dimension(145,26));environmentNames.setName("http-environment-selection");
         second.add(button("Environments…",this::chooseEnvironments));second.add(environmentNames);second.add(button("Next Failure",this::nextFailure));second.add(saveSummary);second.add(save);second.add(button("Help",this::help));
@@ -54,9 +54,8 @@ final class HttpClientPanel extends JPanel {
         var resultScroll=new JBScrollPane(results);
         Insets resultBorder=resultScroll.getInsets();
         resultScroll.setMinimumSize(new Dimension(0,results.getRowHeight()+results.getTableHeader().getPreferredSize().height+resultBorder.top+resultBorder.bottom));
-        var tabs=new JTabbedPane();tabs.addTab("Results",resultScroll);tabs.addTab("Response",new JBScrollPane(body));tabs.addTab("Headers",new JBScrollPane(headers));tabs.addTab("Assertions",new JBScrollPane(assertions));
-        var sourceScroll=new JBScrollPane(source);Insets sourceBorder=sourceScroll.getInsets();
-        sourceScroll.setMinimumSize(new Dimension(0,source.getFontMetrics(source.getFont()).getHeight()*2+sourceBorder.top+sourceBorder.bottom));
+        var tabs=new JTabbedPane();tabs.addTab("Results",resultScroll);tabs.addTab("Response",textScroll(body));tabs.addTab("Headers",textScroll(headers));tabs.addTab("Assertions",textScroll(assertions));
+        var sourceScroll=textScroll(source);
         var split=new OnePixelSplitter(true,.46f,.1f,.9f);split.setName("http-request-result-split");
         split.setHonorComponentsMinimumSize(true);split.setFirstComponent(sourceScroll);split.setSecondComponent(tabs);
         add(split,BorderLayout.CENTER);add(status,BorderLayout.SOUTH);
@@ -67,6 +66,14 @@ final class HttpClientPanel extends JPanel {
         results.addMouseListener(new MouseAdapter(){@Override public void mouseClicked(MouseEvent e){if(e.getClickCount()==2)navigateToResult();}});
         results.getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER,0),"source");results.getActionMap().put("source",new AbstractAction(){@Override public void actionPerformed(ActionEvent e){navigateToResult();}});
         parseAt(0);
+    }
+    /** Inactive tabs must not reserve the look-and-feel scrollbar's minimum track height. */
+    private static JBScrollPane textScroll(JTextArea text){
+        var scroll=new JBScrollPane(text);Insets border=scroll.getInsets();
+        // Reserve two lines plus a horizontal scrollbar when long request/response lines need it.
+        scroll.setMinimumSize(new Dimension(0,text.getFontMetrics(text.getFont()).getHeight()*2
+            +border.top+border.bottom+scroll.getHorizontalScrollBar().getPreferredSize().height));
+        return scroll;
     }
     /** FlowLayout wraps children, but its default preferred height does not include wrapped rows. */
     private final class ToolbarRow extends JPanel {
@@ -149,5 +156,5 @@ final class HttpClientPanel extends JPanel {
     private void saveSummary(){if(summary!=null)export(summary.safeJson().getBytes(StandardCharsets.UTF_8),"Save HTTP Summary","Metadata only; no URLs, names, variables, headers or bodies","http-results.json");}
     private void saveResponse(){var current=result;if(current==null)return;if(Messages.showYesNoDialog(project,"Export the original response bytes? They can contain tokens, personal data or other secrets, including values masked in this panel. Only save to a private location. No environment file is copied.","Save Original HTTP Response",Messages.getWarningIcon())!=Messages.YES)return;export(current.body().bytes(),"Save HTTP Response","Original bytes; sensitive data may be present","response.bin");}
     private void export(byte[] bytes,String title,String description,String suggested){var target=FileChooserFactory.getInstance().createSaveFileDialog(new FileSaverDescriptor(title,description),project).save(suggested);if(target==null)return;var path=target.getFile().toPath();ApplicationManager.getApplication().executeOnPooledThread(()->{String message;try{Files.write(path,bytes,StandardOpenOption.CREATE_NEW);message="Saved to the explicitly chosen new file.";}catch(Exception failure){message="Unable to save; existing files are preserved.";}String displayed=message;ApplicationManager.getApplication().invokeLater(()->{if(!project.isDisposed())status.setText(displayed);});});}
-    private void help(){Messages.showInfoMessage(project,"Requests run in file order; errors/assertion failures do not stop later requests. Cancel stops the current client request and marks the rest Not run.\n\nBefore METHOD, declare checks:\n# @expect status 200\n# @expect header Content-Type \"application/json\"\n# @expect json /items/0/name \"GoForge\"\nJSON pointers use ~1 for / and ~0 for ~; use \"\" for root. Values are JSON, not JavaScript.\n\nDouble-click a result or choose Next Failure to locate its source line. Known private values and sensitive headers are masked in presentation. Arbitrary server data may contain other secrets. Summary export excludes response data; original response export asks separately.\n\nRedirects are off by default. Enable Follow redirects for this panel run; // @no-redirect or # @no-redirect before a request still returns its redirect response. Up to five 301/302/303/307/308 hops share one timeout. 301/302 POST and 303 (except HEAD) become GET without the body. 307/308 retain method/body. Cross-origin redirects remove all original headers and refuse a preserved nonempty body. HTTPS to HTTP is refused. Final-response assertions apply after redirects; Headers shows status/method hops without URLs. No cookies are stored or replayed automatically.\n\nTLS verification remains enabled. No account, response scripts, automatic history or background collection runs.","HTTP Collections and Assertions");}
+    private void help(){Messages.showInfoMessage(project,"Requests run in file order; errors/assertion failures do not stop later requests. Cancel stops the current client request and marks the rest Not run.\n\nBefore METHOD, declare checks:\n# @expect status 200\n# @expect header Content-Type \"application/json\"\n# @expect json /items/0/name \"GoForge\"\nJSON pointers use ~1 for / and ~0 for ~; use \"\" for root. Values are JSON, not JavaScript.\n\nDouble-click a result or choose Next Failure to locate its source line. Known private values and sensitive headers are masked in presentation. Arbitrary server data may contain other secrets. Summary export excludes response data; original response export asks separately.\n\nRedirects are followed by default. Clear Follow redirects to return the original response; // @no-redirect or # @no-redirect before a request still returns its redirect response. Up to five 301/302/303/307/308 hops share one timeout. 301/302 POST and 303 (except HEAD) become GET without the body. 307/308 retain method/body. Cross-origin redirects remove all original headers and refuse a preserved nonempty body. HTTPS to HTTP is refused. Final-response assertions apply after redirects; Headers shows status/method hops without URLs. No cookies are stored or replayed automatically.\n\nTLS verification remains enabled. No account, response scripts, automatic history or background collection runs.","HTTP Collections and Assertions");}
 }

@@ -13,6 +13,7 @@ import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.actionSystem.Presentation;
 import com.intellij.openapi.actionSystem.impl.SimpleDataContext;
+import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.util.Key;
@@ -166,11 +167,21 @@ public final class GoTestTerminationPlatformTest extends BasePlatformTestCase {
     }
 
     public void testActualHandlerFinalizationDoesNotReportAnObservedSelectedBenchmarkMissing() throws Exception {
-        var session=start("benchmark",GoTestSelection.benchmark("BenchmarkOne"));session.awaitFinished();
+        var session=start("benchmark",GoTestSelection.benchmark("BenchmarkOne"),"-benchtime=7x -benchmem");session.awaitFinished();
         assertEquals(Integer.valueOf(0),session.handler.getExitCode());assertFalse(session.root().isDefect());
         assertTrue(session.node("BenchmarkOne").isPassed());assertTrue(session.registry.missingRequestedTests().isEmpty());
         assertTrue(session.registry.knownTargets().isEmpty());
-        assertNull(session.properties.selectedConfiguration(session.node("BenchmarkOne")));
+        var rerun=session.properties.selectedConfiguration(session.node("BenchmarkOne"));assertNotNull(rerun);assertNotSame(session.configuration,rerun);
+        assertEquals(GoCommand.TEST,rerun.getCommand());assertEquals(GoTestSelection.benchmark("BenchmarkOne"),rerun.getTestSelection());
+        assertFalse(rerun.getTestSelection().rerun());
+        assertEquals(List.of("-run=^$","-bench=^BenchmarkOne$"),GoTestSelector.arguments(rerun.getTestSelection()));
+        assertEquals("-benchtime=7x -benchmem",rerun.getGoArguments());assertEquals(directory.toString(),rerun.getDirectory());assertEquals(".",rerun.getTarget());
+        assertNull(session.registry.target(session.node("BenchmarkOne").getLocationUrl()));
+        var verified=ApplicationManager.getApplication().executeOnPooledThread(()->{GoTestContextSelection.validateBeforeRun(rerun);return null;});
+        PlatformTestUtil.waitWithEventsDispatching("terminated benchmark rerun source guard",verified::isDone,5);verified.get();
+        GoTestContextSelection.validateBeforeRun(rerun);
+        assertEquals(GoTestSelection.benchmark("BenchmarkOne"),session.configuration.getTestSelection());
+        assertEquals("-benchtime=7x -benchmem",session.configuration.getGoArguments());assertEquals(directory.toString(),session.configuration.getDirectory());assertEquals(".",session.configuration.getTarget());
         assertEquals(0,session.console.getResultsViewer().getFailedTestCount());
     }
     public void testActualHandlerStillFailsASelectedBenchmarkWhichWasNeverObserved() throws Exception {
@@ -187,6 +198,9 @@ public final class GoTestTerminationPlatformTest extends BasePlatformTestCase {
     }
 
     private Session start(String mode, GoTestSelection selection) throws Exception {
+        return start(mode, selection, "");
+    }
+    private Session start(String mode, GoTestSelection selection, String arguments) throws Exception {
         StringBuilder source = new StringBuilder("package p\nimport \"testing\"\n");
         var declarations = new ArrayList<GoTestSourceIndex.Declaration>();
         for (String name : NAMES) {
@@ -204,7 +218,7 @@ public final class GoTestTerminationPlatformTest extends BasePlatformTestCase {
         var factory = ConfigurationTypeUtil.findConfigurationType(GoRunConfigurationType.class).getConfigurationFactories()[0];
         var configuration = new GoRunConfiguration(getProject(), factory, "termination fixture");
         configuration.setCommand(GoCommand.TEST); configuration.setDirectory(directory.toString());
-        configuration.setTarget("."); configuration.setTestSelection(selection);
+        configuration.setTarget("."); configuration.setTestSelection(selection); configuration.setGoArguments(arguments);
         var registry = new GoTestRunRegistry(getProject(), configuration,
                 Map.of("p", new GoTestRunRegistry.PackageSources(directory, List.of(snapshot))));
         var properties = new GoTestConsoleProperties(configuration, DefaultRunExecutor.getRunExecutorInstance(), registry);
@@ -233,13 +247,13 @@ public final class GoTestTerminationPlatformTest extends BasePlatformTestCase {
         console.getComponent(); Disposer.register(getTestRootDisposable(), console);
         var result = new DefaultExecutionResult(console, handler); properties.mount(console, result);
         handler.startNotify();
-        return new Session(handler, registry, properties, console, result, ready, stopping);
+        return new Session(configuration, handler, registry, properties, console, result, ready, stopping);
     }
     private AnActionEvent toolbarEvent() {
         return AnActionEvent.createFromDataContext("GoForgeTest", new Presentation(),
                 SimpleDataContext.builder().add(CommonDataKeys.PROJECT, getProject()).build());
     }
-    private record Session(GoTestProcessHandler handler, GoTestRunRegistry registry, GoTestConsoleProperties properties,
+    private record Session(GoRunConfiguration configuration, GoTestProcessHandler handler, GoTestRunRegistry registry, GoTestConsoleProperties properties,
                            SMTRunnerConsoleView console, DefaultExecutionResult result,
                            AtomicBoolean ready, AtomicBoolean stopping) {
         SMTestProxy.SMRootTestProxy root() { return console.getResultsViewer().getTestsRootNode(); }

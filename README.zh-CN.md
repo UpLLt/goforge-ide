@@ -17,8 +17,8 @@ GoForge 使用原创代码、公开的 IntelliJ Community 平台、LSP4IJ、gopl
 
 | 平台 | 包与验证情况 |
 | --- | --- |
-| macOS / Apple Silicon | macOS 13.5+；Full 20 包已审计，23 个真实包内方法重构协议场景通过，原生 IDE 界面尚待检查；Full 19 编辑/远端源码与 Full 18 调试检查保留各自身份。ad-hoc 签名，尚无 Developer ID 公证。 |
-| Windows x64 | 第 13 次 CI 产品测试与 9 组原生检查通过，完整应用归档读回尚待完成；交互界面未验收，启动器无签名。见 [Windows 安装状态](docs/INSTALL.md#windows-x64)。 |
+| macOS / Apple Silicon | macOS 13.5+；Full 22 包已审计，23 个真实包内方法重构协议场景通过；原生 IDE 工作流待验收，未尝试 Full 22 界面功能组。此前原生结果保留各自构建身份。ad-hoc 签名，尚无 Developer ID 公证。 |
+| Windows x64 | 最近第 14 次在 1 项紧凑布局测试失败，打包已跳过；此前 Full 19 的第 13 次通过产品测试与 9 组限定原生检查，完整应用归档仍待读回。交互界面未验收，启动器无签名。见 [Windows 安装状态](docs/INSTALL.md#windows-x64)。 |
 | Linux / 其他架构 | 暂无已验证的独立发行包。 |
 
 已准备的内部平台包均内置运行时、Go SDK、gopls、Delve、Node、Dev Containers CLI 和 JDBC 驱动。Docker、kubectl、Git、OpenSSH、Cgo 的 C 编译器及 macOS 调试前置工具使用系统安装。包校验值及“已准备”与“已公开发布”的区别见[安装指南](docs/INSTALL.md#prepared-package-identities)。
@@ -30,12 +30,12 @@ GoForge 使用原创代码、公开的 IntelliJ Community 平台、LSP4IJ、gopl
 | 模块 | 已实现范围 |
 | --- | --- |
 | Go 编辑 | 本地行/块注释、配对括号、限定块/圆括号/方括号续行缩进及原始字符串回车；gopls 补全、诊断、跳转、引用、重命名及可用代码动作；等待响应完成的 Go 默认保存格式化及手动 Reformat；独立控制的保存时导入整理先于格式化，另有手动 Optimize Imports 与保存类型列表中的 Go 选项；既有流程保留 macOS/Windows 平台与限定 Mac 原生证据；新续行行为通过 macOS 宿主测试及 3 项与 GoLand 对照的限定原生回车检查，对应 Full 19 的 Windows 产品测试已通过，Windows 原生交互界面仍待验收。 |
-| 项目与运行 | 应用/库模块、运行/构建/测试；顶层 Test/Example 选择、运行时子测试重跑、所属声明跳转及单包失败顶层测试重跑；本地终止保留已完成结果，未完成节点标为中断。支持单个顶层 Benchmark Run、已明确出现且完成节点的 Debug/源码跳转，以及保存后从编辑器声明运行一次迭代的 Debug Go Benchmark at Caret；直接子基准选择仍不可用。新入口/跳转不属于已验证 Full 13/第 10 次基线。 |
+| 项目与运行 | 应用/库模块、运行/构建/测试；顶层 Test/Example 选择、运行时子测试重跑、所属声明跳转及单包失败顶层测试重跑；本地终止保留已完成结果，未完成节点标为中断。支持单个顶层 Benchmark Run、受保护的完成节点重跑及 Debug/源码跳转，以及保存后从编辑器声明运行一次迭代的 Debug Go Benchmark at Caret；直接子基准选择仍不可用。各构建证据见下方验证范围。 |
 | 重构 | 项目内多文件预览与可撤销应用、提取声明到新文件、受保护的跨包参数重排/删除；独立操作支持为项目内已验证的直接调用新增一个标量参数并统一插入字面量默认值，含限定泛型普通函数调用，以及经类型检查的私有具体方法直接调用；普通导入走单模块离线编译检查，保留类型参数、约束与实参顺序。当前源码还支持单模块内经过编译检查的标量参数/单返回值类型修改。文件清单变化会使预览失效；拒绝不支持的调用形态和文件操作。 |
-| 调试 | 本地 Delve，含保留受支持参数的指定 Test/Example/子树调试；SSH 远端 package/test/executable 启动和 PID attach，支持经审阅的项目根 `go.work` 多模块；断点、栈、变量、表达式、步进和停止。 |
+| 调试 | 本地 Delve，含保留受支持参数的指定 Test/Example/子树调试；SSH 远端 package/test/executable 启动和 PID attach，支持经审阅的项目根 `go.work` 多模块；断点、栈、变量、表达式、步进和停止；远端包/测试会话暂停时可查看限定 SDK 只读快照，可执行文件/attach 的 SDK 及依赖映射仍不支持。 |
 | 覆盖率与性能 | 单模块覆盖率及源码着色；CPU/内存采集与 pprof。 |
 | 数据库 | SQLite、PostgreSQL、MySQL/MariaDB；SQL、事务、按主键编辑、CSV、基础 schema 补全和估计执行计划。 |
-| HTTP | `.http`/`.rest` 集合、环境、顺序运行、断言、取消和脱敏汇总；可选最多五跳重定向、请求级 `@no-redirect` 与跨来源头隔离。 |
+| HTTP | `.http`/`.rest` 集合、环境、顺序运行、断言、取消和脱敏汇总；默认最多五跳重定向、请求级 `@no-redirect` 与跨来源头隔离。 |
 | 容器 | Docker/Compose、Kubernetes 资源和 loopback 转发，明确限定范围的 Dev Container 工作流。 |
 | 远程工作区 | 严格主机密钥校验的 SSH 任务与预览传输；可选 gopls 独立快照分析，支持未保存文档 overlay；支持审阅根目录内的 go.work 多模块；精确远端 `GOROOT/src` 定义/类型定义打开会话只读源码，单根 go.mod/go.sum 下已选且已缓存的模块版本经校验后也可只读打开；replace、vendor、go.work 依赖源码及调试器依赖映射仍不支持。 |
 
@@ -62,7 +62,7 @@ GRADLE_USER_HOME="$PWD/.gradle-user-home" ./gradlew \
 
 ## 验证范围
 
-**当前已验证源码——Full 20。** **872/872 项 macOS 宿主 JUnit 测试**全部通过（517 component、355 platform，111 份 XML，零失败/错误/跳过），374 项输入冻结并通过独立构建读回。原有 835 项用例全部保留，新增 37 项。源码加入可选的限定 HTTP 重定向与紧凑布局、经类型/编译检查的私有方法新增参数、远端预览文案修复，以及接入下一轮 Windows 流程的包内方法协议验收器；11 项验收器契约测试通过。Mac 归档已独立核对，使用包内工具且无开发覆盖的 23 个真实方法协议场景通过。本次源码导出时，Mac 原生界面和 Windows 新一轮 CI 尚待完成；下方 Full 19 证据只代表旧构建。
+**当前已验证源码及 Mac 包——Full 22。** 901 项 macOS 宿主 JUnit 全部通过（531 component、370 platform，115 份 XML、381 项冻结输入），插件构建、归档独立读回及 23 个真实包内方法重构协议场景通过。本构建默认跟随 HTTP 重定向，加入受保护的指定 Benchmark 重跑及远端包/测试调试暂停时的 SDK 只读查看，并修正 HTTP 紧凑布局。Full 22 原生 IDE 工作流及 Windows 第 15 次仍待验收；Mac 处于锁定状态，未尝试新的界面功能组。Full 20 的 Windows 第 14 次仍为失败（870 通过、1 失败、1 既存 POSIX 跳过），打包/原生/发布被跳过。此前 Full 19 第 13 次成功保留独立身份，其完整应用归档仍在下载、尚未通过读回。
 
 **既有 Windows 基线：**[第 13 次 CI](https://github.com/UpLLt/goforge-ide/actions/runs/40844074829)使用 Full 19：834 通过、1 项既存 POSIX 专用跳过，打包及九组限定原生检查通过。下载的报告与插件已独立核对，完整应用归档仍待读回；Windows 交互式界面未验收。
 

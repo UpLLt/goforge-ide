@@ -91,7 +91,7 @@ public final class HttpCollectionRunner {
     private HttpCollectionRunner(){}
     public static Run start(HttpRequestEngine engine,List<HttpRequestFile.Request> requests,List<Integer> selected,
                             Duration timeout,int perResponseBytes,int totalBytes,HttpPrivacy privacy,Consumer<Row> progress){
-        return start(engine,requests,selected,timeout,perResponseBytes,totalBytes,privacy,progress,HttpRequestEngine.RedirectPolicy.NEVER);
+        return start(engine,requests,selected,timeout,perResponseBytes,totalBytes,privacy,progress,HttpRequestEngine.RedirectPolicy.FOLLOW);
     }
     public static Run start(HttpRequestEngine engine,List<HttpRequestFile.Request> requests,List<Integer> selected,
                             Duration timeout,int perResponseBytes,int totalBytes,HttpPrivacy privacy,Consumer<Row> progress,

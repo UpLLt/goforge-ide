@@ -106,9 +106,11 @@ public final class GoTestRunRegistry implements AutoCloseable {
     public synchronized Target target(String url) { return resolve(url, false); }
     /** Completed benchmarks use separate targets; they never authorize ordinary test rerun. */
     public synchronized Target debugTarget(String url) { return resolve(url, true); }
+    /** A typed benchmark rerun shares completed-source identity, never the failed-test target set. */
+    public synchronized Target rerunTarget(String url) { return resolve(url, true); }
     /** Navigation shares completed benchmark identity checks, without creating a run configuration. */
     public synchronized Target navigationTarget(String url) { return resolve(url, true); }
-    private Target resolve(String url, boolean debug) {
+    private Target resolve(String url, boolean allowBenchmark) {
         if (disposed || url == null || !url.startsWith(PROTOCOL + "://" + runToken + "/")) return null;
         String token = url.substring((PROTOCOL + "://" + runToken + "/").length());
         Observed n = tokens.get(token);
@@ -127,7 +129,7 @@ public final class GoTestRunRegistry implements AutoCloseable {
         }
         if (declaration == null) return null;
         if (!(declaration.kind().equals("test") || declaration.kind().equals("example"))) {
-            if (!debug || !declaration.kind().equals("benchmark") || !topLevelBenchmarkName(n.fullName)
+            if (!allowBenchmark || !declaration.kind().equals("benchmark") || !topLevelBenchmarkName(n.fullName)
                     || !terminated || localTerminationRequested
                     || !(n.status == GoTestEvents.Status.BENCHMARK_COMPLETED || n.status == GoTestEvents.Status.FAILED)) return null;
         }

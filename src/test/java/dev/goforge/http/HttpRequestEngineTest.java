@@ -42,7 +42,7 @@ public final class HttpRequestEngineTest {
         var followed = new AtomicInteger();
         server.createContext("/redirect", exchange -> { exchange.getResponseHeaders().set("Location", base + "/destination"); exchange.sendResponseHeaders(302, -1); exchange.close(); });
         server.createContext("/destination", exchange -> { followed.incrementAndGet(); exchange.sendResponseHeaders(200, -1); exchange.close(); });
-        var result = send("GET " + base + "/redirect\nAuthorization: Bearer fixture-only", 1024);
+        var result = engine.send(HttpRequestFile.parse("GET " + base + "/redirect\nAuthorization: Bearer fixture-only").getFirst(), Duration.ofSeconds(3), 1024, HttpRequestEngine.RedirectPolicy.NEVER).get(5, TimeUnit.SECONDS);
         assertEquals(302, result.status()); assertEquals(0, followed.get());
     }
     @Test public void bodyLimitCancelsRemainingBytesAndReportsTruncation() throws Exception {

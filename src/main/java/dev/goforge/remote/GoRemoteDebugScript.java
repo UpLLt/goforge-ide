@@ -3,8 +3,17 @@ package dev.goforge.remote;
 /** Transient stdio/loopback supervisor; never installed on the SSH host. */
 public final class GoRemoteDebugScript {
     private GoRemoteDebugScript() {}
+    /** The constant helper is compressed to remain below Windows SSH/CreateProcess argv bounds. */
+    public static String command() {
+        var bytes=new java.io.ByteArrayOutputStream();
+        try(var compressed=new java.util.zip.DeflaterOutputStream(bytes)) {
+            compressed.write(SOURCE.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        }catch(java.io.IOException impossible){throw new AssertionError(impossible);}
+        String encoded=java.util.Base64.getEncoder().encodeToString(bytes.toByteArray());
+        return GoRemoteScripts.python("import base64,zlib;exec(zlib.decompress(base64.b64decode('"+encoded+"')))");
+    }
     public static final String SOURCE="""
-import sys,os,json,hashlib,stat,subprocess,socket,threading,queue,re,time,signal,shutil,tempfile,select
+import sys,os,json,hashlib,stat,subprocess,socket,threading,queue,re,time,signal,shutil,tempfile,select,base64
 preamble=sys.stdin.buffer.readline(65537)
 if len(preamble)>65536: raise ValueError('Startup manifest too large')
 plan=json.loads(preamble); root=os.path.realpath(plan['root']); attached=plan['mode']=='attach'
@@ -60,7 +69,7 @@ def remote_send(message,timeout=5):
                 offset+=sent
             except BlockingIOError: select.select([],[conn],[],min(.1,remaining))
     finally: socket_lock.release()
-""" + GoRemoteDebugPaths.SOURCE + """
+""" + GoRemoteDebugPaths.SOURCE + GoRemoteDebugSdkScript.SOURCE + """
 def sources(value):
     if isinstance(value,dict):
         for key,item in list(value.items()):
@@ -134,6 +143,9 @@ def input_loop():
             msg=read_frame(sys.stdin.buffer)
             if msg is None: break
             command=msg.get('command');args=msg.setdefault('arguments',{})
+            debug_sdk_request(msg)
+            if command=='source':
+                debug_sdk_source(msg);continue
             if command in ('launch','attach'):
                 if command!=('attach' if attached else 'launch'): response(msg,'Launch/attach mode does not match the reviewed configuration');continue
                 msg['arguments']=dict(plan['arguments']);msg['arguments']['cwd']=root
@@ -161,7 +173,7 @@ def output_loop():
         while not stop.is_set():
             msg=read_frame(stream)
             if msg is None: break
-            sources(msg);send(msg)
+            debug_sdk_output(msg);sources(msg);send(msg)
     except (BrokenPipeError,OSError,ValueError) as e: failure='DAP output closed: '+str(e)
     finally: stop.set()
 try:
@@ -201,6 +213,10 @@ try:
     env['PATH']=os.path.dirname(os.path.realpath(go))+os.pathsep+env.get('PATH','')
     private=tempfile.mkdtemp(prefix='goforge-debug-');os.chmod(private,0o700)
     prepare_workspace()
+    # Delve applies launch env before invoking Go; SDK discovery must see the same values.
+    env.update(plan['arguments'].get('env',{}))
+    debug_sdk_initialize()
+    threading.Thread(target=debug_sdk_worker,daemon=True).start()
     child=subprocess.Popen([dlv,'dap','--listen=127.0.0.1:0'],cwd=root,env=env,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,start_new_session=True)
     ready=queue.Queue();last=[]
     def messages():

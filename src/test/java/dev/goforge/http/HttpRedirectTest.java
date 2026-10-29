@@ -43,6 +43,19 @@ public final class HttpRedirectTest {
         var e=assertThrows(ExecutionException.class,()->send(text,Duration.ofSeconds(5)).get(7,TimeUnit.SECONDS));
         assertTrue(e.getCause() instanceof HttpRedirects.Refused);assertFalse(e.getCause().getMessage().contains(base));return e.getCause().getMessage();
     }
+    @Test public void defaultSendFollowsRedirectAndPerRequestOptOutStillReturnsOriginalResponse() throws Exception {
+        redirect("/default",302,"/final");
+        var request=HttpRequestFile.parse("GET "+base+"/default").getFirst();
+        var result=engine.send(request,Duration.ofSeconds(5),1024).get(7,TimeUnit.SECONDS);
+        assertEquals(200,result.status());assertEquals(1,result.redirects().size());
+        assertEquals("/final",received.poll(1,TimeUnit.SECONDS).path());
+        for(String prefix:List.of("#","//")) {
+            var disabled=HttpRequestFile.parse(prefix+" @no-redirect\nGET "+base+"/default").getFirst();
+            var original=engine.send(disabled,Duration.ofSeconds(5),1024).get(7,TimeUnit.SECONDS);
+            assertEquals(302,original.status());assertTrue(original.redirects().isEmpty());
+        }
+        assertNull(received.poll(150,TimeUnit.MILLISECONDS));
+    }
     @Test public void followsRelativeChainAndReturnsOnlyFinalBodyWithSafeHopMetadata() throws Exception {
         redirect("/start",301,"/middle");redirect("/middle",308,"final#not-sent");
         var result=send("GET "+base+"/start");assertEquals(200,result.status());assertEquals("final",new String(result.body().bytes(),StandardCharsets.UTF_8));

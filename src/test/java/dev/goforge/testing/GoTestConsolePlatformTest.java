@@ -388,14 +388,15 @@ public final class GoTestConsolePlatformTest extends BasePlatformTestCase {
         session.send("bench","example.com/target","BenchmarkOne");session.send("pass","example.com/target","");session.finish(0);
         var node=session.node("BenchmarkOne");session.select(node);
         assertNotNull(node.getLocationUrl());assertNull(session.registry.target(node.getLocationUrl()));assertTrue(session.registry.knownTargets().isEmpty());
-        assertNull(session.properties.selectedConfiguration());assertNull(session.properties.selectedConfiguration(node));
+        assertEquals(GoTestSelection.benchmark("BenchmarkOne"), session.properties.selectedConfiguration().getTestSelection());
+        assertEquals(GoTestSelection.benchmark("BenchmarkOne"), session.properties.selectedConfiguration(node).getTestSelection());
         var selected=session.properties.selectedDebugConfiguration();assertNotNull(selected);
         assertEquals(GoTestSelection.benchmark("BenchmarkOne"),selected.getTestSelection());assertEquals("-tags=benchmark_fixture -benchtime=1x",selected.getGoArguments());
         assertEquals(".",selected.getTarget());assertEquals(directory.toString(),selected.getDirectory());
-        for(int i=0;i<3;i++){var event=session.toolbarEvent();session.result.getActions()[i].update(event);assertEquals(i>=1,event.getPresentation().isEnabled());}
+        for(int i=0;i<3;i++){var event=session.toolbarEvent();session.result.getActions()[i].update(event);assertTrue(event.getPresentation().isEnabled());}
         assertEquals(GoTestSelection.benchmark("BenchmarkOne"),session.configuration.getTestSelection());
     }
-    public void testCompletedBenchmarkSourceActionOpensExactDeclarationAndKeepsRerunDisabled() throws Exception {
+    public void testCompletedBenchmarkSourceActionOpensExactDeclarationAndOffersTypedRerun() throws Exception {
         var captured = new AtomicReference<GoRunConfiguration>();
         var session = session(GoTestSelection.benchmark("BenchmarkOne"), captured);
         session.send("start", "example.com/target", ""); session.send("run", "example.com/target", "BenchmarkOne");
@@ -412,7 +413,8 @@ public final class GoTestConsolePlatformTest extends BasePlatformTestCase {
         var openedFile = FileDocumentManager.getInstance().getFile(editor.getDocument());
         assertNotNull(openedFile);
         assertEquals(directory.resolve("fixture_test.go").toRealPath(), Path.of(openedFile.getPath()).toRealPath());
-        session.result.getActions()[0].actionPerformed(session.toolbarEvent()); assertNull(captured.get());
+        session.result.getActions()[0].actionPerformed(session.toolbarEvent());
+        assertEquals(GoTestSelection.benchmark("BenchmarkOne"), captured.get().getTestSelection());
         assertNull(session.registry.target(node.getLocationUrl())); assertNotNull(session.registry.navigationTarget(node.getLocationUrl()));
     }
     public void testBenchmarkNavigationRejectsForeignHintsChangedSourceAndDisposedConsole() throws Exception {
@@ -447,6 +449,8 @@ public final class GoTestConsolePlatformTest extends BasePlatformTestCase {
             session.send("bench","example.com/target","BenchmarkOne");session.send("pass","example.com/target","");session.finish(0);
             var node=session.node("BenchmarkOne");session.select(node);
             assertNull(session.properties.selectedDebugConfiguration());assertNull(session.registry.debugTarget(node.getLocationUrl()));
+            assertNull(session.properties.selectedConfiguration());assertNull(session.registry.rerunTarget(node.getLocationUrl()));
+            var rerunEvent=session.toolbarEvent();session.result.getActions()[0].update(rerunEvent);assertFalse(rerunEvent.getPresentation().isEnabled());
             assertNull(session.registry.navigationTarget(node.getLocationUrl()));
             var navigationEvent=session.toolbarEvent();session.result.getActions()[1].update(navigationEvent);assertFalse(navigationEvent.getPresentation().isEnabled());
             var event=session.toolbarEvent();session.result.getActions()[2].update(event);assertFalse(event.getPresentation().isEnabled());
@@ -460,13 +464,118 @@ public final class GoTestConsolePlatformTest extends BasePlatformTestCase {
             session.send("bench","example.com/target","BenchmarkOne");session.send("pass","example.com/target","");session.finish(0);
         }
         var node=first.node("BenchmarkOne");assertNull(second.properties.selectedDebugConfiguration(node));
+        assertNull(second.properties.selectedConfiguration(node));
+        assertNull(first.properties.selectedConfiguration(first.node("BenchmarkOne/sub")));
         assertNull(first.properties.selectedDebugConfiguration(first.node("BenchmarkOne/sub")));
         assertNull(first.registry.navigationTarget(first.node("BenchmarkOne/sub").getLocationUrl()));
         var data=SimpleDataContext.builder().add(CommonDataKeys.PROJECT,getProject()).add(TestTreeView.MODEL_DATA_KEY,first.console.getResultsViewer())
                 .add(AbstractTestProxy.DATA_KEYS,new AbstractTestProxy[]{node,first.node("BenchmarkOne/sub")}).build();
         assertNull(GoTestConsoleProperties.selectedDebugConfiguration(AnActionEvent.createFromDataContext("BenchmarkDebug",new Presentation(),data)));
+        assertNull(GoTestConsoleProperties.selectedConfiguration(AnActionEvent.createFromDataContext("BenchmarkRun",new Presentation(),data)));
         first.select(node);assertNotNull(first.properties.selectedDebugConfiguration());
         Disposer.dispose(first.console);assertNull(first.properties.selectedDebugConfiguration());assertNull(first.properties.selectedDebugConfiguration(node));
+        assertNull(first.properties.selectedConfiguration());assertNull(first.properties.selectedConfiguration(node));
+    }
+    public void testSelectedBenchmarkRerunPreservesTypedFlagsWithoutChangingOriginalOrFailedRerun() throws Exception {
+        var captured = new AtomicReference<GoRunConfiguration>();
+        var session = session(null, captured, directory, "-benchtime=3x -benchmem -cpu=1", "");
+        completeBenchmark(session);
+        var node = session.node("BenchmarkOne"); session.select(node);
+        var event = session.toolbarEvent(); var action = session.result.getActions()[0];
+        var update = ApplicationManager.getApplication().executeOnPooledThread(() -> action.update(event));
+        PlatformTestUtil.waitWithEventsDispatching("benchmark rerun BGT update", update::isDone, 5); update.get();
+        assertTrue(event.getPresentation().isEnabled()); assertEquals("Rerun selected Go benchmark", event.getPresentation().getText());
+        action.actionPerformed(event);
+        var selected = captured.get(); assertNotNull(selected);
+        assertEquals(GoTestSelection.benchmark("BenchmarkOne"), selected.getTestSelection());
+        assertFalse(selected.getTestSelection().rerun());
+        assertEquals(List.of("-run=^$", "-bench=^BenchmarkOne$"), GoTestSelector.arguments(selected.getTestSelection()));
+        assertEquals("-benchtime=3x -benchmem -cpu=1", selected.getGoArguments());
+        assertEquals(directory.toString(), selected.getDirectory()); assertEquals(".", selected.getTarget());
+        assertEquals("./...", session.configuration.getTarget()); assertNull(session.configuration.getTestSelection());
+        var failedEvent = session.toolbarEvent(); session.result.getRestartActions()[0].update(failedEvent); assertFalse(failedEvent.getPresentation().isEnabled());
+        assertNull(session.registry.target(node.getLocationUrl())); assertTrue(session.registry.knownTargets().isEmpty());
+    }
+    public void testSelectedBenchmarkRerunRebasesOriginalDirectoryFlagsAndKeepsDuration() throws Exception {
+        Path origin = directory.getParent(); var captured = new AtomicReference<GoRunConfiguration>();
+        var session = session(null, captured, origin, "-modfile=custom.mod -benchtime=7x -benchmem", "-modfile=environment.mod");
+        completeBenchmark(session); session.select(session.node("BenchmarkOne"));
+        session.result.getActions()[0].actionPerformed(session.toolbarEvent()); var selected = captured.get(); assertNotNull(selected);
+        assertEquals(directory.toString(), selected.getDirectory());
+        assertEquals(List.of("-modfile=" + origin.resolve("custom.mod"), "-benchtime=7x", "-benchmem"), ParametersListUtil.parse(selected.getGoArguments()));
+        assertEquals(List.of("-modfile=" + origin.resolve("environment.mod")), GoTestSelector.splitGoFlags(selected.getEnvironment().get("GOFLAGS")));
+        assertEquals("-modfile=custom.mod -benchtime=7x -benchmem", session.configuration.getGoArguments());
+        assertFalse(session.configuration.getEnvironment().containsKey("GOFLAGS"));
+    }
+    public void testSelectedBenchmarkRerunRejectsUnsafeCrossDirectoryFlag() throws Exception {
+        var captured = new AtomicReference<GoRunConfiguration>();
+        var session = session(null, captured, directory.getParent(), "-benchtime=2x -outputdir=results", "");
+        completeBenchmark(session); session.select(session.node("BenchmarkOne"));
+        var event = session.toolbarEvent(); session.result.getActions()[0].update(event);
+        assertFalse(event.getPresentation().isEnabled()); assertTrue(event.getPresentation().getDescription().contains("-outputdir"));
+        assertThrows(IllegalArgumentException.class, () -> session.properties.selectedConfiguration()); assertNull(captured.get());
+    }
+    public void testSelectedBenchmarkRerunRequiresTerminalObservationButKeepsFailedBenchmarkTyped() throws Exception {
+        var captured = new AtomicReference<GoRunConfiguration>(); var session = session(null, captured);
+        session.send("start", "example.com/target", ""); session.send("run", "example.com/target", "BenchmarkOne");
+        session.select(session.node("BenchmarkOne")); assertNull(session.properties.selectedConfiguration());
+        session.send("fail", "example.com/target", "BenchmarkOne"); session.send("fail", "example.com/target", "");
+        assertNull(session.properties.selectedConfiguration()); session.finish(1);
+        assertEquals(GoTestSelection.benchmark("BenchmarkOne"), session.properties.selectedConfiguration().getTestSelection());
+        var event = session.toolbarEvent(); session.result.getRestartActions()[0].update(event); assertFalse(event.getPresentation().isEnabled());
+        session.result.getActions()[0].actionPerformed(event); assertNotNull(captured.get());
+        assertFalse(captured.get().getTestSelection().rerun());
+    }
+    public void testSelectedBenchmarkRerunRefusesChangedSourceAndRetainsGuardAcrossConfigurationClone() throws Exception {
+        var session = session(null, new AtomicReference<>()); completeBenchmark(session); session.select(session.node("BenchmarkOne"));
+        var selected = session.properties.selectedConfiguration(); assertNotNull(selected); var clone = selected.clone();
+        assertNull(validateSelectedSourceInBackground(clone)); GoTestContextSelection.validateBeforeRun(clone);
+        var document = session.registry.cachedDocument(directory.resolve("fixture_test.go"));
+        WriteCommandAction.runWriteCommandAction(getProject(), () -> document.insertString(0, "// changed after selection\n"));
+        PsiDocumentManager.getInstance(getProject()).commitDocument(document);
+        assertNull(session.properties.selectedConfiguration());
+        var failure = validateSelectedSourceInBackground(clone); assertInstanceOf(failure, com.intellij.execution.ExecutionException.class);
+        assertThrows(com.intellij.execution.ExecutionException.class, () -> GoTestContextSelection.validateBeforeRun(selected));
+    }
+    public void testSelectedBenchmarkRerunRefusesSourceRenameAfterSelection() throws Exception {
+        var session = session(null, new AtomicReference<>()); completeBenchmark(session); session.select(session.node("BenchmarkOne"));
+        var selected = session.properties.selectedConfiguration(); assertNotNull(selected); assertNull(validateSelectedSourceInBackground(selected));
+        var file = root.findChild("fixture_test.go"); assertNotNull(file);
+        try {
+            com.intellij.openapi.application.WriteAction.run(() -> file.rename(this, "renamed_test.go"));
+            assertNull(session.properties.selectedConfiguration());
+            assertInstanceOf(validateSelectedSourceInBackground(selected), com.intellij.execution.ExecutionException.class);
+            assertThrows(com.intellij.execution.ExecutionException.class, () -> GoTestContextSelection.validateBeforeRun(selected));
+        } finally { com.intellij.openapi.application.WriteAction.run(() -> file.rename(this, "fixture_test.go")); }
+    }
+    public void testSelectedBenchmarkRerunUsesCurrentDocumentAndCanonicalFileMapping() throws Exception {
+        var session = session(null, new AtomicReference<>()); completeBenchmark(session); session.select(session.node("BenchmarkOne"));
+        var target = session.registry.rerunTarget(session.node("BenchmarkOne").getLocationUrl()); assertNotNull(target);
+        var file = LocalFileSystem.getInstance().findFileByNioFile(target.source().file()); assertNotNull(file);
+        var manager = FileDocumentManager.getInstance(); var document = session.registry.cachedDocument(target.source().file()); assertNotNull(document);
+        assertSame("Observed Document must still be the current cached binding", document, manager.getCachedDocument(file));
+        var documentFile = manager.getFile(document); assertNotNull(documentFile);
+        assertTrue(documentFile.isValid()); assertTrue(documentFile.isInLocalFileSystem());
+        assertEquals(target.source().file(), Path.of(documentFile.getCanonicalPath()).toAbsolutePath().normalize());
+        assertFalse(manager.isDocumentUnsaved(document)); assertTrue(PsiDocumentManager.getInstance(getProject()).isCommitted(document));
+        var configuration = session.properties.selectedConfiguration();
+        assertNotNull("Equal local file paths do not require identical VirtualFile wrapper instances", configuration);
+        assertEquals(GoTestSelection.benchmark("BenchmarkOne"), configuration.getTestSelection());
+        assertNull(validateSelectedSourceInBackground(configuration));
+    }
+    private static Throwable validateSelectedSourceInBackground(GoRunConfiguration configuration) {
+        var done = new java.util.concurrent.atomic.AtomicBoolean(); var failure = new AtomicReference<Throwable>();
+        ApplicationManager.getApplication().executeOnPooledThread(() -> {
+            try { GoTestContextSelection.validateBeforeRun(configuration); }
+            catch (Throwable error) { failure.set(error); }
+            finally { done.set(true); }
+        });
+        PlatformTestUtil.waitWithEventsDispatching("selected benchmark source guard", done::get, 5);
+        return failure.get();
+    }
+    private void completeBenchmark(Session session) {
+        session.send("start", "example.com/target", ""); session.send("run", "example.com/target", "BenchmarkOne");
+        session.send("bench", "example.com/target", "BenchmarkOne"); session.send("pass", "example.com/target", ""); session.finish(0);
     }
     private Session session(GoTestSelection selection, AtomicReference<GoRunConfiguration> captured) throws Exception {
         return session(selection, captured, directory, "", "");

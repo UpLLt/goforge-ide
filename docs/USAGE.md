@@ -6,6 +6,8 @@ Use action search for registered menu actions hidden by your layout; console-spe
 
 Verification differs by build and host; see [current acceptance and limitations](KNOWN-LIMITATIONS.md#verification-scope--验证范围). Instructions describe current source, not a complete native pass. / 构建与宿主验收分别记录，见[当前验收与差距](KNOWN-LIMITATIONS.md#verification-scope--验证范围)；以下说明当前源码用法，不代表完整原生通过。
 
+Current source adds selected-benchmark rerun and paused remote SDK views, and enables HTTP redirects by default. These changes passed Full 22 macOS-host tests; new native IDE and Windows acceptance remain pending. Run 14 failed the earlier Full 20 HTTP compact-layout test; its package/native steps were skipped. / 当前源码加入指定 Benchmark 重跑、远端暂停栈帧 SDK 查看，并默认跟随 HTTP 重定向；这些改动已通过 Full 22 macOS 宿主测试；新的原生 IDE/Windows 验收仍待完成。第 14 次在此前 Full 20 的 HTTP 紧凑布局失败，打包/原生步骤跳过。
+
 | Entry / 入口 | Steps / 操作 | Boundary / 边界 |
 | --- | --- | --- |
 | Go editor | Use local comments, brace pairing and Enter without a language server; open a module for gopls completion, Go to Declaration, Find Usages, Rename and Reformat. / 本地注释、括号和回车无需语言服务；模块内使用 gopls 语义功能。 | Formatting is scoped to supported Go documents; complete editing parity is unverified. / 格式化限受支持 Go 文档，尚未证明完整编辑对齐。 |
@@ -14,7 +16,7 @@ Verification differs by build and host; see [current acceptance and limitations]
 | Run → Run Go Coverage | Save the module, run coverage, select a row to navigate, use Clear to remove coverage marks. / 保存模块后运行覆盖率，点行跳转，Clear 清除标记。 | One module; saved-file snapshots; no combined go.work report. |
 | Tools → Go Profiling… | Collect CPU/memory profiles for one package or open pprof data; use top/compare/viewer. / 单包采集或打开 pprof，查看 top、比较与交互视图。 | Viewer binds loopback; graph layout needs Graphviz. |
 | Tools → Go Database | Add a connection; browse schema; execute SQL. Select Begin/Commit/Rollback then Apply. Review primary-key edits before applying; export CSV. / 连接数据库后执行 SQL，事务选动作再 Apply。 | Passwords are not persisted. Row editing requires a supported primary key. Explain estimates SELECT/WITH; no ANALYZE execution. |
-| Tools → GoForge HTTP Client | Open `.http`/`.rest`, select environment files explicitly, run one/all requests, inspect assertions and results. / 打开请求文件、选择环境、运行并查看结果。 | Optional bounded redirects; no script execution, WebSocket or gRPC. Raw response save is a separate explicit action. |
+| Tools → GoForge HTTP Client | Open `.http`/`.rest`, select environment files explicitly, run one/all requests, inspect assertions and results. / 打开请求文件、选择环境、运行并查看结果。 | Bounded redirects enabled by default with per-request opt-out; no script execution, WebSocket or gRPC. Raw response save is a separate explicit action. |
 | Containers → Docker | Choose a context; refresh containers/images; inspect logs, start/stop or use reviewed build/Compose actions. / 选择 context 后管理。 | Requires Docker CLI/daemon. Cancel stops the local command, not necessarily an accepted daemon operation. |
 | Containers → Kubernetes | Choose context/namespace, refresh, inspect logs/describe, preview diff/apply, use loopback forwarding and Cancel. / 选择集群与命名空间后操作。 | Requires kubectl and access to the selected cluster. Deletion checks resource UID. No global context switching. |
 | Containers → Dev Containers | Load and review the supported configuration, Start, open Terminal; execute postCreate separately if desired; Stop or Remove owned resources. / 先预览，再启动；postCreate 单独触发。 | Basic image/build projection, not the complete specification. Unsupported metadata/configuration is rejected or explicitly omitted. |
@@ -25,13 +27,13 @@ Use **Comment with Line Comment** or **Comment with Block Comment** on the curre
 
 Enter inside a Go block uses bounded local indentation. With smart indentation enabled, Enter inside a raw backtick string adds a newline without copying the surrounding Go indent, consuming only the spaces/tabs immediately to the right of the caret. It does not cross an existing newline, closing backtick or non-whitespace text. Undo restores the original line and whitespace. Smart indentation and **Insert pair } on Enter** are separate platform options; turning off one does not necessarily disable the other. This is not a replacement for gopls Reformat or general expression/switch-case formatting.
 
-Inside an unfinished `(` or `[`, Enter uses the opening line’s leading indentation plus the project’s continuation-indent width. Nested calls use their own nearest opening; commas keep one continuation level, and a matching closing delimiter returns to its opening line’s indentation. Function-literal `{}` bodies retain block indentation. Comments and literals are opaque; malformed or oversized contexts use a conservative fallback. Normal platform Enter, multi-caret and Undo/Redo actions remain in use. The added platform cases passed on the macOS host. Full 19 native Enter after a call opening, an argument comma and a case label matched the same GoLand fixture; this does not cover every editing context. Windows checks remain pending.
+Inside an unfinished `(` or `[`, Enter uses the opening line’s leading indentation plus the project’s continuation-indent width. Nested calls use their own nearest opening; commas keep one continuation level, and a matching closing delimiter returns to its opening line’s indentation. Function-literal `{}` bodies retain block indentation. Comments and literals are opaque; malformed or oversized contexts use a conservative fallback. Normal platform Enter, multi-caret and Undo/Redo actions remain in use. The added platform cases passed on the macOS host. Full 19 native Enter after a call opening, an argument comma and a case label matched the same GoLand fixture; this does not cover every editing context. The corresponding Full 19 Windows product tests passed; interactive Windows GUI remains unverified.
 
 使用 **Comment with Line Comment / Comment with Block Comment** 操作当前行或选区，普通 Undo/Redo 可撤销重做；包含字符串 `*/` 的块注释选区会拒绝包裹。代码中的括号可配对，注释和字面量中的括号作为普通文本。默认使用视觉宽度 4 的 tab，项目设置可覆盖。
 
 Go 块内回车使用限定范围的本地缩进。开启智能缩进时，原始字符串内回车不复制外围 Go 缩进，只移除光标右侧紧邻的空格/tab 后插入换行，不跨已有换行、闭合反引号或非空白内容；Undo 恢复原文与空白。智能缩进与 **Insert pair } on Enter** 是独立设置。一般表达式续行、switch-case 和更广多光标行为仍需继续验证。
 
-在未闭合的 `(` 或 `[` 内回车，使用起始行的前导缩进加项目续行宽度；嵌套调用选择最近起始括号，逗号后保持同一级续行，匹配闭合括号返回起始行缩进。函数值的 `{}` 保持块缩进，注释/字面量不参与括号计数；语法不完整或超出扫描范围时保守回退。仍使用平台 Enter、多光标和 Undo/Redo 动作。新增平台用例已在 macOS 宿主通过；Full 19 原生检查在调用起始括号、参数逗号及 case 标签后回车，与同一 GoLand 夹具结果一致，不代表全部编辑语境已对齐。Windows 检查待完成。
+在未闭合的 `(` 或 `[` 内回车，使用起始行的前导缩进加项目续行宽度；嵌套调用选择最近起始括号，逗号后保持同一级续行，匹配闭合括号返回起始行缩进。函数值的 `{}` 保持块缩进，注释/字面量不参与括号计数；语法不完整或超出扫描范围时保守回退。仍使用平台 Enter、多光标和 Undo/Redo 动作。新增平台用例已在 macOS 宿主通过；Full 19 原生检查在调用起始括号、参数逗号及 case 标签后回车，与同一 GoLand 夹具结果一致，不代表全部编辑语境已对齐。对应 Full 19 的 Windows 产品测试已通过，Windows 交互界面仍待验收。
 
 ### Formatting on save / 保存格式化
 
@@ -85,23 +87,33 @@ Save a `_test.go` file, place the caret inside a top-level `Benchmark…` functi
 
 Supported declarations have a body, one `*testing.B` parameter (named or unnamed, including a named alias for the `testing` import), and no results or type parameters. Type-alias chains, dot imports, binding conflicts and incorrect benchmark signatures are unavailable. Conflicting selectors in **Go arguments** or effective `GOFLAGS` are rejected; a stale file/configuration or an unobserved requested benchmark is a selection error, not a fallback to the entire package. Optional `-benchtime=1x -benchmem` can request one iteration with allocation metrics. The Test/Example fresh-run checkbox does not apply to Benchmark mode.
 
-After **Run**, current source can debug an explicitly observed top-level node or navigate to its declaration. A separate **Debug Go Benchmark at Caret** action now starts directly from the saved editor declaration; see below. Direct subbenchmark selection, benchmark per-node rerun, fuzz selection and comparison charts remain unavailable. Existing Test/Example and package/manual workflows retain their separate behavior. The new editor/navigation actions have bounded Full 17 macOS evidence, outside the Full 13/Run 10 baseline; Windows IDE validation remains pending.
+After **Run**, current source can debug an explicitly observed top-level node or navigate to its declaration. A separate **Debug Go Benchmark at Caret** action now starts directly from the saved editor declaration; see below. Guarded per-node rerun is described below. Direct subbenchmark/fuzz selection and comparison charts remain unavailable. Existing Test/Example and package/manual workflows retain their separate behavior. The new editor/navigation actions have bounded Full 17 macOS evidence, outside the Full 13/Run 10 baseline; Windows IDE validation remains pending.
 
 保存 `_test.go`，将光标放在顶层 `Benchmark…` 函数内，选择上下文 **Run** 或 **Current File → Run**。也可在运行配置中选择 **Command: test → Test selection: One top-level Benchmark**，工作目录填写包目录、目标填写 `.`，并在 **Test names** 只填一个完整名称。生成的选择使用 `-run=^$` 与精确的字面量 `-bench` 筛选，排除普通测试及其他顶层 Benchmark；被选函数自己创建的子基准仍可能执行。
 
 支持有函数体、单个 `*testing.B` 参数（有名或无名，允许 `testing` 的具名导入别名）、无返回值或类型参数的声明。不支持类型别名链、点导入、绑定冲突或错误签名。**Go arguments** 和实际 `GOFLAGS` 中的冲突筛选参数会被拒绝；源码/配置过期或目标没有实际出现时，报告选择错误，不会退回整包执行。可选填 `-benchtime=1x -benchmem` 运行一次并显示分配指标；Test/Example 的强制重新运行勾选项不适用于 Benchmark 模式。
 
-**Run** 后可调试明确出现的顶层节点，或跳转到其声明；新增独立 **Debug Go Benchmark at Caret** 动作可直接从已保存的编辑器声明启动，见下方。直接子基准选择、基准逐节点重跑、fuzz 选择及对比图表仍不可用；原 Test/Example 和包级手工配置保留各自行为。新编辑器入口/跳转已有限定 Full 17 macOS 证据，不属于 Full 13/第 10 次基线；Windows IDE 验证仍待完成。
+**Run** 后可调试明确出现的顶层节点，或跳转到其声明；新增独立 **Debug Go Benchmark at Caret** 动作可直接从已保存的编辑器声明启动，见下方。受保护的逐节点重跑见下方；直接子基准/fuzz 选择及对比图表仍不可用；原 Test/Example 和包级手工配置保留各自行为。新编辑器入口/跳转已有限定 Full 17 macOS 证据，不属于 Full 13/第 10 次基线；Windows IDE 验证仍待完成。
+
+### Rerun one completed benchmark / 重跑一个已完成基准
+
+Wait for the Run console to finish, select one explicitly observed top-level Benchmark result, then choose **Rerun selected Go benchmark** in that console. It runs only that benchmark in its mapped package with the exact `-bench` selector and `-run=^$`. Original `-benchtime`, CPU settings, arguments and environment remain in effect; it does not add the editor Debug action's `1x` timing. Cross-package selections use the existing [argument-preservation rules](#selecting-a-package-from-a-multi-package-run--从多包结果选择单包). The selected benchmark can still run its own children.
+
+The source captured by that run must still have its cached document, remain saved, have its edits fully synchronized by the IDE and match the result snapshot. After editing it, run the package/benchmark afresh to refresh the result. Source edits or renames after selection are checked again before launch. Running, stopped, inferred, foreign/disposed, multiple and subbenchmark selections are refused. A terminal failed benchmark can be rerun explicitly, while **Rerun failed top-level tests in one package** retains its ordinary Test/Example rules. The new workflow passed Full 22 macOS-host tests; native IDE and Windows acceptance remain pending.
+
+等待 Run 控制台结束，选中一个明确出现的顶层 Benchmark 结果，使用该控制台的 **Rerun selected Go benchmark**。它在结果对应包内用精确 `-bench` 和 `-run=^$` 只运行此基准，保留原 `-benchtime`、CPU 设置、参数和环境，不增加编辑器 Debug 的 `1x` 时长。跨包选择沿用[参数保留规则](#selecting-a-package-from-a-multi-package-run--从多包结果选择单包)；被选基准自己创建的子基准仍可能运行。
+
+本次运行捕获的源码须仍有缓存文档、已保存、IDE 已完成编辑同步且与结果快照一致；编辑后请重新运行包或基准以刷新结果。选中后源码编辑或重命名也会在启动前再次检查。运行中、已 Stop、仅推测、外来/已关闭、多选及子基准结果均拒绝。已终结的失败基准可明确重跑，但 **Rerun failed top-level tests in one package** 仍只遵守原 Test/Example 规则。新流程已通过 Full 22 macOS 宿主测试；原生 IDE 和 Windows 验收仍待完成。
 
 ### Debug one observed benchmark / 调试一个已运行的基准测试
 
 First Run the benchmark and wait for its Run console to finish. Save the source, set a breakpoint inside the top-level Benchmark, select its explicitly observed node, then choose **Debug selected Go test/benchmark**. The debug-specific selection uses an exact `-test.bench` filter and `-test.run=^$`, excluding ordinary tests and other top-level benchmarks. Optional `-benchtime=1x` and `-benchmem` are preserved; without an explicit timing flag, Go keeps its normal benchmark timing. Use Debug for frames, variables, stepping and Stop.
 
-The action refuses inferred/output-only nodes, subbenchmark nodes, foreign/disposed consoles and runs stopped locally. It preserves source/configuration guards and rejects unsupported flags. Current source adds completed-node declaration navigation and a separate direct editor Debug action. Benchmark per-node rerun remains unavailable. Earlier observed-node platform tests passed on macOS and Windows; those results do not cover the new entries. A bounded bdf5 macOS native session passed breakpoint, evaluation, step, resume and exit; a separate Stop removed adapter/target processes but left a generated `__debug_bin…` file. Full 17 later passed normal-exit output cleanup but failed toolbar Stop; Full 18 top-toolbar Stop/normal-exit cleanup and archive checks passed; Windows and full GUI checks remain pending. Windows Run 10 checked direct Delve normal/cancel protocols, not this IDE toolbar or benchmark workflow. See the linked verification scope.
+The action refuses inferred/output-only nodes, subbenchmark nodes, foreign/disposed consoles and runs stopped locally. It preserves source/configuration guards and rejects unsupported flags. Current source adds completed-node declaration navigation and a separate direct editor Debug action. Selected-node Run uses the separate rerun action above; Debug keeps its own argument rules. Earlier observed-node platform tests passed on macOS and Windows; those results do not cover the new entries. A bounded bdf5 macOS native session passed breakpoint, evaluation, step, resume and exit; a separate Stop removed adapter/target processes but left a generated `__debug_bin…` file. Full 17 later passed normal-exit output cleanup but failed toolbar Stop; Full 18 top-toolbar Stop/normal-exit cleanup and archive checks passed; Windows and full GUI checks remain pending. Windows Run 10 checked direct Delve normal/cancel protocols, not this IDE toolbar or benchmark workflow. See the linked verification scope.
 
 先 Run 基准并等待 Run 控制台结束，保存源码、在顶层 Benchmark 内设断点，选中实际出现的节点，再选择 **Debug selected Go test/benchmark**。调试使用精确 `-test.bench` 和 `-test.run=^$`，排除普通测试及其他顶层基准；可选 `-benchtime=1x`、`-benchmem` 会保留，没有显式时间参数时仍使用 Go 默认基准运行时长。通过 Debug 查看栈、变量、步进和 Stop。
 
-仅从输出推测的节点、子基准、其他/已关闭控制台及本地 Stop 的运行不授权此动作；源码/配置守卫与不支持参数拒绝仍保留。当前源码新增完成节点声明跳转及独立编辑器直接 Debug，基准逐节点重跑仍不可用。较早选中节点流程的 macOS/Windows 平台测试通过，不包含新入口；bdf5 macOS 限定原生会话通过断点、表达式、步进、继续与退出，但另一次 Stop 清除适配器/目标进程后仍留下 `__debug_bin…` 文件，后来 Full 17 正常退出输出清理通过，但工具栏 Stop 失败；Full 18 顶部 Stop/正常退出清理与归档检查通过，Windows 与完整界面仍待验收。Windows 第 10 次检查了直接 Delve 正常/取消协议，不是本 IDE 工具栏或 Benchmark 流程；详见验证范围。
+仅从输出推测的节点、子基准、其他/已关闭控制台及本地 Stop 的运行不授权此动作；源码/配置守卫与不支持参数拒绝仍保留。当前源码新增完成节点声明跳转及独立编辑器直接 Debug，指定节点 Run 使用上方独立重跑动作，Debug 保留自己的参数规则。较早选中节点流程的 macOS/Windows 平台测试通过，不包含新入口；bdf5 macOS 限定原生会话通过断点、表达式、步进、继续与退出，但另一次 Stop 清除适配器/目标进程后仍留下 `__debug_bin…` 文件，后来 Full 17 正常退出输出清理通过，但工具栏 Stop 失败；Full 18 顶部 Stop/正常退出清理与归档检查通过，Windows 与完整界面仍待验收。Windows 第 10 次检查了直接 Delve 正常/取消协议，不是本 IDE 工具栏或 Benchmark 流程；详见验证范围。
 
 Full 17 packaged macOS checks passed direct editor Benchmark Debug normal exit and exact completed-result navigation, but failed toolbar Stop cleanup. Full 18 repairs passed 805 macOS-host tests, independent archive audit and bounded top-toolbar Stop/normal Resume cleanup, followed by normal app exit and signature recheck. Native Windows IDE cleanup workflows and complete GUI acceptance remain pending. / Full 17 Mac 包已限定验证编辑器直接 Benchmark Debug 正常退出及结果精确跳转，工具栏 Stop 清理失败；Full 18 修复通过 805 项 macOS 宿主测试、独立归档审计和顶部 Stop/Resume 正常结束限定清理，随后应用正常退出及再次验签通过；Windows 原生 IDE 清理工作流与完整界面验收仍待完成。
 
@@ -117,9 +129,9 @@ This entry uses an exact literal `-test.bench` filter, `-test.run=^$`, `-test.co
 
 ### Navigate from a completed benchmark / 从已完成基准结果跳转
 
-Wait for a benchmark Run console to finish, select an explicitly observed top-level Benchmark node, then use **Go to benchmark declaration**. The editor opens at the function name's exact parsed source position. A live, locally stopped, inferred/output-only, subbenchmark, foreign or disposed result does not authorize this navigation. The captured file/text must still match; if it changed, Run again to refresh the result. Navigation does not rerun the benchmark or enable per-node rerun.
+Wait for a benchmark Run console to finish, select an explicitly observed top-level Benchmark node, then use **Go to benchmark declaration**. The editor opens at the function name's exact parsed source position. A live, locally stopped, inferred/output-only, subbenchmark, foreign or disposed result does not authorize this navigation. The captured file/text must still match; if it changed, Run again to refresh the result. Navigation does not run the benchmark; use the separate rerun action above.
 
-等待 Benchmark Run 控制台结束，选中实际出现的顶层 Benchmark 节点，使用 **Go to benchmark declaration**，编辑器会定位到源码解析确认的函数名位置。运行中、本地 Stop、仅从输出推测、子基准、其他或已关闭控制台结果不允许此跳转；捕获文件/文本变化后需重新 Run 刷新。跳转不会重跑基准，也不开放逐节点重跑。
+等待 Benchmark Run 控制台结束，选中实际出现的顶层 Benchmark 节点，使用 **Go to benchmark declaration**，编辑器会定位到源码解析确认的函数名位置。运行中、本地 Stop、仅从输出推测、子基准、其他或已关闭控制台结果不允许此跳转；捕获文件/文本变化后需重新 Run 刷新。跳转本身不会运行基准；重跑需使用上方独立动作。
 
 ## Test results, navigation and rerun / 测试结果、跳转与重跑
 
@@ -220,7 +232,7 @@ The check refuses related interfaces and type constraints, including anonymous a
 
 即使修改后仍能编译，涉及相关接口、类型约束或匿名类型断言也会拒绝；导出方法/类型、泛型或别名接收者、方法值、方法表达式、提升调用和不完整引用同样拒绝。仍限标量/字面量默认值、单独模块、已缓存依赖及有效预览，不迁移接口 API 或其他项目。预览不会运行项目 init、TestMain 或测试。Apply 后先保存再运行外部 Go 命令；普通 Undo/Redo 操作整组修改。
 
-The Full 20 Mac package passed 23 real method-protocol cases with its bundled JBR, Go and gopls and no development overlay, including refusal and stale-preview cases. This is protocol evidence; native IDE method Apply/Undo and Windows execution remain pending. / Full 20 Mac 包使用自身 JBR、Go、gopls 且无开发覆盖，通过 23 个真实方法协议场景，含拒绝及预览失效检查；这是协议证据，原生 IDE 方法 Apply/Undo 与 Windows 实际执行仍待验证。
+The Full 22 Mac package passed 23 real method-protocol cases with its bundled JBR, Go and gopls and no development overlay, including refusal and stale-preview cases. This is protocol evidence; native IDE method Apply/Undo and Windows execution remain pending. / Full 22 Mac 包使用自身 JBR、Go、gopls 且无开发覆盖，通过 23 个真实方法协议场景，含拒绝及预览失效检查；这是协议证据，原生 IDE 方法 Apply/Undo 与 Windows 实际执行仍待验证。
 
 ### Change an existing scalar type / 修改现有标量类型
 
@@ -264,7 +276,7 @@ The target is a read-only Go editor snapshot identified as remote SDK source, no
 
 目标是标识为远端 SDK 的只读 Go 编辑器快照，不是本地项目文件；允许查看/复制，拒绝修改和保存到 SDK。**Stop remote analysis** 会使本次 URI 失效并关闭所属 SDK 标签，普通项目标签保留。读取上限为每文件 2 MiB、每会话 128 文件/32 MiB；SDK 变化、过期请求、不安全路径或超限会被拒绝，需重新审阅会话获取新快照。macOS 限定原生检查通过自有 localhost SSH 夹具的精确 fmt/io 跳转、编辑/保存拒绝及 Stop 清理；Windows IDE 宿主和更广远端宿主待验收。
 
-SDK and dependency sources use distinct session identities. Neither permits cross-boundary workspace edits or debugger source mapping. / SDK 与依赖源码使用不同会话身份，均不允许跨边界工作区修改或调试器源码映射。
+Analysis SDK and dependency sources use distinct session identities and do not permit cross-boundary workspace edits. Paused debug/test SDK viewing is a separate workflow below; dependency debugger mapping remains unsupported. / 分析用 SDK 与依赖源码身份各自独立，均不允许跨边界工作区修改；暂停的包/测试调试 SDK 查看属于下方独立流程，依赖调试映射仍不支持。
 
 ### Selected cached remote dependencies / 已选缓存远端依赖
 
@@ -293,6 +305,18 @@ The adapter binds remote DAP to loopback and relays it through SSH. Local/remote
 在 **Go debug** 选择包、测试、可执行文件或 PID attach，Review 后启动。使用已保存且与远端匹配的源码；不会自动保存、上传或覆盖。参数按普通参数解析，不通过 shell 执行；环境值仅属于当前会话。远端需要 Python 3、Go、Delve 和正常调试权限。DAP 仅绑定远端 loopback，通过 SSH 转发。普通 Debug 窗口支持断点、栈、变量、求值和步进。**停止启动型会话会结束其目标；停止 attach 会话会脱离并保留原进程。**
 
 
+### View SDK source at a paused remote frame / 查看远端暂停栈帧的 SDK 源码
+
+Start a reviewed remote **Package** or **Tests** debug session. When it pauses in a standard-library frame, select that frame to view a read-only snapshot from the selected remote Go SDK at the reported source line. The source must be within the verified remote `GOROOT/src`; arbitrary paths, module-cache files and SDK sources for **Executable/Attach** sessions are unavailable. Breakpoints are supported only in reviewed workspace files. These source views do not start local Go language services or write the remote SDK.
+
+Resume, Step and Stop cancel outstanding source reads. Already loaded snapshots may stay visible until Stop, which closes and invalidates only this debug session's views and preserves unrelated editor tabs. A changed SDK/file, invalid or stale request, unavailable source or limit violation leaves the SDK source unavailable; workspace debugging stays usable. Limits are 2 MiB per file, 128 files/32 MiB per session and 16 queued reads. This is selected-SDK snapshot viewing, not proof that all compiler inputs or cached binaries were frozen. Mac-host SSH protocol and Full 22 platform tests passed; native IDE and Windows acceptance remain pending.
+
+审阅后启动远端 **Package** 或 **Tests** 调试，会话在标准库栈帧暂停时，选中该帧即可按报告行号查看当前远端 Go SDK 的只读源码快照。仅允许已验证 `GOROOT/src` 内的路径；任意路径、模块缓存文件及 **Executable/Attach** 会话的 SDK 源码不支持。断点只允许审阅后的工作区文件；源码页不启动本地 Go 语言服务，也不写入远端 SDK。
+
+Resume、Step 和 Stop 会取消尚未完成的源码读取；已加载快照可保留至 Stop，届时只关闭并失效本调试会话的视图，其他编辑器标签保留。SDK/文件变化、过期或无效请求、源码不可用或超限时不加载 SDK 源码，工作区调试仍可使用。上限为每文件 2 MiB、每会话 128 文件/32 MiB、16 个排队读取。这是当前选定 SDK 的快照查看，不证明全部编译输入或缓存二进制都被冻结；Mac 宿主 SSH 协议与 Full 22 平台测试通过，原生 IDE/Windows 验收仍待完成。
+
+The remote debug panel still contains an older help sentence saying that only workspace source can be opened. The paused Package/Tests SDK workflow above is the supported exception; dependency and Executable/Attach SDK restrictions remain. / 远端调试面板仍有“只能打开工作区源码”的旧帮助文字；上方暂停的 Package/Tests SDK 流程是已支持的例外，依赖及 Executable/Attach 的 SDK 限制仍保留。
+
 ### Multi-module workspaces / 多模块工作区
 
 Open the common directory containing **`go.work`**, with all `use` modules and local `replace` directories beneath that root. Their paths must be relative and free of symlinks. Keep the same relative layout remotely. In **Go debug**, enter the package directory relative to the common root, such as `app`, instead of selecting a non-module workspace root. Review lists the bound modules before starting.
@@ -308,10 +332,10 @@ See [Known limitations / 已知差距](KNOWN-LIMITATIONS.md) for verification bo
 
 ## Follow HTTP redirects / 跟随 HTTP 重定向
 
-Open **Tools → GoForge HTTP Client**. Redirects are off by default, so Send displays the first 3xx response. Enable **Follow redirects** for the current panel run to follow up to five HTTP(S) redirects; the single-request timeout covers all hops. Put `// @no-redirect` or `# @no-redirect` before a request’s METHOD line to keep that request’s first redirect response even when the checkbox is enabled. Run All applies each request’s own choice and checks assertions against its final response.
+Open **Tools → GoForge HTTP Client**. **Follow redirects** is enabled by default and follows up to five HTTP(S) redirects. Clear it to inspect the first 3xx response; the single-request timeout covers all hops. Put `// @no-redirect` or `# @no-redirect` before a request’s METHOD line to keep that request’s first redirect response even when the checkbox is enabled. Run All applies each request’s own choice and checks assertions against its final response.
 
-301/302 POST and 303 except HEAD become GET without the body. 307/308 retain method and body. Cross-origin redirects remove all original headers and refuse a preserved nonempty body; HTTPS-to-HTTP is refused. Headers shows hop status/method without redirect URLs. No automatic cookie store, response JavaScript, WebSocket or gRPC is provided. Cancel stops the active request and leaves later collection requests Not run. These choices are bounded GoForge behavior, not a claim of identical GoLand redirect defaults or full client parity.
+301/302 POST and 303 except HEAD become GET without the body. 307/308 retain method and body. Cross-origin redirects remove all original headers and refuse a preserved nonempty body; HTTPS-to-HTTP is refused. Headers shows hop status/method without redirect URLs. No automatic cookie store, response JavaScript, WebSocket or gRPC is provided. Cancel stops the active request and leaves later collection requests Not run. These are bounded GoForge redirect rules; matching the default does not establish full HTTP client parity.
 
-打开 **Tools → GoForge HTTP Client**。默认不跟随重定向，Send 显示第一次 3xx 响应。勾选 **Follow redirects** 后，本次面板运行最多跟随五跳 HTTP(S) 重定向，所有跳转共用单次请求超时。在某请求的 METHOD 行之前写 `// @no-redirect` 或 `# @no-redirect`，即使勾选仍只返回该请求的首个重定向响应。Run All 分别遵守各请求设置，并在最终响应上检查断言。
+打开 **Tools → GoForge HTTP Client**。**Follow redirects** 默认勾选，最多跟随五跳 HTTP(S) 重定向；取消勾选可查看第一次 3xx 响应，所有跳转共用单次请求超时。在某请求的 METHOD 行之前写 `// @no-redirect` 或 `# @no-redirect`，即使勾选仍只返回该请求的首个重定向响应。Run All 分别遵守各请求设置，并在最终响应上检查断言。
 
-301/302 的 POST 和除 HEAD 外的 303 转为无请求体的 GET；307/308 保留方法和请求体。跨源跳转清除全部原始请求头，且保留非空请求体的跨源跳转会被拒绝；HTTPS 降级为 HTTP 也会拒绝。Headers 显示跳转状态和方法，不显示跳转 URL。不提供自动 Cookie 存储、响应 JavaScript、WebSocket 或 gRPC。Cancel 停止当前请求，集合后续请求保留 Not run。这是 GoForge 当前限定行为，不代表与 GoLand 的重定向默认设置或完整客户端一致。
+301/302 的 POST 和除 HEAD 外的 303 转为无请求体的 GET；307/308 保留方法和请求体。跨源跳转清除全部原始请求头，且保留非空请求体的跨源跳转会被拒绝；HTTPS 降级为 HTTP 也会拒绝。Headers 显示跳转状态和方法，不显示跳转 URL。不提供自动 Cookie 存储、响应 JavaScript、WebSocket 或 gRPC。Cancel 停止当前请求，集合后续请求保留 Not run。这是 GoForge 当前限定重定向规则；默认设置一致不代表完整 HTTP 客户端已对齐。

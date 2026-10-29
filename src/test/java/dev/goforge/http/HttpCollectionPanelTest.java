@@ -32,13 +32,14 @@ public final class HttpCollectionPanelTest extends BasePlatformTestCase {
     public void testCollectionAndSourceViewportRemainVisibleAt280Pixels(){
         var service=new HttpClientService(getProject());try{var panel=new HttpClientPanel(getProject(),service);var outer=new JTabbedPane();outer.addTab("HTTP Client",panel);outer.setSize(1000,280);for(int i=0;i<4;i++)layoutTree(outer);JTable table=find(panel,JTable.class).getFirst();JScrollPane resultScroll=(JScrollPane)SwingUtilities.getAncestorOfClass(JScrollPane.class,table);assertTrue("One complete result row must be visible",resultScroll.getViewport().getExtentSize().height>=table.getRowHeight());JTextArea source=source(panel);JScrollPane sourceScroll=(JScrollPane)SwingUtilities.getAncestorOfClass(JScrollPane.class,source);assertTrue("Source must retain at least two visible lines",sourceScroll.getViewport().getExtentSize().height>=source.getFontMetrics(source.getFont()).getHeight()*2);for(String label:List.of("Run All","Cancel","Environments…","Save Summary…")){JButton button=button(panel,label);assertTrue("Toolbar action must fit horizontally: "+label,button.getX()+button.getWidth()<=button.getParent().getWidth());}}finally{service.dispose();}
     }
-    public void testRedirectToggleDefaultsOffAndRequestDirectiveOverridesEnabledRunAll()throws Exception{
+    public void testRedirectToggleDefaultsOnAndRequestDirectiveOverridesEnabledRunAll()throws Exception{
         var server=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);var followed=new AtomicInteger();
         server.createContext("/start",e->{e.getResponseHeaders().set("Location","/final");e.sendResponseHeaders(302,-1);e.close();});
         server.createContext("/final",e->{followed.incrementAndGet();e.sendResponseHeaders(204,-1);e.close();});server.start();var service=new HttpClientService(getProject());
-        try{var panel=new HttpClientPanel(getProject(),service);var toggle=find(panel,JCheckBox.class).stream().filter(b->"http-follow-redirects".equals(b.getName())).findFirst().orElseThrow();assertFalse(toggle.isSelected());
-            String request="GET http://127.0.0.1:"+server.getAddress().getPort()+"/start";panel.load(request,0,false);button(panel,"Send").doClick();var table=find(panel,JTable.class).getFirst();await(()->service.collection==null&&table.getRowCount()==1);assertEquals(302,table.getValueAt(0,2));assertEquals(0,followed.get());
-            toggle.doClick();panel.load("# @expect status 204\n"+request+"\n### opt out\n// @no-redirect\n# @expect status 302\n"+request,0,false);button(panel,"Run All").doClick();assertFalse(toggle.isEnabled());await(()->service.collection==null&&table.getRowCount()==2);assertTrue(toggle.isEnabled());assertEquals(1,followed.get());assertEquals(204,table.getValueAt(0,2));assertEquals(302,table.getValueAt(1,2));assertEquals(HttpCollectionRunner.Status.PASSED,table.getValueAt(0,1));assertEquals(HttpCollectionRunner.Status.PASSED,table.getValueAt(1,1));
+        try{var panel=new HttpClientPanel(getProject(),service);var toggle=find(panel,JCheckBox.class).stream().filter(b->"http-follow-redirects".equals(b.getName())).findFirst().orElseThrow();assertTrue(toggle.isSelected());
+            String request="GET http://127.0.0.1:"+server.getAddress().getPort()+"/start";panel.load(request,0,false);button(panel,"Send").doClick();var table=find(panel,JTable.class).getFirst();await(()->service.collection==null&&table.getRowCount()==1);assertEquals(204,table.getValueAt(0,2));assertEquals(1,followed.get());
+            toggle.doClick();button(panel,"Send").doClick();await(()->service.collection==null&&table.getRowCount()==1);assertEquals(302,table.getValueAt(0,2));assertEquals(1,followed.get());
+            toggle.doClick();panel.load("# @expect status 204\n"+request+"\n### opt out\n// @no-redirect\n# @expect status 302\n"+request,0,false);button(panel,"Run All").doClick();assertFalse(toggle.isEnabled());await(()->service.collection==null&&table.getRowCount()==2);assertTrue(toggle.isEnabled());assertEquals(2,followed.get());assertEquals(204,table.getValueAt(0,2));assertEquals(302,table.getValueAt(1,2));assertEquals(HttpCollectionRunner.Status.PASSED,table.getValueAt(0,1));assertEquals(HttpCollectionRunner.Status.PASSED,table.getValueAt(1,1));
         }finally{service.dispose();server.stop(0);}
     }
     public void testRedirectControlsWrapWithoutClippingAtCompactWidths(){
@@ -57,6 +58,25 @@ public final class HttpCollectionPanelTest extends BasePlatformTestCase {
                 assertTrue("Result row visible: "+sizes,resultScroll.getViewport().getExtentSize().height>=table.getRowHeight());
                 assertTrue("Two source lines visible: "+sizes,sourceScroll.getViewport().getExtentSize().height>=requestSource.getFontMetrics(requestSource.getFont()).getHeight()*2);
             }
+        }finally{service.dispose();}
+    }
+    public void testCompactLayoutRetainsSourceAndResultsWithTallInactiveScrollbars(){
+        var service=new HttpClientService(getProject());try{var panel=new HttpClientPanel(getProject(),service);
+            for(var scroll:find(panel,JScrollPane.class)){
+                scroll.getVerticalScrollBar().setMinimumSize(new Dimension(16,100));
+                if(scroll.getViewport().getView() instanceof JTextArea area&&area!=source(panel))
+                    scroll.getViewport().setMinimumSize(new Dimension(0,100));
+            }
+            panel.setSize(600,280);for(int i=0;i<4;i++)layoutTree(panel);
+            // Windows Run14 measured 146 px remaining after its wrapped toolbar and status line.
+            var split=find(panel,JComponent.class).stream().filter(c->"http-request-result-split".equals(c.getName())).findFirst().orElseThrow();
+            split.setSize(600,146);for(int i=0;i<4;i++)layoutTree(split);
+            var table=find(panel,JTable.class).getFirst();
+            var resultScroll=(JScrollPane)SwingUtilities.getAncestorOfClass(JScrollPane.class,table);
+            var requestSource=source(panel);var sourceScroll=(JScrollPane)SwingUtilities.getAncestorOfClass(JScrollPane.class,requestSource);
+            System.out.println("HTTP 146px compact layout: source="+sourceScroll.getSize()+", sourceMin="+sourceScroll.getMinimumSize()+", viewport="+sourceScroll.getViewport().getExtentSize()+", allScrollMin="+find(panel,JScrollPane.class).stream().map(JScrollPane::getMinimumSize).toList());
+            assertTrue("One result row remains visible with larger scrollbar chrome",resultScroll.getViewport().getExtentSize().height>=table.getRowHeight());
+            assertTrue("Two request source lines remain visible with larger scrollbar chrome",sourceScroll.getViewport().getExtentSize().height>=requestSource.getFontMetrics(requestSource.getFont()).getHeight()*2);
         }finally{service.dispose();}
     }
     private static void assertToolbarControlVisible(Component control,int width){

@@ -37,6 +37,7 @@ import dev.goforge.testing.GoTestConsoleProperties;
 import dev.goforge.testing.GoTestContextSelection;
 import dev.goforge.testing.GoTestEvents;
 import dev.goforge.testing.GoTestSelection;
+import dev.goforge.testing.GoTestSelector;
 import dev.goforge.testing.GoTestSourceIndex;
 
 import java.nio.charset.StandardCharsets;
@@ -275,9 +276,17 @@ public final class GoSelectedTestDebugActionTest extends BasePlatformTestCase {
         var source=configuration();source.setTestSelection(GoTestSelection.benchmark("BenchmarkOne"));source.setGoArguments("-benchtime=1x -benchmem");
         var registry=new GoTestRunRegistry(getProject(),source,packageSources());
         var properties=new GoTestConsoleProperties(source,DefaultRunExecutor.getRunExecutorInstance(),registry);Disposer.register(getTestRootDisposable(),properties);
-        var node=completedBenchmarkNode(registry);assertNull(properties.selectedConfiguration(node));
+        var node=completedBenchmarkNode(registry);
+        var rerun=properties.selectedConfiguration(node);assertNotNull(rerun);assertNotSame(source,rerun);
+        assertEquals(GoCommand.TEST,rerun.getCommand());assertEquals(GoTestSelection.benchmark("BenchmarkOne"),rerun.getTestSelection());
+        assertFalse(rerun.getTestSelection().rerun());
+        assertEquals(List.of("-run=^$","-bench=^BenchmarkOne$"),GoTestSelector.arguments(rerun.getTestSelection()));
+        assertEquals("-benchtime=1x -benchmem",rerun.getGoArguments());assertEquals(directory.toString(),rerun.getDirectory());assertEquals(".",rerun.getTarget());
+        assertNull(registry.target(node.getLocationUrl()));assertTrue(registry.knownTargets().isEmpty());
+        assertEquals(GoTestSelection.benchmark("BenchmarkOne"),source.getTestSelection());assertEquals("-benchtime=1x -benchmem",source.getGoArguments());
         var dispatched=new AtomicReference<RunnerAndConfigurationSettings>();
         var action=new GoDebugSelectedTestAction((config,indicator,progress)->{
+            GoTestContextSelection.validateBeforeRun(rerun);
             assertEquals(GoTestSelection.benchmark("BenchmarkOne"),config.getTestSelection());return prepared(config);
         },dispatched::set,stages::add).withSelection(()->properties.selectedDebugConfiguration(node));
         click(action);await(()->dispatched.get()!=null||dialog.get()!=null);assertNull(dialog.get());assertNotNull(dispatched.get());
@@ -285,7 +294,10 @@ public final class GoSelectedTestDebugActionTest extends BasePlatformTestCase {
         assertEquals(List.of("-test.benchtime=1x","-test.benchmem","-test.run=^$","-test.bench=^BenchmarkOne$","-test.count=1"),launch.getAsJsonArray("args").asList().stream().map(v->v.getAsString()).toList());
         assertTrue(dispatched.get().isTemporary());assertSame(dispatched.get(),manager.getSelectedConfiguration());
         var environment=ExecutionEnvironmentBuilder.create(getProject(),DefaultDebugExecutor.getDebugExecutorInstance(),debug).build();GoSelectedTestDebugGuard.validate(environment);
+        GoTestContextSelection.validateBeforeRun(rerun);
         edit(TEXT+"// benchmark changed after preparation\n");assertThrows(ExecutionException.class,()->GoSelectedTestDebugGuard.validate(environment));
+        assertThrows(ExecutionException.class,()->GoTestContextSelection.validateBeforeRun(rerun));
+        assertEquals(GoTestSelection.benchmark("BenchmarkOne"),source.getTestSelection());assertEquals("-benchtime=1x -benchmem",source.getGoArguments());
     }
     public void testBenchmarkEditDuringPreparationRefusesLaunchAndRegistration() throws Exception {
         var source=configuration();source.setTestSelection(GoTestSelection.benchmark("BenchmarkOne"));

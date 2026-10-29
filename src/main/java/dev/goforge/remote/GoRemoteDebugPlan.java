@@ -64,5 +64,5 @@ public record GoRemoteDebugPlan(GoRemoteProfile profile,String localRoot,String 
         if(json.getBytes(java.nio.charset.StandardCharsets.UTF_8).length>48000)throw new IllegalArgumentException("Remote debug source manifest exceeds 48 KiB; choose a smaller module.");
         return json;
     }
-    public List<String> command(String ssh){return profile.ssh(ssh,GoRemoteScripts.python(GoRemoteDebugScript.SOURCE),false);}
+    public List<String> command(String ssh){return profile.ssh(ssh,GoRemoteDebugScript.command(),false);}
 }

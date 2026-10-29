@@ -22,6 +22,10 @@ import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.ExecutionDataKeys;
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.application.ReadAction;
+import com.intellij.openapi.fileEditor.FileDocumentManager;
+import com.intellij.openapi.vfs.LocalFileSystem;
+import com.intellij.psi.PsiDocumentManager;
 import com.intellij.openapi.fileEditor.OpenFileDescriptor;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.ui.Messages;
@@ -113,8 +117,8 @@ public final class GoTestConsoleProperties extends SMTRunnerConsoleProperties {
     }
     /** Selection belongs to this console even when the Run toolbar has no tree data keys. */
     public @Nullable GoRunConfiguration selectedConfiguration() {
-        var target = registry.isTerminated() ? selectedTarget() : null;
-        return target == null ? null : cloneFor(target.directory().toString(), List.of(target.fullName()), "test " + target.fullName());
+        String url = selectedLocationUrl;
+        return selectionDisposed || registry.project().isDisposed() || url == null ? null : rerunConfiguration(url);
     }
     /** Separate from ordinary rerun: a completed benchmark retains its own selector kind. */
     public @Nullable GoRunConfiguration selectedDebugConfiguration() {
@@ -140,10 +144,6 @@ public final class GoTestConsoleProperties extends SMTRunnerConsoleProperties {
         if (proxy == null && selection != null && selection.length == 1) proxy = selection[0];
         return properties.selectedDebugConfiguration(proxy);
     }
-    private @Nullable GoTestRunRegistry.Target selectedTarget() {
-        String url = selectedLocationUrl;
-        return selectionDisposed || registry.project().isDisposed() || url == null ? null : registry.target(url);
-    }
     private @Nullable GoTestRunRegistry.Target selectedNavigationTarget() {
         String url = selectedLocationUrl;
         return selectionDisposed || registry.project().isDisposed() || url == null ? null : registry.navigationTarget(url);
@@ -158,9 +158,37 @@ public final class GoTestConsoleProperties extends SMTRunnerConsoleProperties {
         return properties.selectedConfiguration(proxy);
     }
     public @Nullable GoRunConfiguration selectedConfiguration(@Nullable AbstractTestProxy proxy) {
-        if (!registry.isTerminated() || proxy == null) return null;
-        var target = registry.target(proxy.getLocationUrl());
-        return target == null ? null : cloneFor(target.directory().toString(), List.of(target.fullName()), "test " + target.fullName());
+        return selectionDisposed || registry.project().isDisposed() || proxy == null ? null : rerunConfiguration(proxy.getLocationUrl());
+    }
+    private @Nullable GoRunConfiguration rerunConfiguration(String url) {
+        var target = registry.isTerminated() ? registry.rerunTarget(url) : null;
+        if (target == null) return null;
+        if (!target.declaration().kind().equals("benchmark"))
+            return cloneFor(target.directory().toString(), List.of(target.fullName()), "test " + target.fullName());
+        // Result-tree benchmarks retain their typed selector and original benchtime.
+        // Bind the observed, saved source to the existing background and launch gates.
+        return ReadAction.compute(() -> {
+            var file = LocalFileSystem.getInstance().findFileByNioFile(target.source().file());
+            var document = registry.cachedDocument(target.source().file());
+            var manager = FileDocumentManager.getInstance();
+            var canonical = file == null ? null : file.getCanonicalPath();
+            var documentFile = document == null ? null : manager.getFile(document);
+            var documentCanonical = documentFile == null ? null : documentFile.getCanonicalPath();
+            // The platform may return different VirtualFile wrappers for the same
+            // local file. Bind the current cached Document and both canonical paths.
+            if (file == null || !file.isValid() || canonical == null || document == null
+                    || !Path.of(canonical).toAbsolutePath().normalize().equals(target.source().file())
+                    || documentFile == null || !documentFile.isValid() || !documentFile.isInLocalFileSystem()
+                    || documentCanonical == null || !Path.of(documentCanonical).toAbsolutePath().normalize().equals(target.source().file())
+                    || manager.getCachedDocument(file) != document
+                    || FileDocumentManager.getInstance().isDocumentUnsaved(document)
+                    || !PsiDocumentManager.getInstance(registry.project()).isCommitted(document)
+                    || !document.getText().equals(target.source().text())) return null;
+            var configuration = cloneFor(target.directory().toString(), GoTestSelection.benchmark(target.fullName()),
+                    "benchmark " + target.fullName());
+            GoTestContextSelection.bind(configuration, file, target.source().text(), document.getModificationStamp());
+            return configuration;
+        });
     }
     private GoRunConfiguration cloneFor(String directory, List<String> names, String name) {
         return cloneFor(directory, GoTestSelection.rerun(names), name);
@@ -246,11 +274,17 @@ public final class GoTestConsoleProperties extends SMTRunnerConsoleProperties {
         } catch (Exception error) { Messages.showErrorDialog(configuration.getProject(), error.getMessage(), "Cannot Rerun Go Test"); }
     }
     private final class RerunSelectedAction extends AnAction {
-        RerunSelectedAction() { super("Rerun selected Go test/subtree", "Runs the observed full name and its subtree, including required parent setup", null); }
+        RerunSelectedAction() { super("Rerun selected Go test/benchmark", "Runs the observed test subtree or one completed top-level benchmark with its original benchmark duration", null); }
         @Override public @NotNull ActionUpdateThread getActionUpdateThread() { return ActionUpdateThread.BGT; }
         @Override public void update(@NotNull AnActionEvent event) {
             event.getPresentation().setDescription(getTemplatePresentation().getDescription());
-            try { event.getPresentation().setEnabled(selectedConfiguration() != null); }
+            event.getPresentation().setText(getTemplatePresentation().getText());
+            try {
+                var configuration = selectedConfiguration();
+                event.getPresentation().setEnabled(configuration != null);
+                if (configuration != null) event.getPresentation().setText(configuration.getTestSelection().kind() == GoTestSelection.Kind.BENCHMARK
+                        ? "Rerun selected Go benchmark" : "Rerun selected Go test/subtree");
+            }
             catch (IllegalArgumentException | IllegalStateException error) {
                 event.getPresentation().setEnabled(false);
                 event.getPresentation().setDescription(error.getMessage());
