@@ -228,11 +228,26 @@ jobs:
       - name: Verify native launcher, relocation, Go, gopls and Delve on Windows
         shell: pwsh
         run: python scripts/verify-windows-package.py --app build/windows/GoForge --report-dir .artifacts/windows-native
-      - name: Verify private-method refactoring with the packaged JBR and Go tools
+      - name: Preserve completed native checks before refactoring
+        if: always()
+        timeout-minutes: 5
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: windows-native-pre-refactor
+          path: |
+            .artifacts/windows-native
+            .artifacts/windows-platform-patch
+            .artifacts/windows-lsp-lifecycle
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
+      - name: Verify packaged method, scalar and function-reorder protocols
+        timeout-minutes: 35
         shell: pwsh
-        run: python scripts/verify-method-refactoring.py --app build/windows/GoForge --report-dir .artifacts/windows-method-refactor
+        run: python -u scripts/verify-method-refactoring.py --app build/windows/GoForge --report-dir .artifacts/windows-method-refactor
       - name: Preserve native verification results
         if: always()
+        timeout-minutes: 5
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: windows-native-reports
