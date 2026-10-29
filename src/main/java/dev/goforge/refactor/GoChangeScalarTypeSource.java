@@ -26,7 +26,7 @@ final class GoChangeScalarTypeSource {
         type Spec struct { Result bool `json:"result"`; Index int `json:"index"`; Type string `json:"type"` }
         type Input struct { Mode string `json:"mode"`; Sources []Source `json:"sources"`; Target Location `json:"target"`; References []Location `json:"references"`; Spec Spec `json:"spec"` }
         type Edit struct { Range Range `json:"range"`; NewText string `json:"newText"` }
-        type Output struct { Passed bool `json:"passed"`; Reason string `json:"reason,omitempty"`; Target *Location `json:"target,omitempty"`; Changes map[string][]Edit `json:"changes,omitempty"`; Checked int `json:"checked"` }
+        type Output struct { Passed bool `json:"passed"`; Reason string `json:"reason,omitempty"`; Target *Location `json:"target,omitempty"`; Changes map[string][]Edit `json:"changes,omitempty"`; Checked int `json:"checked"`; Method bool `json:"method"` }
         type Parsed struct { Source; File *ast.File; Tokens *token.File }
         
         func offset(text string,p Position)(int,error) {
@@ -51,7 +51,18 @@ final class GoChangeScalarTypeSource {
          at,e:=offset(target.Text,in.Target.Range.Start);if e!=nil{return fail(e.Error())}
          var decl *ast.FuncDecl
          for _,d:=range target.File.Decls{if f,ok:=d.(*ast.FuncDecl);ok&&at>=target.Tokens.Offset(f.Pos())&&at<=target.Tokens.Offset(f.Type.End()){decl=f;break}}
-         if decl==nil||decl.Recv!=nil||decl.Body==nil{return fail("select a free-function declaration with a body; methods and external declarations are refused")}
+         if decl==nil||decl.Body==nil{return fail("select a free-function or supported private-method declaration with a body")}
+         method:=decl.Recv!=nil
+         if method{
+          if in.Spec.Result{return fail("private method result changes are not supported; select one existing parameter")}
+          if len(decl.Recv.List)!=1||len(decl.Recv.List[0].Names)!=1||decl.Recv.List[0].Names[0].Name=="_"{return fail("method type changes require a private method and one named concrete receiver")}
+          recv:=decl.Recv.List[0].Type;if star,ok:=recv.(*ast.StarExpr);ok{recv=star.X};name,ok:=recv.(*ast.Ident)
+          if !ok||name.IsExported(){return fail("only private non-generic struct receivers support scalar parameter type changes")}
+          if decl.Name.IsExported(){return fail("scalar parameter type changes require a private method")}
+          var receiver *ast.TypeSpec
+          for _,p:=range files{if parent(p.URI)!=parent(target.URI)||p.File.Name.Name!=target.File.Name.Name{continue};for _,d:=range p.File.Decls{if gen,ok:=d.(*ast.GenDecl);ok{for _,sp:=range gen.Specs{if typ,ok:=sp.(*ast.TypeSpec);ok&&typ.Name.Name==name.Name{if receiver!=nil{return fail("ambiguous receiver declaration")};receiver=typ}}}}}
+          if receiver==nil||receiver.Assign.IsValid()||receiver.TypeParams!=nil{return fail("method receiver must be a private non-alias, non-generic local struct")};if _,ok:=receiver.Type.(*ast.StructType);!ok{return fail("method receiver must be a concrete local struct")}
+         }
          if decl.Name.Name=="init"||decl.Name.Name=="main"{return fail("runtime entry-point signatures cannot be changed")}
          if strings.HasSuffix(in.Target.URI,"_test.go"){for _,prefix:=range []string{"Test","Benchmark","Fuzz","Example"}{if strings.HasPrefix(decl.Name.Name,prefix){return fail("test entry-point signatures cannot be changed")}}}
          if decl.Doc!=nil{for _,c:=range decl.Doc.List{if strings.Contains(c.Text,"go:")||strings.HasPrefix(c.Text,"//export "){return fail("functions with compiler/linkage directives cannot be changed")}}}
@@ -72,7 +83,7 @@ final class GoChangeScalarTypeSource {
          for _,imp:=range target.File.Imports{if imp.Name!=nil&&(imp.Name.Name=="."||shadow(imp.Name.Name)){return fail("dot imports and import aliases that shadow either scalar type are refused")}}
          for _,p:=range files{if parent(p.URI)!=parent(target.URI)||p.File.Name.Name!=target.File.Name.Name{continue};for _,d:=range p.File.Decls{switch d:=d.(type){case *ast.FuncDecl:if d.Recv==nil&&shadow(d.Name.Name){return fail("a scalar type is shadowed in the declaration package")};case *ast.GenDecl:for _,sp:=range d.Specs{switch s:=sp.(type){case *ast.TypeSpec:if shadow(s.Name.Name){return fail("a scalar type is shadowed in the declaration package")};case *ast.ValueSpec:for _,n:=range s.Names{if shadow(n.Name){return fail("a scalar type is shadowed in the declaration package")}}}}}}}
          start,end:=target.Tokens.Offset(decl.Name.Pos()),target.Tokens.Offset(decl.Name.End());location:=Location{target.URI,Range{position(target.Text,start),position(target.Text,end)}}
-         if in.Mode=="target"{return Output{Passed:true,Target:&location}}
+         if in.Mode=="target"{return Output{Passed:true,Target:&location,Method:method}}
          if in.Mode!="plan"||in.References==nil||len(in.References)>10000{return fail("a complete bounded reference response is required")}
          seen:=map[string]map[int]bool{}
          for _,ref:=range in.References{
@@ -84,7 +95,7 @@ final class GoChangeScalarTypeSource {
          for _,p:=range files{missing:=false;ast.Inspect(p.File,func(n ast.Node)bool{if id,ok:=n.(*ast.Ident);ok&&id.Name==decl.Name.Name{at:=p.Tokens.Offset(id.Pos());if !(p.URI==target.URI&&at==start)&&!seen[p.URI][at]{missing=true}};return true});if missing{return fail("a same-name identifier is absent from the direct-call reference set; completeness cannot be established")}}
          a,b:=target.Tokens.Offset(old.Pos()),target.Tokens.Offset(old.End())
          change:=Edit{Range{position(target.Text,a),position(target.Text,b)},in.Spec.Type}
-         return Output{Passed:true,Target:&location,Changes:map[string][]Edit{target.URI:{change}},Checked:len(in.References)}
+         return Output{Passed:true,Target:&location,Changes:map[string][]Edit{target.URI:{change}},Checked:len(in.References),Method:method}
         }
         func main(){result:=Output{Reason:"invalid scalar type-change request"};if len(os.Args)==2{data,e:=os.ReadFile(os.Args[1]);if e==nil&&len(data)<=128*1024*1024{var in Input;d:=json.NewDecoder(strings.NewReader(string(data)));d.DisallowUnknownFields();if d.Decode(&in)==nil{result=run(in)}}};_ = json.NewEncoder(os.Stdout).Encode(result)}
         """;

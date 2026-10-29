@@ -21,7 +21,7 @@ public final class GoMethodAddParameterProtocolProbe {
     }
     private static Map<String,Object> run(Path out,String name)throws Exception{
         Path go=tool("go"),gopls=tool("gopls");
-        Path dir=Files.createTempDirectory("goforge-private-method-protocol-").toRealPath();
+        var scratch=GoRefactorScratch.create("goforge-private-method-protocol-");Path dir=scratch.path();
         var env=new HashMap<>(System.getenv());env.keySet().removeIf(k->k.toUpperCase(Locale.ROOT).startsWith("GO"));
         HostTools.putEnvironment(env,Map.of("PATH",go.getParent()+java.io.File.pathSeparator+gopls.getParent()+java.io.File.pathSeparator+HostTools.environmentValue(env,"PATH")));env.putAll(Map.of("GOENV","off","GOWORK","off","GOTOOLCHAIN","local","GOPROXY","off","GOSUMDB","off","GOTELEMETRY","off","CGO_ENABLED","0"));
         String cacheRoot=System.getProperty("goforge.probe.cacheRoot");
@@ -113,7 +113,7 @@ public final class GoMethodAddParameterProtocolProbe {
                 var spec=new GoAddParameter.Spec("extra","int",1,"7");
                 if(name.equals("value-imports")) {
                     try {GoAddParameter.plan(go.toString(),env,sources,uri,position,spec,target->{throw new AssertionError("Unchecked method queried references");},()->false);throw new AssertionError("Unchecked method produced a plan");}
-                    catch(GoAddParameter.CompilationRequired required){record.put("uncheckedMethodRequiresCompileProof",true);}
+                    catch(GoAddParameter.CompilationRequired required){GoRefactorScratch.requireCleanFailure(required);record.put("uncheckedMethodRequiresCompileProof",true);}
                 }
                 var plan=GoAddParameter.compileCheckedPlan(go.toString(),env,dir,sources,uri,position,spec,target->{
                     var refs=server.getTextDocumentService().references(new ReferenceParams(new TextDocumentIdentifier(target.getUri()),target.getRange().getStart(),new ReferenceContext(false))).get(30,TimeUnit.SECONDS);
@@ -152,20 +152,20 @@ public final class GoMethodAddParameterProtocolProbe {
                     record.put("fixtureAppliedTestedAndRestored",true);
                 }
 
-            }catch(CancellationException correct){if(!name.equals("cancelled-after-references"))throw correct;record.put("cancelledBeforePlan",true);}
-            catch(IllegalStateException refusal){if(expected==null||!refusal.getMessage().contains(expected))throw refusal;record.put("refused",refusal.getMessage());}
+            }catch(CancellationException correct){GoRefactorScratch.requireCleanFailure(correct);if(!name.equals("cancelled-after-references"))throw correct;record.put("cancelledBeforePlan",true);}
+            catch(IllegalStateException refusal){GoRefactorScratch.requireCleanFailure(refusal);if(expected==null||!refusal.getMessage().contains(expected))throw refusal;record.put("refused",refusal.getMessage());}
             for(var e:disk.entrySet())if(!Files.readString(dir.resolve(e.getKey())).equals(e.getValue()))throw new AssertionError("Planner changed original source "+e.getKey());
             record.put("originalSourceBytesUnchangedOrRestoredAfterExplicitFixtureTest",true);if(applyRequests.get()!=0)throw new AssertionError("Unexpected applyEdit request.");
             server.shutdown().get(5,TimeUnit.SECONDS);server.exit();if(!process.waitFor(5,TimeUnit.SECONDS)||process.exitValue()!=0)throw new AssertionError("gopls did not shut down.");record.put("goplsExit",0);record.put("passed",true);
             return record;
-        }catch(Exception|Error failure){primaryFailure=failure;record.put("failure",failure.toString());throw failure;}
+        }catch(Exception|Error failure){primaryFailure=failure;record.put("failure",GoRefactorScratch.failureDetail(failure));throw failure;}
         finally{
             Exception cleanupFailure=null;
             try{
                 if(process!=null&&process.isAlive()){process.destroy();if(!process.waitFor(2,TimeUnit.SECONDS)){process.destroyForcibly();if(!process.waitFor(5,TimeUnit.SECONDS))throw new IllegalStateException("Owned gopls remained alive.");}}
             }catch(Exception cleanup){cleanupFailure=cleanup;}
             if(listening!=null)listening.cancel(true);executor.shutdownNow();
-            try(var paths=Files.walk(dir)){for(Path p:paths.sorted(Comparator.reverseOrder()).toList())Files.deleteIfExists(p);}
+            try{scratch.close();}
             catch(Exception cleanup){if(cleanupFailure==null)cleanupFailure=cleanup;else cleanupFailure.addSuppressed(cleanup);}
             record.put("fixtureDeleted",!Files.exists(dir));record.put("goplsAliveAfterCleanup",process!=null&&process.isAlive());
             if(cleanupFailure!=null){record.put("passed",false);record.put("cleanupFailure",cleanupFailure.toString());}

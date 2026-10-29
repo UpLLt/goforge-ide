@@ -32,7 +32,7 @@ func TestScalarTypeRefusals(t *testing.T){
   {name:"existing-named-type",text:"package p\ntype N int\nfunc F(x N){}\nfunc G(){F(1)}\n",reason:"existing type"},
   {name:"grouped-parameters",text:"package p\nfunc F(x,y int){}\nfunc G(){F(1,2)}\n",reason:"grouped"},
   {name:"variadic",text:"package p\nfunc F(xs ...int){}\nfunc G(){F(1)}\n",reason:"variadic"},
-  {name:"method",text:"package p\ntype S struct{}\nfunc(S) F(x int){}\n",reason:"free-function"},
+  {name:"method",text:"package p\ntype S struct{}\nfunc(S) F(x int){}\n",reason:"private method"},
   {name:"multiple-results",text:"package p\nfunc F()(int,int){return 1,2}\n",reason:"multiple results",spec:Spec{Result:true,Type:"int64"}},
   {name:"grouped-results",text:"package p\nfunc F()(x,y int){return 1,2}\n",reason:"multiple results",spec:Spec{Result:true,Type:"int64"}},
   {name:"no-result",text:"package p\nfunc F(){}\n",reason:"existing result",spec:Spec{Result:true,Type:"int64"}},
@@ -50,4 +50,27 @@ func TestScalarTypeRefusals(t *testing.T){
   {name:"embed",text:"package p\n//go:embed data.txt\nvar text string\nfunc F(x int){}\n",reason:"embedded"},
   {name:"shadow-import",text:"package p\nimport int64 \"fmt\"\nfunc F(x int){int64.Println(x)}\n",reason:"shadow"},
  }{t.Run(c.name,func(t *testing.T){s:=c.spec;if s.Type==""{s.Type="int64"};in:=request(t,c.text,s);if c.modify!=nil{c.modify(&in)};out:=run(in);if out.Passed||!strings.Contains(out.Reason,c.reason){t.Fatalf("unexpected result: %#v",out)}})}
+}
+
+func methodRequest(t *testing.T, text string, spec Spec) Input {
+ t.Helper();p,e:=parse(Source{URI:"file:///method/method.go",Text:text});if e!=nil{t.Fatal(e)}
+ var target *ast.FuncDecl;for _,d:=range p.File.Decls{if f,ok:=d.(*ast.FuncDecl);ok&&f.Name.Name=="render"{target=f;break}};if target==nil{t.Fatal("missing method")}
+ refs:=[]Location{}
+ ast.Inspect(p.File,func(n ast.Node)bool{if id,ok:=n.(*ast.Ident);ok&&id.Name=="render"&&id!=target.Name{a,b:=p.Tokens.Offset(id.Pos()),p.Tokens.Offset(id.End());refs=append(refs,Location{p.URI,Range{position(text,a),position(text,b)}})};return true})
+ at:=p.Tokens.Offset(target.Type.Func);return Input{Mode:"plan",Sources:[]Source{p.Source},Target:Location{p.URI,Range{position(text,at),position(text,at)}},References:refs,Spec:spec}
+}
+func TestMethodScalarPlanClassifiesBothPhases(t *testing.T){
+ for _,receiver:=range []string{"worker","*worker"}{t.Run(receiver,func(t *testing.T){text:="package p\nimport \"fmt\"\ntype worker struct{}\n/* 世界🙂 */ func(w "+receiver+") render(n /* keep */ int)string{return fmt.Sprint(n)}\nfunc caller(){w:=worker{};_=w.render(3)}\n";in:=methodRequest(t,text,Spec{Type:"int64"});out:=run(in);if !out.Passed||!out.Method||out.Checked!=1{t.Fatalf("%#v",out)};edits:=out.Changes[in.Target.URI];if len(edits)!=1{t.Fatal(edits)};a,_:=offset(text,edits[0].Range.Start);b,_:=offset(text,edits[0].Range.End);if text[a:b]!="int"||edits[0].NewText!="int64"{t.Fatal(edits)};in.Mode="target";in.References=nil;target:=run(in);if !target.Passed||!target.Method{t.Fatalf("%#v",target)}})}
+}
+func TestMethodScalarScopeRefusals(t *testing.T){
+ for _,c:=range []struct{name,decl,reason string;spec Spec}{
+  {"unnamed","type worker struct{}\nfunc(worker) render(n int){}\n","named concrete",Spec{Type:"int64"}},
+  {"alias","type worker struct{}\ntype alias=worker\nfunc(w alias) render(n int){}\n","non-alias",Spec{Type:"int64"}},
+  {"generic","type worker[T any] struct{}\nfunc(w worker[T]) render(n int){}\n","non-generic",Spec{Type:"int64"}},
+  {"nonstruct","type worker int\nfunc(w worker) render(n int){}\n","concrete local struct",Spec{Type:"int64"}},
+  {"exportedreceiver","type Worker struct{}\nfunc(w Worker) render(n int){}\n","private non-generic",Spec{Type:"int64"}},
+  {"methodresult","type worker struct{}\nfunc(w worker) render()int{return 1}\n","result changes",Spec{Result:true,Type:"int64"}},
+  {"shadowold","type worker struct{}\ntype int=int32\nfunc(w worker) render(n int){}\n","shadowed",Spec{Type:"int64"}},
+  {"shadownew","type worker struct{}\ntype int64=int\nfunc(w worker) render(n int){}\n","shadowed",Spec{Type:"int64"}},
+ }{t.Run(c.name,func(t *testing.T){out:=run(methodRequest(t,"package p\n"+c.decl,c.spec));if out.Passed||!strings.Contains(out.Reason,c.reason){t.Fatalf("%#v",out)}})}
 }

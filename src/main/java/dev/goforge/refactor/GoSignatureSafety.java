@@ -46,8 +46,8 @@ public final class GoSignatureSafety {
         }
         var inputs=sources.entrySet().stream().map(e->new Source(e.getValue().uri(),e.getValue().text(),after.get(e.getKey()))).toList();
         var target=new Location(selected.uri(),new Range(position,position));
-        Path owned=Files.createTempDirectory("goforge-signature-check-");
-        try{
+        try(var scratch=GoRefactorScratch.create("goforge-signature-check-")){
+            Path owned=scratch.path();
             Path source=owned.resolve("checker.go"),binary=owned.resolve(HostTools.executableName("checker"));
             Files.writeString(source,GoSignatureSafetySource.TEXT,StandardCharsets.UTF_8);
             var env=checkerEnvironment(environment);
@@ -65,8 +65,6 @@ public final class GoSignatureSafety {
                 normalized.add(new Location(original.uri(),ref.getRange()));
             }
             return inspect(binary,owned,env,new Input("verify",inputs,target,normalized,originalSignature,requestedSignature),cancelled).checked();
-        }finally{
-            try(var paths=Files.walk(owned)){for(var path:paths.sorted(Comparator.reverseOrder()).toList())Files.deleteIfExists(path);}
         }
     }
     static Map<String,String> checkerEnvironment(Map<String,String> inherited) {

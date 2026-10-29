@@ -108,8 +108,14 @@ public final class GoRefactorAction extends AnAction {
                     }
                     ReadAction.run(snapshot::requireCurrent);
                     result = new Query(wrapper,server,snapshot,List.copyOf(sources),List.copyOf(choices),range.getStart());
-                } catch (ProcessCanceledException cancelled) { throw cancelled; }
-                catch (CancellationException cancelled) { throw new ProcessCanceledException(); }
+                } catch (ProcessCanceledException cancelled) {
+                    if (GoRefactorScratch.hasSuppressedFailure(cancelled)) throw new IllegalStateException(detail(cancelled),cancelled);
+                    throw cancelled;
+                }
+                catch (CancellationException cancelled) {
+                    if (GoRefactorScratch.hasSuppressedFailure(cancelled)) throw new IllegalStateException(detail(cancelled),cancelled);
+                    throw new ProcessCanceledException();
+                }
                 catch (Exception error) { throw new IllegalStateException(detail(error), error); }
             }
             @Override public void onSuccess() {
@@ -169,6 +175,7 @@ public final class GoRefactorAction extends AnAction {
                         try {
                             workspace=GoAddParameter.plan(go,environment,query.sources(),query.wrapper().toUriString(file),query.selection(),parameter,references,()->indicator.isCanceled()||project.isDisposed());
                         } catch(GoAddParameter.CompilationRequired needsProof) {
+                            GoRefactorScratch.requireCleanFailure(needsProof);
                             requireCompileConfiguration(project);
                             checkedGoSetting=settings.goPath;
                             checkedType=GoAddParameter.compileCheckedPlan(go,environment,query.snapshot().directory(),query.sources(),query.wrapper().toUriString(file),query.selection(),parameter,references,()->indicator.isCanceled()||project.isDisposed());
@@ -208,8 +215,14 @@ public final class GoRefactorAction extends AnAction {
                     if(checkedType!=null)requireCompileProof(project,checkedType,checkedGoSetting,query);
                     ReadAction.run(query.snapshot()::requireCurrent);
                     requireCurrent(project, file, document, stamp);
-                } catch (ProcessCanceledException cancelled) { throw cancelled; }
-                catch (CancellationException cancelled) { throw new ProcessCanceledException(); }
+                } catch (ProcessCanceledException cancelled) {
+                    if (GoRefactorScratch.hasSuppressedFailure(cancelled)) throw new IllegalStateException(detail(cancelled),cancelled);
+                    throw cancelled;
+                }
+                catch (CancellationException cancelled) {
+                    if (GoRefactorScratch.hasSuppressedFailure(cancelled)) throw new IllegalStateException(detail(cancelled),cancelled);
+                    throw new ProcessCanceledException();
+                }
                 catch (Exception error) { throw new IllegalStateException(detail(error), error); }
             }
             @Override public void onSuccess() {
@@ -291,8 +304,7 @@ public final class GoRefactorAction extends AnAction {
         } catch (Exception error) { if (ownRequest) future.cancel(true); throw error; }
     }
     private static String detail(Throwable error) {
-        while (error.getCause() != null) error = error.getCause();
-        return error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
+        return GoRefactorScratch.failureDetail(error);
     }
     private static void fail(Project project, String message) { Messages.showErrorDialog(project, message, "Go Refactor"); }
 }

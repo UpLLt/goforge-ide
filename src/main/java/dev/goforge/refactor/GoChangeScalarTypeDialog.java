@@ -21,11 +21,13 @@ final class GoChangeScalarTypeDialog extends DialogWrapper {
         var panel = new JPanel(new BorderLayout(0, 10)); var fields = new JPanel(new GridLayout(3, 2, 8, 6));
         fields.add(new JLabel("Change")); fields.add(target); fields.add(new JLabel("Parameter position (0 = first)")); fields.add(index);
         fields.add(new JLabel("New predeclared scalar type")); fields.add(type); panel.add(fields, BorderLayout.NORTH);
-        panel.add(new JLabel("<html>Changes one existing scalar type in a free function; callers are checked, not rewritten.<br>"
+        panel.add(new JLabel("<html>Changes one scalar parameter in a free function or verified private concrete method.<br>"
+                + "Single-result changes are free-function only. Callers are checked, not rewritten.<br>"
                 + "The captured module and tests must compile before and after. Project code is not executed.<br>"
                 + "A type change can change behavior even when compilation succeeds.<br>"
                 + "Requires one standalone module, default host build settings and cached pure-Go dependencies.<br>"
-                + "Methods, function values, grouped parameters, multiple results, conditional builds,<br>"
+                + "Related interfaces, exported/generic receivers, method values/expressions/promotions,<br>"
+                + "function values, grouped parameters, multiple results, conditional builds,<br>"
                 + "cgo/assembly, vendor trees, embedded resources and local replacements are refused. Review the exact change before Apply.</html>"), BorderLayout.CENTER);
         return panel;
     }

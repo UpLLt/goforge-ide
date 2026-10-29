@@ -77,8 +77,8 @@ public final class GoAddParameter {
         GoRefactorEdit.offset(selected.text(), position);
         var inputs = sources.values().stream().map(s -> new Source(s.uri(), s.text())).toList();
         var target = new Location(selected.uri(), new Range(position, position));
-        Path owned = Files.createTempDirectory("goforge-add-parameter-");
-        try {
+        try (var scratch = GoRefactorScratch.create("goforge-add-parameter-")) {
+            Path owned = scratch.path();
             Path source = owned.resolve("planner.go"), binary = owned.resolve(HostTools.executableName("planner"));
             Files.writeString(source, GoAddParameterSource.TEXT, StandardCharsets.UTF_8);
             var env = GoSignatureSafety.checkerEnvironment(environment);
@@ -108,8 +108,6 @@ public final class GoAddParameter {
             GoRefactorWorkspaceEdit.prepare(sources.values(), workspace); // enforce overlap/size/version contracts before returning
             checkCancelled(cancelled);
             return new Planned(workspace,declaration.method()?new GoMethodParameterSafety.Request(declaration.target(),List.copyOf(normalized)):null);
-        } finally {
-            try (var paths = Files.walk(owned)) { for (var path : paths.sorted(Comparator.reverseOrder()).toList()) Files.deleteIfExists(path); }
         }
     }
     /** Decode the shared wire schema using the actual loaded LSP4J model. */

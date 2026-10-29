@@ -81,7 +81,7 @@ public final class GoChangeScalarType {
     }
     private record Source(String uri, String text) { }
     private record Input(String mode, List<Source> sources, Location target, List<Location> references, Spec spec) { }
-    private record Result(boolean passed, String reason, Location target, Map<String, List<TextEdit>> changes, int checked) { }
+    record Result(boolean passed, String reason, Location target, Map<String, List<TextEdit>> changes, int checked, Boolean method) { }
     private record Captured(byte[] bytes, Object key) { }
 
     /** Metadata belongs to this plan, so a module edit cannot silently invalidate its compile proof. */
@@ -146,6 +146,7 @@ public final class GoChangeScalarType {
             Collection<GoRefactorWorkspaceEdit.Source> snapshot, String uri, Position position, Spec spec,
             GoSignatureSafety.References references, BooleanSupplier cancelled) throws Exception {
         Objects.requireNonNull(spec); Objects.requireNonNull(references);
+        var method=new java.util.concurrent.atomic.AtomicReference<GoMethodParameterSafety.Request>();
         return compileCheckedPlan(go,environment,root,snapshot,uri,position,cancelled,(sources,owned,helperEnv)->{
             var inputs = sources.values().stream().map(s -> new Source(s.uri(), s.text())).toList();
             var target = new Location(sources.get(GoRefactorWorkspaceEdit.uriPath(uri)).uri(), new Range(position, position));
@@ -164,6 +165,8 @@ public final class GoChangeScalarType {
                 normalized.add(new Location(caller.uri(), ref.getRange()));
             }
             Result proposed = inspect(binary, owned, helperEnv, new Input("plan", inputs, target, normalized, spec), cancelled);
+            requireSameKind(declaration,proposed);
+            if (declaration.method())method.set(new GoMethodParameterSafety.Request(declaration.target(),List.copyOf(normalized)));
             if (proposed.changes() == null || proposed.changes().size() != 1 || proposed.checked() != normalized.size())
                 throw new IllegalStateException("Incomplete scalar type-change plan.");
             var edits = new ArrayList<Either<TextDocumentEdit, ResourceOperation>>();
@@ -174,6 +177,8 @@ public final class GoChangeScalarType {
             }
             var workspace = new WorkspaceEdit(edits);
             return workspace;
+        },(copy,owned,compileEnv)->{
+            if(method.get()!=null)GoMethodParameterSafety.verify(go,root,snapshot,method.get(),copy,owned,compileEnv,cancelled);
         });
     }
 
@@ -228,8 +233,8 @@ public final class GoChangeScalarType {
         }
         Metadata metadata = Metadata.capture(root, sources.keySet());
         CompilerProof compiler = CompilerProof.capture(go,environment,root,cancelled);
-        Path owned = Files.createTempDirectory("goforge-refactor-check-").toRealPath();
-        try {
+        try (var scratch = GoRefactorScratch.create("goforge-refactor-check-")) {
+            Path owned = scratch.path();
             var helperEnv=GoSignatureSafety.checkerEnvironment(environment);
             HostTools.putEnvironment(helperEnv,Map.of("GOPACKAGESDRIVER","off"));
             var workspace=planner.plan(Collections.unmodifiableMap(sources),owned,helperEnv);
@@ -274,8 +279,6 @@ public final class GoChangeScalarType {
             }
             metadata.requireCurrent(); compiler.requireCurrent(); checkCancelled(cancelled);
             return new Plan(workspace, metadata, packages.size(), compiler);
-        } finally {
-            try (var paths = Files.walk(owned)) { for (var path : paths.sorted(Comparator.reverseOrder()).toList()) Files.deleteIfExists(path); }
         }
     }
 
@@ -342,10 +345,23 @@ public final class GoChangeScalarType {
     private static Result inspect(Path binary, Path owned, Map<String, String> env, Input input, BooleanSupplier cancelled) throws Exception {
         Path request = owned.resolve("request.json"); Files.writeString(request, new Gson().toJson(input), StandardCharsets.UTF_8);
         String output = run(List.of(binary.toString(), request.toString()), owned, env, cancelled, "Scalar type planning failed");
-        Result result = new Gson().fromJson(output, Result.class);
-        if (result == null || !result.passed() || result.target() == null)
-            throw new IllegalStateException(result == null ? "Scalar type planning failed." : result.reason());
+        return decodeResult(output);
+    }
+    /** Both planner phases must explicitly classify the target before selecting its proof. */
+    static Result decodeResult(String output) {
+        var wire=JsonParser.parseString(output);
+        if(!wire.isJsonObject())throw new IllegalStateException("Scalar type planning failed.");
+        var kind=wire.getAsJsonObject().get("method");
+        if(kind==null||!kind.isJsonPrimitive()||!kind.getAsJsonPrimitive().isBoolean())
+            throw new IllegalStateException("The scalar planner did not classify the declaration.");
+        Result result = new Gson().fromJson(wire, Result.class);
+        if (!result.passed() || result.target() == null)
+            throw new IllegalStateException(result.reason()==null?"Scalar type planning failed.":result.reason());
         return result;
+    }
+    static void requireSameKind(Result declaration,Result proposed) {
+        if(declaration==null||proposed==null||declaration.method()==null||!declaration.method().equals(proposed.method()))
+            throw new IllegalStateException("The scalar declaration kind changed during planning.");
     }
     private static String run(List<String> command, Path directory, Map<String, String> env, BooleanSupplier cancelled, String failure) throws Exception {
         var result = GoCoverageProcess.run(command, directory, env, cancelled, Duration.ofSeconds(60));
