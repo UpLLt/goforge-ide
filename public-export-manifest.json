@@ -18,13 +18,13 @@
     },
     {
       "path": "README.md",
-      "sha256": "24981ca1345e608f7cc647f63209fb83d9d8d7b27be854b62bcbcdfa9ad97049",
-      "size": 10256
+      "sha256": "65aff1039ac3c0a0ddfa0d8a3fad1fcbcb12e27af97ee7842253eb2854000633",
+      "size": 10410
     },
     {
       "path": "README.zh-CN.md",
-      "sha256": "c7b5babfe1b6d1d9761eaf3846c421647f75ca5ebbeb312f32b50d10bb07bd6c",
-      "size": 9080
+      "sha256": "e627dd7ea5dc5574bdecb661eb8c266268d7cff440654998a0dd4aaa1a99daca",
+      "size": 9208
     },
     {
       "path": "THIRD-PARTY-NOTICES.md",
@@ -38,13 +38,13 @@
     },
     {
       "path": "docs/INSTALL.md",
-      "sha256": "58d81d19b074bdfcffcda3897d3cee9121c51b8e3f61ca88c2428a82068fa1e0",
-      "size": 45040
+      "sha256": "17d5858e045566ac87a5f665a2af23d3fbb843f906ea056fc22b3b5ab51698a5",
+      "size": 50461
     },
     {
       "path": "docs/KNOWN-LIMITATIONS.md",
-      "sha256": "8475b75f287430ec48ac7e03abf45d67a56ee6676db6899039750017202e975a",
-      "size": 28904
+      "sha256": "3de3b4021d3a6f0019525baeacc9bf9eaf19be4356bc203569526ab228893ded",
+      "size": 28804
     },
     {
       "path": "docs/PUBLIC-RELEASE.md",
@@ -53,8 +53,8 @@
     },
     {
       "path": "docs/USAGE.md",
-      "sha256": "5ac99bf02ccd671200e7cdace942f1c87ec5b0325ecaf3c78a4c0761ea30060a",
-      "size": 84713
+      "sha256": "7f4e686a7c3395c0158373e3c7f57218c4c80dfc30d57a307ee76643c8ae2095",
+      "size": 84859
     },
     {
       "path": "examples/hello-go/go.mod",

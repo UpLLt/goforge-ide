@@ -18,7 +18,7 @@ GoForge 使用原创代码、公开的 IntelliJ Community 平台、LSP4IJ、gopl
 | 平台 | 包与验证情况 |
 | --- | --- |
 | macOS / Apple Silicon | macOS 13.5+；Full 28 包与 926 项产品测试通过，全部 141 个包内场景独立验证通过；交互界面未验收。ad-hoc 签名，尚无 Developer ID 公证。 |
-| Windows x64 | Full 27 第 17 次通过产品/原生检查及 103 个包内场景，完整归档读回待完成。交互界面未验收、启动器无签名；见[Windows 安装状态](docs/INSTALL.md#windows-x64)。 |
+| Windows x64 | Full 28 第 18 次产品/原生/141 场景通过；当前安装包由 CI 生成，完整归档本机读回待完成。交互界面未验收、启动器无签名；见[Windows 安装状态](docs/INSTALL.md#windows-x64)。 |
 | Linux / 其他架构 | 暂无已验证的独立发行包。 |
 
 已准备的内部平台包均内置运行时、Go SDK、gopls、Delve、Node、Dev Containers CLI 和 JDBC 驱动。Docker、kubectl、Git、OpenSSH、Cgo 的 C 编译器及 macOS 调试前置工具使用系统安装。包校验值及“已准备”与“已公开发布”的区别见[安装指南](docs/INSTALL.md#prepared-package-identities)。
@@ -62,9 +62,9 @@ GRADLE_USER_HOME="$PWD/.gradle-user-home" ./gradlew \
 
 ## 验证范围
 
-**Full 28（Mac）：**926 项产品测试、独立构建/归档检查及全部 141 个包内重构场景通过。Mac 锁定，本轮没有 Full 28 交互式 IDE GUI 验收，该版本也未进行 Windows 验收。
+**Full 28（Mac）：**926 项产品测试、独立构建/归档检查及全部 141 个包内重构场景通过。Mac 锁定，本轮没有 Full 28 交互式 IDE GUI 验收；Windows 结果单独记录如下。
 
-**Windows：**[第 17 次](https://github.com/UpLLt/goforge-ide/actions/runs/40884184711)通过 Full 27 产品/原生检查及 103 个包内重构场景，完整应用归档读回与交互界面仍待验收。[详细证据及历史失败](docs/KNOWN-LIMITATIONS.md#verification-scope--验证范围)保留各自构建身份。
+**Windows：**[第 18 次](https://github.com/UpLLt/goforge-ide/actions/runs/40895762939)通过 Full 28 产品测试、9 组原生及全部 141 个包内重构场景，CI 已生成当前内部安装包；完整归档尚未在本机独立下载读回。此前第 17 次保留独立整包审计，交互界面仍待验收。[详细证据及历史失败](docs/KNOWN-LIMITATIONS.md#verification-scope--验证范围)保留各自构建身份。
 
 **尚未验证与 GoLand 完整对齐。**完整验收为 **0/101**，表示整项验收数量，不是功能实现率。仓库保持私有，无公开 Release。包哈希与安装方式见[安装指南](docs/INSTALL.md#prepared-package-identities)，具体缺口与历史验证范围见[已知差距](docs/KNOWN-LIMITATIONS.md#verification-scope--验证范围)。
 
