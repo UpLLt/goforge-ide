@@ -467,6 +467,88 @@ public final class GoFormatOnSaveTest extends BasePlatformTestCase {
     }
 
     private void enableImports(){loadImportState(state(true,false,GoFileType.INSTANCE.getName()));}
+    public void testGoAppearsInActualOptimizeImportsSaveTypeProviderAndHasManualOptimizer() throws Exception {
+        var settings=new com.intellij.openapi.options.ex.Settings(List.of()){
+            @Override protected org.jetbrains.concurrency.Promise<? super Object> selectImpl(com.intellij.openapi.options.Configurable value){return org.jetbrains.concurrency.Promises.resolvedPromise(null);}
+            @Override protected com.intellij.openapi.options.Configurable getConfigurableWithInitializedUiComponentImpl(com.intellij.openapi.options.Configurable value,boolean create){return value;}
+            @Override protected void checkModifiedImpl(com.intellij.openapi.options.Configurable value){}
+            @Override protected void setSearchText(String value){}
+        };
+        var contextType=com.intellij.ide.actionsOnSave.ActionOnSaveContext.class;
+        var constructor=contextType.getDeclaredConstructor(Project.class,com.intellij.openapi.options.ex.Settings.class,com.intellij.openapi.Disposable.class);
+        constructor.setAccessible(true);var context=constructor.newInstance(getProject(),settings,getTestRootDisposable());
+        var infoType=Class.forName("com.intellij.codeInsight.actions.onSave.OptimizeImportsOnSaveActionInfo");
+        var infoConstructor=infoType.getDeclaredConstructor(contextType);infoConstructor.setAccessible(true);var info=infoConstructor.newInstance(context);
+        var collect=infoType.getDeclaredMethod("addApplicableFileTypes",Collection.class);collect.setAccessible(true);
+        var types=new ArrayList<com.intellij.openapi.fileTypes.FileType>();collect.invoke(info,types);
+        assertTrue("The actual save type chooser must include Go",types.contains(GoFileType.INSTANCE));
+        var source=file("manual.go","package p\n");
+        var optimizers=FormattingServiceUtil.findImportsOptimizingService(source.psi).getImportOptimizers(source.psi);
+        assertTrue(optimizers.stream().anyMatch(value->value instanceof GoImportOptimizer));
+        assertFalse(com.intellij.lang.LanguageFormatting.INSTANCE.isAutoFormatAllowed(source.psi));
+    }
+
+    public void testManualImportsUsePlatformProcessorAndUndoWithSavePreferenceDisabled() throws Exception {
+        var source=file("manual.go","package p\nvar value = 0");startImportServer(source);
+        FormatOnSaveOptions.getInstance(getProject()).setRunOnSaveEnabled(false);
+        OptimizeImportsOnSaveOptions.getInstance(getProject()).setRunOnSaveEnabled(false);
+        String input="package p\nvar value=fmt.Sprint(1)";change(source,input);
+        server.organized="package p\nimport \"fmt\"\nvar value=fmt.Sprint(1)";
+        var processor=CompletableFuture.runAsync(()->new com.intellij.codeInsight.actions.OptimizeImportsProcessor(getProject(),source.psi).runWithoutProgress(),
+                com.intellij.util.concurrency.AppExecutorUtil.getAppExecutorService());
+        await(processor::isDone);processor.get(1,TimeUnit.SECONDS);
+        assertEquals(server.organized,source.document.getText());assertEquals(input,server.lastImportInput);
+        assertEquals(1,server.importRequests.get());assertEquals(0,server.requests.get());
+        assertEquals(List.of(CodeActionKind.SourceOrganizeImports),server.lastImportOnly);
+        assertEquals(0,server.commands.get());assertEquals(0,server.resolutions.get());
+        var undo=com.intellij.openapi.command.undo.UndoManager.getInstance(getProject());
+        var editor=com.intellij.openapi.fileEditor.impl.text.TextEditorProvider.getInstance().getTextEditor(source.editor);
+        undo.undo(editor);assertEquals(input,source.document.getText());undo.redo(editor);assertEquals(server.organized,source.document.getText());
+        assertTrue(manager().isDocumentUnsaved(source.document));
+    }
+
+    public void testManualPreparedImportsRejectInterveningTyping() throws Exception {
+        var source=file("manual.go","package p\nvar value=fmt.Sprint(1)");startImportServer(source);
+        server.organized="package p\nimport \"fmt\"\nvar value=fmt.Sprint(1)";
+        Runnable prepared=prepareManual(source);String edited=source.document.getText()+"\n// new user input";change(source,edited);
+        WriteCommandAction.runWriteCommandAction(getProject(),prepared);assertEquals(edited,source.document.getText());
+        assertNull(((com.intellij.lang.ImportOptimizer.CollectingInfoRunnable)prepared).getUserNotificationInfo());
+    }
+
+    public void testManualPreparedImportsRejectDisabledFeature() throws Exception {
+        var source=file("manual.go","package p\nvar value=fmt.Sprint(1)");startImportServer(source);
+        server.organized="package p\nimport \"fmt\"\nvar value=fmt.Sprint(1)";Runnable prepared=prepareManual(source);
+        importFeatureEnabled=false;WriteCommandAction.runWriteCommandAction(getProject(),prepared);
+        assertEquals("package p\nvar value=fmt.Sprint(1)",source.document.getText());
+    }
+
+    public void testManualImportCancellationDoesNotApplyLateServerResponse() throws Exception {
+        var source=file("manual.go","package p\nvar value=fmt.Sprint(1)");startImportServer(source);
+        server.importDelayed=new CompletableFuture<>();var indicator=new com.intellij.openapi.progress.EmptyProgressIndicator();
+        var prepared=CompletableFuture.supplyAsync(()->com.intellij.openapi.progress.ProgressManager.getInstance().runProcess(
+                ()->com.intellij.openapi.application.ReadAction.compute(()->new GoImportOptimizer().processFile(source.psi)),indicator),
+                com.intellij.util.concurrency.AppExecutorUtil.getAppExecutorService());
+        await(()->server.importRequests.get()==1);indicator.cancel();await(prepared::isDone);
+        var failed=org.junit.Assert.assertThrows(ExecutionException.class,()->prepared.get(1,TimeUnit.SECONDS));
+        assertTrue(failed.getCause() instanceof com.intellij.openapi.progress.ProcessCanceledException);
+        server.importDelayed.complete(server.importActions("package p\nimport \"fmt\"\nvar value=fmt.Sprint(1)"));
+        PlatformTestUtil.dispatchAllEventsInIdeEventQueue();assertEquals("package p\nvar value=fmt.Sprint(1)",source.document.getText());
+    }
+
+    public void testManualImportsNoOpLeavesDocumentStampAndUndoUntouched() throws Exception {
+        var source=file("manual.go","package p\n");startImportServer(source);
+        long stamp=source.document.getModificationStamp();Runnable prepared=prepareManual(source);
+        assertSame(com.intellij.openapi.util.EmptyRunnable.getInstance(),prepared);
+        assertEquals(stamp,source.document.getModificationStamp());assertEquals(1,server.importRequests.get());
+    }
+
+    private Runnable prepareManual(Source source)throws Exception{
+        var future=CompletableFuture.supplyAsync(()->com.intellij.openapi.application.ReadAction.nonBlocking(
+                ()->new GoImportOptimizer().processFile(source.psi)).executeSynchronously(),
+                com.intellij.util.concurrency.AppExecutorUtil.getAppExecutorService());
+        await(future::isDone);return future.get(1,TimeUnit.SECONDS);
+    }
+
     private void startImportServer(Source source)throws Exception{importFixture=true;startServer(source);}
     @SuppressWarnings({"rawtypes","unchecked"})
     private static void copyImportState(OptimizeImportsOnSaveOptions target,OptimizeImportsOnSaveOptions source){((PersistentStateComponent)target).loadState(source.getState());}

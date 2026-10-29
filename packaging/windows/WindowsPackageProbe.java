@@ -24,6 +24,9 @@ public final class WindowsPackageProbe {
                 || Boolean.getBoolean("idea.headless.enable.statistics")) {
             throw new IllegalStateException("GoForge usage telemetry must be disabled by product configuration");
         }
+        if (!"false".equals(System.getProperty("idea.ultimate.features.hints.enabled"))) {
+            throw new IllegalStateException("GoForge must disable upstream commercial feature promotions by default");
+        }
         var consents = ConsentOptions.getInstance();
         if (consents.isSendingUsageStatsAllowed() != ConsentOptions.Permission.UNDEFINED
                 || consents.getAiDataCollectionPermission() != ConsentOptions.Permission.UNDEFINED
@@ -54,5 +57,6 @@ public final class WindowsPackageProbe {
         System.out.println("bundledTools=go,gopls,dlv");
         System.out.println("mainPluginDescriptor=" + descriptor);
         System.out.println("usageTelemetry=collection-disabled,reporting-disabled; no user consent written");
+        System.out.println("commercialFeaturePromotions=disabled-by-product-default");
     }
 }

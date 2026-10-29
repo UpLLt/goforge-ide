@@ -21,8 +21,8 @@ public final class GoSelectedTestDebugPlan {
 
     public static Map<String, Object> launch(String canonicalDirectory, GoTestSelection selection,
                                             List<String> goArguments) {
-        if (selection == null || selection.kind() != GoTestSelection.Kind.TESTS)
-            throw new IllegalArgumentException("Select a Test or Example to debug; use Run for a selected benchmark.");
+        if (selection == null) throw new IllegalArgumentException("Select an observed Test, Example or top-level Benchmark to debug.");
+        boolean benchmark = selection.kind() == GoTestSelection.Kind.BENCHMARK;
         var build = new ArrayList<String>();
         var args = new ArrayList<String>();
         for (int i = 0; i < goArguments.size(); i++) {
@@ -34,9 +34,11 @@ public final class GoSelectedTestDebugPlan {
             String name = equals < 0 ? flag : flag.substring(0, equals);
             boolean testPrefix = name.startsWith("test.");
             if (testPrefix) name = name.substring(5);
-            boolean test = TEST_BOOLEAN.contains(name) || TEST_VALUE.contains(name);
-            boolean bool = test ? TEST_BOOLEAN.contains(name) : BUILD_BOOLEAN.contains(name);
-            boolean value = test ? TEST_VALUE.contains(name) : BUILD_VALUE.contains(name);
+            boolean runtimeBoolean = TEST_BOOLEAN.contains(name) || benchmark && name.equals("benchmem");
+            boolean runtimeValue = TEST_VALUE.contains(name) || benchmark && name.equals("benchtime");
+            boolean test = runtimeBoolean || runtimeValue;
+            boolean bool = test ? runtimeBoolean : BUILD_BOOLEAN.contains(name);
+            boolean value = test ? runtimeValue : BUILD_VALUE.contains(name);
             if ((!bool && !value) || (testPrefix && !test)) throw unsupported(token);
             String payload = equals < 0 ? null : flag.substring(equals + 1);
             if (value && payload == null) {
@@ -47,7 +49,8 @@ public final class GoSelectedTestDebugPlan {
             if (payload != null) normalized += "=" + payload;
             (test ? args : build).add(normalized);
         }
-        args.add("-test.run=" + GoTestSelector.pattern(selection));
+        args.add("-test.run=" + (benchmark ? "^$" : GoTestSelector.pattern(selection)));
+        if (benchmark) args.add("-test.bench=" + GoTestSelector.pattern(selection));
         args.add("-test.count=1");
         var launch = new LinkedHashMap<String, Object>();
         launch.put("type", "go");

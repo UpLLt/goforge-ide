@@ -53,7 +53,7 @@ public final class GoTestConsolePlatformTest extends BasePlatformTestCase {
     private PropertiesComponent testSettings;
     private String originalHidePassed;
     private static final String HIDE_PASSED_KEY = "GoForgeSupport.hidePassedTests";
-    private static final String SOURCE = "package target\nimport \"testing\"\nfunc TestOne(t *testing.T) {}\nfunc TestTwo(t *testing.T) {}\n";
+    private static final String SOURCE = "package target\nimport \"testing\"\nfunc TestOne(t *testing.T) {}\nfunc TestTwo(t *testing.T) {}\nfunc BenchmarkOne(b *testing.B) {}\n";
     @Override protected void setUp() throws Exception {
         super.setUp();
         testSettings = PropertiesComponent.getInstance();
@@ -334,6 +334,45 @@ public final class GoTestConsolePlatformTest extends BasePlatformTestCase {
         assertTrue(session.registry.missingRequestedTests().isEmpty());
         assertFalse(GoTestRunRegistry.ordinaryTestName("BenchmarkOne/sub")); assertFalse(GoTestRunRegistry.ordinaryTestName("FuzzOne/seed"));
     }
+    public void testCompletedBenchmarkKeepsTypedDebugSelectionWithoutOrdinaryRerunOrNavigation() throws Exception {
+        var session=session(GoTestSelection.benchmark("BenchmarkOne"),new AtomicReference<>(),directory,"-tags=benchmark_fixture -benchtime=1x","");
+        session.send("start","example.com/target","");session.send("run","example.com/target","BenchmarkOne");
+        session.send("bench","example.com/target","BenchmarkOne");session.send("pass","example.com/target","");session.finish(0);
+        var node=session.node("BenchmarkOne");session.select(node);
+        assertNotNull(node.getLocationUrl());assertNull(session.registry.target(node.getLocationUrl()));assertTrue(session.registry.knownTargets().isEmpty());
+        assertNull(session.properties.selectedConfiguration());assertNull(session.properties.selectedConfiguration(node));
+        var selected=session.properties.selectedDebugConfiguration();assertNotNull(selected);
+        assertEquals(GoTestSelection.benchmark("BenchmarkOne"),selected.getTestSelection());assertEquals("-tags=benchmark_fixture -benchtime=1x",selected.getGoArguments());
+        assertEquals(".",selected.getTarget());assertEquals(directory.toString(),selected.getDirectory());
+        for(int i=0;i<3;i++){var event=session.toolbarEvent();session.result.getActions()[i].update(event);assertEquals(i==2,event.getPresentation().isEnabled());}
+        assertEquals(GoTestSelection.benchmark("BenchmarkOne"),session.configuration.getTestSelection());
+    }
+    public void testBenchmarkDebugRequiresExplicitObservationAndNormalCompletion() throws Exception {
+        for(boolean inferred:List.of(true,false)){
+            var session=session(GoTestSelection.benchmark("BenchmarkOne"),new AtomicReference<>());
+            session.send("start","example.com/target","");
+            if(!inferred){session.send("run","example.com/target","BenchmarkOne");session.registry.markLocalTerminationRequested();}
+            session.send("bench","example.com/target","BenchmarkOne");session.send("pass","example.com/target","");session.finish(0);
+            var node=session.node("BenchmarkOne");session.select(node);
+            assertNull(session.properties.selectedDebugConfiguration());assertNull(session.registry.debugTarget(node.getLocationUrl()));
+            var event=session.toolbarEvent();session.result.getActions()[2].update(event);assertFalse(event.getPresentation().isEnabled());
+        }
+    }
+    public void testBenchmarkDebugRejectsForeignSubbenchmarkMultipleAndDisposedSelections() throws Exception {
+        var first=session(null,new AtomicReference<>());var second=session(null,new AtomicReference<>());
+        for(var session:List.of(first,second)){
+            session.send("start","example.com/target","");session.send("run","example.com/target","BenchmarkOne");
+            session.send("run","example.com/target","BenchmarkOne/sub");session.send("bench","example.com/target","BenchmarkOne/sub");
+            session.send("bench","example.com/target","BenchmarkOne");session.send("pass","example.com/target","");session.finish(0);
+        }
+        var node=first.node("BenchmarkOne");assertNull(second.properties.selectedDebugConfiguration(node));
+        assertNull(first.properties.selectedDebugConfiguration(first.node("BenchmarkOne/sub")));
+        var data=SimpleDataContext.builder().add(CommonDataKeys.PROJECT,getProject()).add(TestTreeView.MODEL_DATA_KEY,first.console.getResultsViewer())
+                .add(AbstractTestProxy.DATA_KEYS,new AbstractTestProxy[]{node,first.node("BenchmarkOne/sub")}).build();
+        assertNull(GoTestConsoleProperties.selectedDebugConfiguration(AnActionEvent.createFromDataContext("BenchmarkDebug",new Presentation(),data)));
+        first.select(node);assertNotNull(first.properties.selectedDebugConfiguration());
+        Disposer.dispose(first.console);assertNull(first.properties.selectedDebugConfiguration());assertNull(first.properties.selectedDebugConfiguration(node));
+    }
     private Session session(GoTestSelection selection, AtomicReference<GoRunConfiguration> captured) throws Exception {
         return session(selection, captured, directory, "", "");
     }
@@ -345,7 +384,8 @@ public final class GoTestConsolePlatformTest extends BasePlatformTestCase {
         PsiDocumentManager.getInstance(getProject()).commitAllDocuments();
         var snapshot = new GoTestSourceIndex.Snapshot(file, "fixture", SOURCE, List.of(
             new GoTestSourceIndex.Declaration("TestOne", "test", SOURCE.indexOf("func TestOne"), SOURCE.indexOf("func TestTwo"), SOURCE.indexOf("TestOne")),
-            new GoTestSourceIndex.Declaration("TestTwo", "test", SOURCE.indexOf("func TestTwo"), SOURCE.length(), SOURCE.indexOf("TestTwo"))));
+            new GoTestSourceIndex.Declaration("TestTwo", "test", SOURCE.indexOf("func TestTwo"), SOURCE.indexOf("func BenchmarkOne"), SOURCE.indexOf("TestTwo")),
+            new GoTestSourceIndex.Declaration("BenchmarkOne", "benchmark", SOURCE.indexOf("func BenchmarkOne"), SOURCE.length(), SOURCE.indexOf("BenchmarkOne"))));
         var factory = ConfigurationTypeUtil.findConfigurationType(GoRunConfigurationType.class).getConfigurationFactories()[0];
         var configuration = new GoRunConfiguration(getProject(), factory, "package fixture");
         configuration.setCommand(GoCommand.TEST); configuration.setDirectory(workingDirectory.toString()); configuration.setGoArguments(arguments);

@@ -2,6 +2,7 @@
 """Windows package safety/branding checks; these are not Windows runtime tests."""
 import importlib.util
 import json
+import plistlib
 from pathlib import Path
 import stat
 import tempfile
@@ -53,7 +54,8 @@ class WindowsPackageTest(unittest.TestCase):
         product={'name':'IntelliJ IDEA Community Edition','productCode':'IC','buildNumber':'252.28539.97',
                  'launch':[{'os':'Windows','arch':'amd64','launcherPath':'bin/idea64.exe','mainClass':'com.intellij.idea.Main',
                             'vmOptionsFilePath':'bin/idea64.exe.vmoptions','bootClassPathJarNames':['platform-loader.jar'],
-                            'additionalJvmArguments':['-Didea.paths.selector=IdeaIC2025.2','-Didea.vendor.name=JetBrains']}],
+                            'additionalJvmArguments':['-Didea.paths.selector=IdeaIC2025.2','-Didea.vendor.name=JetBrains',
+                                '-Didea.ultimate.features.hints.enabled=true','-Didea.ultimate.features.hints.enabled=true']}],
                  'layout':[{'classPath':['plugins/java/lib/java.jar']},{'classPath':['plugins/unwanted/lib/x.jar']}]}
         (home/'product-info.json').write_text(json.dumps(product));pack.configure(home,['java'])
         result=json.loads((home/'product-info.json').read_text());launch=result['launch'][0]
@@ -63,6 +65,33 @@ class WindowsPackageTest(unittest.TestCase):
         self.assertIn('-Didea.platform.prefix=Idea',launch['additionalJvmArguments'])
         self.assertIn('-XX:HeapDumpPath=%IDE_CACHE_DIR%',launch['additionalJvmArguments'])
         self.assertNotIn(str(ROOT),json.dumps(result));self.assertNotIn('IdeaIC2025.2',json.dumps(result))
+        self.assert_promotion_default(launch)
+
+    def assert_promotion_default(self, launch):
+        prefix='-Didea.ultimate.features.hints.enabled='
+        self.assertEqual([prefix+'false'],[value for value in launch['additionalJvmArguments'] if value.startswith(prefix)])
+        commands=launch['customCommands']
+        self.assertEqual(1,len(commands))
+        self.assertEqual([prefix+'false'],[value for value in commands[0]['additionalJvmArguments'] if value.startswith(prefix)])
+
+    def test_macos_launcher_and_probe_disable_only_promotion_default(self):
+        spec=importlib.util.spec_from_file_location('macos_packager',ROOT/'scripts/package-macos.py')
+        mac=importlib.util.module_from_spec(spec);spec.loader.exec_module(mac)
+        contents=self.root/'GoForge.app/Contents'
+        for name in ('MacOS','Resources','bin'):(contents/name).mkdir(parents=True)
+        (contents/'Info.plist').write_bytes(plistlib.dumps({'CFBundleName':'IntelliJ IDEA'}))
+        (contents/'MacOS/idea').write_bytes(b'unchanged native launcher fixture')
+        (contents/'bin/idea.vmoptions').write_text('-Xmx2048m\n')
+        product={'productCode':'IC','launch':[{'additionalJvmArguments':[
+            '-Didea.ultimate.features.hints.enabled=true','-Dunrelated.option=retained',
+            '-Didea.ultimate.features.hints.enabled=true'],'bootClassPathJarNames':['platform-loader.jar']}]}
+        (contents/'Resources/product-info.json').write_text(json.dumps(product))
+        mac.configure(contents,[])
+        launch=json.loads((contents/'Resources/product-info.json').read_text())['launch'][0]
+        self.assert_promotion_default(launch)
+        self.assertIn('-Dunrelated.option=retained',launch['additionalJvmArguments'])
+        self.assertEqual(b'unchanged native launcher fixture',(contents/'MacOS/goforge').read_bytes())
+        self.assertEqual('-Xmx2048m\n',(contents/'bin/goforge.vmoptions').read_text())
 
     def test_non_windows_platform_is_rejected(self):
         home=self.root;(home/'product-info.json').write_text(json.dumps({'productCode':'IC','buildNumber':'252.28539.97',

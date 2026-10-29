@@ -150,7 +150,7 @@ public final class GoRefactorAction extends AnAction {
                         throw new IllegalStateException("The Go language server restarted. Request the refactoring again.");
                     WorkspaceEdit workspace;
                     if(scalarType!=null){
-                        requireScalarConfiguration(project);
+                        requireCompileConfiguration(project);
                         var settings=dev.goforge.settings.GoForgeSettings.getInstance();
                         var command=new com.intellij.execution.configurations.GeneralCommandLine();
                         Map<String,String> environment=new HashMap<>(command.getEffectiveEnvironment());
@@ -165,9 +165,15 @@ public final class GoRefactorAction extends AnAction {
                         var command=new com.intellij.execution.configurations.GeneralCommandLine();
                         Map<String,String> environment=new HashMap<>(command.getEffectiveEnvironment());
                         String go=dev.goforge.tools.GoToolResolver.resolve(settings.goPath,"go",project.getBasePath(),environment);
-                        workspace=GoAddParameter.plan(go,environment,query.sources(),query.wrapper().toUriString(file),query.selection(),parameter,
-                                target->await(query.server().getTextDocumentService().references(new ReferenceParams(new TextDocumentIdentifier(target.getUri()),target.getRange().getStart(),new ReferenceContext(false))),indicator,project,true),
-                                ()->indicator.isCanceled()||project.isDisposed());
+                        GoSignatureSafety.References references=target->await(query.server().getTextDocumentService().references(new ReferenceParams(new TextDocumentIdentifier(target.getUri()),target.getRange().getStart(),new ReferenceContext(false))),indicator,project,true);
+                        try {
+                            workspace=GoAddParameter.plan(go,environment,query.sources(),query.wrapper().toUriString(file),query.selection(),parameter,references,()->indicator.isCanceled()||project.isDisposed());
+                        } catch(GoAddParameter.CompilationRequired needsProof) {
+                            requireCompileConfiguration(project);
+                            checkedGoSetting=settings.goPath;
+                            checkedType=GoAddParameter.compileCheckedPlan(go,environment,query.snapshot().directory(),query.sources(),query.wrapper().toUriString(file),query.selection(),parameter,references,()->indicator.isCanceled()||project.isDisposed());
+                            workspace=checkedType.workspace();
+                        }
                     }else if(signature!=null){
                         workspace=await(query.server().getTextDocumentService().rename(signature.request(requestedSignature)),indicator,project,true);
                     }else if(isExtractToNewFile(action)){
@@ -199,7 +205,7 @@ public final class GoRefactorAction extends AnAction {
                                 ()->indicator.isCanceled()||project.isDisposed());
                     }
                     query.snapshot().requireDiskCurrent();
-                    if(checkedType!=null)requireScalarProof(project,checkedType,checkedGoSetting,query);
+                    if(checkedType!=null)requireCompileProof(project,checkedType,checkedGoSetting,query);
                     ReadAction.run(query.snapshot()::requireCurrent);
                     requireCurrent(project, file, document, stamp);
                 } catch (ProcessCanceledException cancelled) { throw cancelled; }
@@ -215,12 +221,12 @@ public final class GoRefactorAction extends AnAction {
                         new Task.Backgroundable(project,"Validate Go Refactoring",true){
                             @Override public void run(@NotNull ProgressIndicator indicator){
                                 indicator.checkCanceled();
-                                try{query.snapshot().requireDiskCurrent();ReadAction.run(query.snapshot()::requireCurrent);query.snapshot().requireTargetDiskCurrent(result);if(checkedType!=null)requireScalarProof(project,checkedType,checkedGoSetting,query);}
+                                try{query.snapshot().requireDiskCurrent();ReadAction.run(query.snapshot()::requireCurrent);query.snapshot().requireTargetDiskCurrent(result);if(checkedType!=null)requireCompileProof(project,checkedType,checkedGoSetting,query);}
                                 catch(java.io.IOException failure){throw new IllegalStateException("A source could not be revalidated. No edits were applied.",failure);}
                             }
                             @Override public void onSuccess(){
                                 if(project.isDisposed())return;
-                                try{if(checkedType!=null)requireScalarProof(project,checkedType,checkedGoSetting,query);GoRefactorApply.apply(project,query.snapshot(),result,action.getTitle());}
+                                try{if(checkedType!=null)requireCompileProof(project,checkedType,checkedGoSetting,query);GoRefactorApply.apply(project,query.snapshot(),result,action.getTitle());}
                                 catch(Exception failure){fail(project,detail(failure));}
                             }
                             @Override public void onThrowable(@NotNull Throwable failure){if(!project.isDisposed())fail(project,detail(failure));}
@@ -231,10 +237,10 @@ public final class GoRefactorAction extends AnAction {
             @Override public void onThrowable(@NotNull Throwable error) { if (!project.isDisposed()) fail(project, detail(error)); }
         }.queue();
     }
-    private static void requireScalarProof(Project project,GoChangeScalarType.Plan plan,String selectedGo,Query query)throws java.io.IOException {
-        requireScalarConfiguration(project);
+    private static void requireCompileProof(Project project,GoChangeScalarType.Plan plan,String selectedGo,Query query)throws java.io.IOException {
+        requireCompileConfiguration(project);
         if(query.wrapper().isDisposed()||!query.wrapper().isActive()||query.wrapper().getLanguageServer()!=query.server())
-            throw new IllegalStateException("The Go language server restarted. Request a fresh type-change preview.");
+            throw new IllegalStateException("The Go language server restarted. Request a fresh compile-checked preview.");
         var settings=dev.goforge.settings.GoForgeSettings.getInstance();
         if(!Objects.equals(settings.goPath,selectedGo))
             throw new IllegalStateException("The selected Go SDK changed after type checking. Request a fresh preview.");
@@ -242,9 +248,9 @@ public final class GoRefactorAction extends AnAction {
         String go=dev.goforge.tools.GoToolResolver.resolve(settings.goPath,"go",project.getBasePath(),environment);
         plan.requireCompiler(go,environment);
     }
-    private static void requireScalarConfiguration(Project project){
+    static void requireCompileConfiguration(Project project){
         if(dev.goforge.remote.GoRemoteAnalysisService.getInstance(project).active()!=null)
-            throw new IllegalStateException("Stop remote Go analysis before changing a scalar type; this check uses one local module.");
+            throw new IllegalStateException("Stop remote Go analysis before this compile-checked refactoring; this check uses one local module.");
         var manager=com.intellij.openapi.fileEditor.FileDocumentManager.getInstance();
         java.nio.file.Path root=java.nio.file.Path.of(Objects.requireNonNull(project.getBasePath())).toAbsolutePath().normalize();
         for(var document:manager.getUnsavedDocuments()){
@@ -253,12 +259,12 @@ public final class GoRefactorAction extends AnAction {
                 String name=file.getName();var path=file.toNioPath().toAbsolutePath().normalize();
                 if((name.equals("go.mod")||name.equals("go.sum"))&&path.startsWith(root)
                         ||(name.equals("go.work")||name.equals("go.work.sum"))&&root.startsWith(path.getParent()))
-                    throw new IllegalStateException("Save or revert unsaved module/workspace metadata before changing a scalar type.");
+                    throw new IllegalStateException("Save or revert unsaved module/workspace metadata before this compile-checked refactoring.");
             }
         }
         var settings=dev.goforge.settings.GoProjectSettings.getInstance(project);
         if(!settings.environment().isEmpty()||!settings.buildFlags().isEmpty())
-            throw new IllegalStateException("Scalar type changes require default host build settings; custom GOOS, GOARCH and build tags are not yet supported.");
+            throw new IllegalStateException("Compile-checked refactorings require default host build settings; custom GOOS, GOARCH and build tags are not yet supported.");
     }
     private static boolean isExtractToNewFile(CodeAction action){
         return "refactor.extract.toNewFile".equals(action.getKind())&&action.getCommand()!=null

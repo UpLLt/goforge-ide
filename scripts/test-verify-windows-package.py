@@ -249,6 +249,10 @@ class WindowsVerifierTest(unittest.TestCase):
         written=get_short(str(self.root),buffer,len(buffer))
         if not written or written>=len(buffer):raise ctypes.WinError(ctypes.get_last_error())
         alias=Path(buffer.value);canonical=self.root.resolve()
+        lsp_root=verify.lsp_project_directory(alias)
+        self.assertEqual(str(canonical),str(lsp_root))
+        self.assertEqual(canonical.as_uri(),lsp_root.as_uri())
+        self.assertEqual((canonical/'main.go').as_uri(),(lsp_root/'main.go').as_uri())
         # Existing runner ancestor aliases are usable even when the volume disables new 8.3 names.
         long_output=output.replace(str(self.root),str(canonical))
         self.assertTrue(verify.require_launcher_relocation(long_output,alias/self.app.name,alias)['passed'])
@@ -451,6 +455,85 @@ class CleanupTests(unittest.TestCase):
     with self.assertRaisesRegex(PermissionError,'synthetic temporary directory cleanup failure'):verify.main(app,out)
    receipt=json.loads((out/'native-verification.json').read_text());self.assertFalse(receipt['passed']);self.assertTrue(receipt['checks']['fixtureUnchanged']['passed'])
    self.assertIn('synthetic temporary directory cleanup failure',receipt['error'])
+
+
+class GoplsReadinessTest(unittest.TestCase):
+ def progress(self,kind,token='workspace',**values):
+  return {'jsonrpc':'2.0','method':'$/progress','params':{'token':token,'value':{'kind':kind,**values}}}
+ def diagnostics(self,version=1,uri='file:///fixture/main.go',items=None):
+  return {'jsonrpc':'2.0','method':'textDocument/publishDiagnostics','params':{'uri':uri,'version':version,'diagnostics':[] if items is None else items}}
+ class Rpc:
+  def __init__(self,messages):self.messages=list(messages);self.used=[]
+  def receive_until(self,predicate,timeout):
+   if timeout<=0:raise AssertionError('unbounded wait')
+   for i,item in enumerate(self.messages):
+    if predicate(item):self.used.append(item);return self.messages.pop(i)
+   raise TimeoutError('fixture has no matching message')
+ def test_lsp_project_directory_requires_existing_directory(self):
+  with tempfile.TemporaryDirectory(prefix='goforge-lsp-root 中文 ') as name:
+   root=Path(name);regular=root/'source.go';regular.write_text('package main')
+   self.assertEqual(str(root.resolve()),str(verify.lsp_project_directory(root)))
+   for invalid in (root/'absent',regular):
+    with self.subTest(invalid=invalid),patch.object(verify.subprocess,'Popen',side_effect=AssertionError('no process')),self.assertRaisesRegex(RuntimeError,'fixture root'):
+     verify.lsp(None,root,invalid,{},root)
+ def test_lsp_uses_one_resolved_root_for_cwd_and_initialize_uri(self):
+  with tempfile.TemporaryDirectory(prefix='goforge-lsp-identity 中文 ') as name:
+   root=Path(name);project=root/'fixture';project.mkdir();observed={}
+   class Process:
+    stdout=object();stdin=object()
+    def poll(self):return 0
+   class Rpc:
+    def __init__(self,*args):pass
+    def lsp(self,method,params):
+     observed['method']=method;observed['params']=params
+     raise RuntimeError('stop after real initialize arguments')
+   class Wire:FramedJson=Rpc
+   def launch(command,**kwargs):observed['command']=command;observed['cwd']=kwargs['cwd'];return Process()
+   with patch.object(verify.subprocess,'Popen',side_effect=launch),self.assertRaisesRegex(RuntimeError,'stop after real initialize'):
+    verify.lsp(Wire,root,project,{},root)
+   canonical=project.resolve();self.assertEqual(str(canonical),str(observed['cwd']))
+   self.assertEqual('initialize',observed['method']);self.assertEqual(canonical.as_uri(),observed['params']['rootUri'])
+   self.assertEqual([{'uri':canonical.as_uri(),'name':'Windows native'}],observed['params']['workspaceFolders'])
+   self.assertTrue(observed['params']['capabilities']['window']['workDoneProgress'])
+   self.assertTrue(observed['params']['capabilities']['textDocument']['publishDiagnostics']['versionSupport'])
+   self.assertIn('-rpc.trace',observed['command'])
+ def test_workspace_requires_matching_begin_and_successful_end(self):
+  other=self.progress('end','unrelated',message='Finished loading packages.')
+  rpc=self.Rpc([other,self.progress('begin',title='Setting up workspace'),self.progress('report',message='Loading'),self.progress('end',message='Finished loading packages.')])
+  result=verify.wait_lsp_workspace_ready(rpc)
+  self.assertEqual('workspace',result['token']);self.assertEqual(4,len(rpc.used))
+ def test_workspace_end_without_begin_or_wrong_token_is_not_ready(self):
+  for messages in ([self.progress('end',message='Finished loading packages.')],
+      [self.progress('begin',title='Setting up workspace'),self.progress('end','foreign',message='Finished loading packages.')]):
+   with self.subTest(messages=messages),self.assertRaisesRegex(TimeoutError,'workspace setup'):
+    verify.wait_lsp_workspace_ready(self.Rpc(messages),timeout=.5)
+ def test_workspace_load_error_is_not_retried_or_swallowed(self):
+  for failure in (self.progress('end',message='Error loading packages: go command failed'),
+      {'method':'window/showMessage','params':{'type':1,'message':'failed to load view'}},
+      {'method':'window/logMessage','params':{'type':1,'message':'go env failed'}}):
+   rpc=self.Rpc([self.progress('begin',title='Setting up workspace'),failure])
+   with self.subTest(failure=failure),self.assertRaisesRegex(RuntimeError,'workspace setup failed'):
+    verify.wait_lsp_workspace_ready(rpc)
+   self.assertEqual(2,len(rpc.used))
+ def test_workspace_rejects_duplicate_or_invalid_setup_token(self):
+  for messages in ([self.progress('begin',True,title='Setting up workspace')],
+      [self.progress('begin',title='Setting up workspace'),self.progress('begin','second',title='Setting up workspace')]):
+   with self.subTest(messages=messages),self.assertRaisesRegex(RuntimeError,'token'):
+    verify.wait_lsp_workspace_ready(self.Rpc(messages))
+ def test_document_waits_for_exact_opened_uri_and_version(self):
+  old=self.diagnostics(0);foreign=self.diagnostics(1,'file:///other/main.go');ready=self.diagnostics()
+  rpc=self.Rpc([old,foreign,ready]);result=verify.wait_lsp_document_ready(rpc,'file:///fixture/main.go',1)
+  self.assertEqual({'uri':'file:///fixture/main.go','version':1,'errorCount':0,'diagnosticCount':0},result)
+  self.assertEqual([old,foreign],rpc.messages)
+ def test_document_does_not_claim_ready_for_stale_or_missing_diagnostics(self):
+  for messages in ([],[self.diagnostics(0)],[self.diagnostics(None)]):
+   with self.subTest(messages=messages),self.assertRaisesRegex(TimeoutError,'opened fixture version 1'):
+    verify.wait_lsp_document_ready(self.Rpc(messages),'file:///fixture/main.go',1,timeout=.5)
+ def test_document_errors_and_load_failure_remain_failures(self):
+  for message in (self.diagnostics(items=[{'severity':1,'message':'could not import fmt'}]),
+      {'method':'window/showMessage','params':{'type':1,'message':'missing Go SDK'}}):
+   with self.subTest(message=message),self.assertRaises(RuntimeError):
+    verify.wait_lsp_document_ready(self.Rpc([message]),'file:///fixture/main.go',1)
 
 
 if __name__=='__main__':unittest.main()

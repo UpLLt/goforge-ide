@@ -19,11 +19,12 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class GoRemoteAnalysisService implements Disposable {
     private final Project project;
     private final Set<GoRemoteLspTransport> transports=ConcurrentHashMap.newKeySet();
+    private final GoRemoteSourceFiles sourceFiles;
     private volatile GoRemoteAnalysisConfig active;
     private volatile GoRemoteAnalysisConfig failed;
     private volatile boolean disposed;
     public GoRemoteAnalysisService(Project project){
-        this.project=project;
+        this.project=project;this.sourceFiles=new GoRemoteSourceFiles(project);
         com.intellij.openapi.editor.EditorFactory.getInstance().getEventMulticaster().addDocumentListener(
             new com.intellij.openapi.editor.event.DocumentListener() {
                 @Override public void documentChanged(com.intellij.openapi.editor.event.DocumentEvent event) {
@@ -37,6 +38,8 @@ public final class GoRemoteAnalysisService implements Disposable {
             },this);
     }
     public static GoRemoteAnalysisService getInstance(Project project){return project.getService(GoRemoteAnalysisService.class);}
+    public com.intellij.openapi.vfs.VirtualFile sourceFile(String uri){return sourceFiles.find(uri);}
+    void registerSourceStore(GoRemoteStdlibSources store){sourceFiles.register(store);}
     public GoRemoteAnalysisConfig active(){return active;}
     public String status(){var selected=active;return selected==null?"Local Go analysis":(failed==selected?"Remote analysis stopped after failure: ":"Remote analysis session: ")+selected.profile().host()+":"+selected.remoteRoot();}
     public void activate(GoRemoteAnalysisConfig config) {
@@ -63,6 +66,7 @@ public final class GoRemoteAnalysisService implements Disposable {
                 if(failed==expected)throw new CannotStartProcessException("Remote analysis stopped after a failure. Start a new snapshot or stop remote analysis to use local gopls.");
                 try {
                     transport=new GoRemoteLspTransport(expected,new GeneralCommandLine().getEffectiveEnvironment(),GoRemoteAnalysisService.this::notice,() -> {if(active==expected)failed=expected;});
+                    registerSourceStore(transport.sources());
                     transports.add(transport);
                     if(disposed||project.isDisposed()||active!=expected){stop();throw new IllegalStateException("Remote analysis session changed.");}
                     transport.awaitReady(Duration.ofSeconds(15));
@@ -75,5 +79,5 @@ public final class GoRemoteAnalysisService implements Disposable {
         };
     }
     private void notice(String text){if(!disposed&&!project.isDisposed())GoRemoteService.getInstance(project).notice(text);}
-    public void dispose(){disposed=true;active=null;transports.forEach(GoRemoteLspTransport::closeAsync);transports.clear();}
+    public void dispose(){disposed=true;active=null;sourceFiles.close();transports.forEach(GoRemoteLspTransport::closeAsync);transports.clear();}
 }

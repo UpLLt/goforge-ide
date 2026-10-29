@@ -185,10 +185,13 @@ def configure(home: Path, retained: list[str]):
     launch.update(launcherPath='bin/goforge64.exe', vmOptionsFilePath='bin/goforge64.exe.vmoptions')
     launch['bootClassPathJarNames'].insert(0, 'goforge-branding.jar')
     args = [a for a in launch['additionalJvmArguments'] if not a.startswith(
-        ('-Didea.vendor.name=','-Didea.paths.selector=','-Didea.platform.prefix=','-Dsplash='))]
+        ('-Didea.vendor.name=','-Didea.paths.selector=','-Didea.platform.prefix=','-Dsplash=',
+         '-Didea.ultimate.features.hints.enabled='))]
     args += ['-Didea.vendor.name=GoForge', '-Didea.paths.selector='+SELECTOR, '-Didea.platform.prefix=Idea',
              '-Dintellij.platform.load.app.info.from.resources=true', '-Didea.disable.collect.statistics=true',
              '-Didea.suppress.statistics.report=true', '-Didea.headless.enable.statistics=false',
+             # Disable Community upsell hints, not commercial licensing or features.
+             '-Didea.ultimate.features.hints.enabled=false',
              '-Dide.no.platform.update=true', '-Didea.initially.ask.config=never', '-Dsplash=false',
              '-XX:ErrorFile=%IDE_CACHE_DIR%/java_error_in_goforge_%p.log', '-XX:HeapDumpPath=%IDE_CACHE_DIR%']
     # The native Windows launcher restores APPDATA/LOCALAPPDATA from KnownFolders;

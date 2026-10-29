@@ -92,22 +92,22 @@ public final class GoChangeScalarType {
             var files = new LinkedHashMap<Path, Captured>();
             capture(files, root.resolve("go.mod")); capture(files, root.resolve("go.sum"));
             if(Files.exists(root.resolve("vendor"),LinkOption.NOFOLLOW_LINKS))
-                throw new IllegalArgumentException("Vendored module trees are not supported by this isolated type-change check.");
+                throw new IllegalArgumentException("Vendored module trees are not supported by this isolated refactoring check.");
             capture(files,root.resolve("vendor"));
             if (files.get(root.resolve("go.mod")).bytes() == null)
-                throw new IllegalArgumentException("This type change requires a go.mod at the project root.");
+                throw new IllegalArgumentException("This compile-checked refactoring requires a go.mod at the project root.");
             // A parent workspace would change gopls's package graph. Never replace it silently with GOWORK=off.
             for (Path dir = root; dir != null; dir = dir.getParent()) {
                 capture(files, dir.resolve("go.work"));
                 if (files.get(dir.resolve("go.work")).bytes() != null)
-                    throw new IllegalArgumentException("Stop workspace analysis and open one standalone module before changing a scalar type.");
+                    throw new IllegalArgumentException("Stop workspace analysis and open one standalone module before this compile-checked refactoring.");
             }
             for (Path path : sourcePaths) for (Path dir = path.getParent(); dir != null && !dir.equals(root); dir = dir.getParent()) {
                 if (!dir.startsWith(root)) throw new IllegalArgumentException("A source is outside the project root.");
                 Path mod = dir.resolve("go.mod");
                 if (!files.containsKey(mod)) capture(files, mod);
                 if (files.get(mod).bytes() != null)
-                    throw new IllegalArgumentException("Nested modules are not supported by this compile-checked type change.");
+                    throw new IllegalArgumentException("Nested modules are not supported by this compile-checked refactoring.");
             }
             var metadata = new Metadata(files); metadata.requireCurrent(); return metadata;
         }
@@ -145,50 +145,12 @@ public final class GoChangeScalarType {
     public static Plan plan(String go, Map<String, String> environment, Path root,
             Collection<GoRefactorWorkspaceEdit.Source> snapshot, String uri, Position position, Spec spec,
             GoSignatureSafety.References references, BooleanSupplier cancelled) throws Exception {
-        Objects.requireNonNull(spec); Objects.requireNonNull(references); Objects.requireNonNull(cancelled);
-        checkCancelled(cancelled);
-        for (String key : List.of("GOFLAGS", "GOOS", "GOARCH", "GOEXPERIMENT", "GOROOT"))
-            if (!HostTools.environmentValue(environment, key).isBlank())
-                throw new IllegalArgumentException("Scalar type changes currently require default host build settings; clear " + key + " before requesting a preview.");
-        String driver = HostTools.environmentValue(environment, "GOPACKAGESDRIVER");
-        if (!driver.isBlank() && !driver.equals("off")) throw new IllegalArgumentException("Custom package drivers are not supported by this type-change check.");
-        String work = HostTools.environmentValue(environment, "GOWORK");
-        if (!work.isBlank() && !work.equals("off")) throw new IllegalArgumentException("Active Go workspaces are not supported by this type-change check.");
-        root = root.toAbsolutePath().normalize();
-        if (!Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS) || !root.toRealPath().equals(root))
-            throw new IllegalArgumentException("Open a real module directory without symbolic-link path components.");
-        var sources = new LinkedHashMap<Path, GoRefactorWorkspaceEdit.Source>();
-        long characters = 0;
-        for (var source : snapshot) {
-            if (source == null || source.text() == null) throw new IllegalArgumentException("Incomplete type-change source snapshot.");
-            Path path = GoRefactorWorkspaceEdit.uriPath(source.uri());
-            if (!path.startsWith(root) || path.equals(root) || !path.toString().endsWith(".go")
-                    || !Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS) || !path.toRealPath().equals(path)
-                    || sources.putIfAbsent(path, source) != null)
-                throw new IllegalArgumentException("Type-change sources must be unique regular Go files inside the module.");
-            characters += source.text().length();
-        }
-        if (sources.isEmpty() || sources.size() > GoRefactorWorkspaceEdit.MAX_FILES || characters > GoRefactorWorkspaceEdit.MAX_CHARACTERS)
-            throw new IllegalArgumentException("Type-change snapshot exceeds the refactoring limits.");
-        var selected = sources.get(GoRefactorWorkspaceEdit.uriPath(uri));
-        if (selected == null) throw new IllegalArgumentException("Type declaration is outside the captured module.");
-        GoRefactorEdit.offset(selected.text(), position);
-        var directories = new HashSet<Path>();
-        for (Path path : sources.keySet()) directories.add(path.getParent());
-        for (Path directory : directories) try (var children = Files.list(directory)) {
-            if (children.anyMatch(path -> path.getFileName().toString().matches(".*\\.(?:s|S|syso|c|cc|cpp|cxx|h|f|F|m|mm|for|f90)")))
-                throw new IllegalArgumentException("Assembly, native object and non-Go source files are outside the captured caller graph.");
-        }
-        Metadata metadata = Metadata.capture(root, sources.keySet());
-        CompilerProof compiler = CompilerProof.capture(go,environment,root,cancelled);
-        var inputs = sources.values().stream().map(s -> new Source(s.uri(), s.text())).toList();
-        var target = new Location(selected.uri(), new Range(position, position));
-        Path owned = Files.createTempDirectory("goforge-scalar-type-").toRealPath();
-        try {
+        Objects.requireNonNull(spec); Objects.requireNonNull(references);
+        return compileCheckedPlan(go,environment,root,snapshot,uri,position,cancelled,(sources,owned,helperEnv)->{
+            var inputs = sources.values().stream().map(s -> new Source(s.uri(), s.text())).toList();
+            var target = new Location(sources.get(GoRefactorWorkspaceEdit.uriPath(uri)).uri(), new Range(position, position));
             Path helper = owned.resolve("planner.go"), binary = owned.resolve(HostTools.executableName("planner"));
             Files.writeString(helper, GoChangeScalarTypeSource.TEXT, StandardCharsets.UTF_8);
-            var helperEnv = GoSignatureSafety.checkerEnvironment(environment);
-            HostTools.putEnvironment(helperEnv, Map.of("GOPACKAGESDRIVER", "off"));
             run(List.of(go, "build", "-trimpath", "-buildvcs=false", "-o", binary.toString(), helper.toString()), owned, helperEnv, cancelled, "The local scalar type planner could not be compiled");
             Result declaration = inspect(binary, owned, helperEnv, new Input("target", inputs, target, null, spec), cancelled);
             List<? extends Location> found = references.find(declaration.target());
@@ -211,6 +173,58 @@ public final class GoChangeScalarType {
                 edits.add(Either.forLeft(GoAddParameter.documentEdit(new VersionedTextDocumentIdentifier(original.uri(), original.version()), entry.getValue())));
             }
             var workspace = new WorkspaceEdit(edits);
+            return workspace;
+        });
+    }
+
+    @FunctionalInterface interface CheckedPlanner {
+        WorkspaceEdit plan(Map<Path,GoRefactorWorkspaceEdit.Source> sources,Path owned,Map<String,String> helperEnv) throws Exception;
+    }
+    /** Shared compile-only proof; planner output never bypasses frozen source/metadata/SDK checks. */
+    static Plan compileCheckedPlan(String go,Map<String,String> environment,Path root,
+            Collection<GoRefactorWorkspaceEdit.Source> snapshot,String uri,Position position,
+            BooleanSupplier cancelled,CheckedPlanner planner)throws Exception {
+        Objects.requireNonNull(planner); Objects.requireNonNull(cancelled);
+        checkCancelled(cancelled);
+        for (String key : List.of("GOFLAGS", "GOOS", "GOARCH", "GOEXPERIMENT", "GOROOT"))
+            if (!HostTools.environmentValue(environment, key).isBlank())
+                throw new IllegalArgumentException("Compile-checked refactorings currently require default host build settings; clear " + key + " before requesting a preview.");
+        String driver = HostTools.environmentValue(environment, "GOPACKAGESDRIVER");
+        if (!driver.isBlank() && !driver.equals("off")) throw new IllegalArgumentException("Custom package drivers are not supported by this compile-only refactoring check.");
+        String work = HostTools.environmentValue(environment, "GOWORK");
+        if (!work.isBlank() && !work.equals("off")) throw new IllegalArgumentException("Active Go workspaces are not supported by this compile-only refactoring check.");
+        root = root.toAbsolutePath().normalize();
+        if (!Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS) || !root.toRealPath().equals(root))
+            throw new IllegalArgumentException("Open a real module directory without symbolic-link path components.");
+        var sources = new LinkedHashMap<Path, GoRefactorWorkspaceEdit.Source>();
+        long characters = 0;
+        for (var source : snapshot) {
+            if (source == null || source.text() == null) throw new IllegalArgumentException("Incomplete compile-check source snapshot.");
+            Path path = GoRefactorWorkspaceEdit.uriPath(source.uri());
+            if (!path.startsWith(root) || path.equals(root) || !path.toString().endsWith(".go")
+                    || !Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS) || !path.toRealPath().equals(path)
+                    || sources.putIfAbsent(path, source) != null)
+                throw new IllegalArgumentException("Compile-check sources must be unique regular Go files inside the module.");
+            characters += source.text().length();
+        }
+        if (sources.isEmpty() || sources.size() > GoRefactorWorkspaceEdit.MAX_FILES || characters > GoRefactorWorkspaceEdit.MAX_CHARACTERS)
+            throw new IllegalArgumentException("Compile-check snapshot exceeds the refactoring limits.");
+        var selected = sources.get(GoRefactorWorkspaceEdit.uriPath(uri));
+        if (selected == null) throw new IllegalArgumentException("Declaration is outside the captured module.");
+        GoRefactorEdit.offset(selected.text(), position);
+        var directories = new HashSet<Path>();
+        for (Path path : sources.keySet()) directories.add(path.getParent());
+        for (Path directory : directories) try (var children = Files.list(directory)) {
+            if (children.anyMatch(path -> path.getFileName().toString().matches(".*\\.(?:s|S|syso|c|cc|cpp|cxx|h|f|F|m|mm|for|f90)")))
+                throw new IllegalArgumentException("Assembly, native object and non-Go source files are outside the captured caller graph.");
+        }
+        Metadata metadata = Metadata.capture(root, sources.keySet());
+        CompilerProof compiler = CompilerProof.capture(go,environment,root,cancelled);
+        Path owned = Files.createTempDirectory("goforge-refactor-check-").toRealPath();
+        try {
+            var helperEnv=GoSignatureSafety.checkerEnvironment(environment);
+            HostTools.putEnvironment(helperEnv,Map.of("GOPACKAGESDRIVER","off"));
+            var workspace=planner.plan(Collections.unmodifiableMap(sources),owned,helperEnv);
             var prepared = GoRefactorWorkspaceEdit.prepare(sources.values(), workspace);
             Path copy = Files.createDirectory(owned.resolve("module"));
             metadata.copyModule(root, copy);
@@ -226,7 +240,7 @@ public final class GoChangeScalarType {
                     || !Set.of("", "off").contains(effective.get("GOWORK").getAsString()))
                 throw new IllegalStateException("Effective Go settings use flags, experiments, cross-compilation or a workspace. This operation requires default host settings.");
             if(!Set.of("","on").contains(effective.get("GO111MODULE").getAsString()))
-                throw new IllegalStateException("Scalar type changes require module mode; GO111MODULE=off is not supported.");
+                throw new IllegalStateException("Compile-checked refactorings require module mode; GO111MODULE=off is not supported.");
             var preserved=new ArrayList<>(List.of("GOPATH","GOMODCACHE","GOCACHE","CGO_ENABLED","GOROOT"));preserved.addAll(FEATURE_KEYS);
             for (String key : preserved) HostTools.putEnvironment(effectiveEnv, Map.of(key,effective.get(key).getAsString()));
             var compileEnv = compileEnvironment(effectiveEnv);
@@ -236,11 +250,11 @@ public final class GoChangeScalarType {
             if (module.has("Replace") && module.get("Replace").isJsonArray()) for (var replace : module.getAsJsonArray("Replace")) {
                 var next = replace.getAsJsonObject().getAsJsonObject("New");
                 if (!next.has("Version") || next.get("Version").getAsString().isBlank())
-                    throw new IllegalStateException("Local module replacements are outside this captured single-module type check.");
+                    throw new IllegalStateException("Local module replacements are outside this captured single-module compile check.");
             }
             List<String> packages = compile(go, copy, owned.resolve("before"), compileEnv, sources.keySet().stream().map(root::relativize).toList(), cancelled, "The current captured module does not compile");
             for (var file : prepared.files()) Files.writeString(copy.resolve(root.relativize(GoRefactorWorkspaceEdit.uriPath(file.uri()))), file.edit().replacement(), StandardCharsets.UTF_8);
-            List<String> after = compile(go, copy, owned.resolve("after"), compileEnv, sources.keySet().stream().map(root::relativize).toList(), cancelled, "The changed type is incompatible with the captured function or callers");
+            List<String> after = compile(go, copy, owned.resolve("after"), compileEnv, sources.keySet().stream().map(root::relativize).toList(), cancelled, "The proposed refactoring is incompatible with the captured function or callers");
             if (!packages.equals(after)) throw new IllegalStateException("The compiler package graph changed during type validation.");
             // Readonly module flags should leave these exact bytes untouched, even on a failed/cache-limited check.
             for (String name : List.of("go.mod", "go.sum")) {
@@ -283,7 +297,7 @@ public final class GoChangeScalarType {
         while(dependencyStream.hasNext()) {
             var dependency=dependencyStream.next().getAsJsonObject();
             if(dependency.has("CgoFiles")&&dependency.getAsJsonArray("CgoFiles").size()>0)
-                throw new IllegalStateException("A captured package or dependency requires cgo compilation. Scalar type changes currently support pure-Go compiler inputs only; no edits were applied.");
+                throw new IllegalStateException("A captured package or dependency requires cgo compilation. Compile-checked refactorings currently support pure-Go compiler inputs only; no edits were applied.");
         }
         String listed = run(List.of(go, "list", "-json", "-mod=readonly", "./..."), copy, env, cancelled, failure);
         var stream = new JsonStreamParser(listed); var packages = new TreeSet<String>(); var included = new HashSet<Path>();
@@ -297,7 +311,7 @@ public final class GoChangeScalarType {
             for (String key : List.of("GoFiles", "TestGoFiles", "XTestGoFiles")) if (item.has(key))
                 for (var file : item.getAsJsonArray(key)) included.add(copy.relativize(directory.resolve(file.getAsString()).normalize()));
             packages.add(item.get("ImportPath").getAsString());
-            if (packages.size() > 128) throw new IllegalStateException("Scalar type checks support at most 128 captured packages.");
+            if (packages.size() > 128) throw new IllegalStateException("Compile-checked refactorings support at most 128 captured packages.");
         }
         if (packages.isEmpty() || !included.equals(new HashSet<>(captured)))
             throw new IllegalStateException("Some captured Go sources are outside the compiler package graph; no partial type check is accepted.");

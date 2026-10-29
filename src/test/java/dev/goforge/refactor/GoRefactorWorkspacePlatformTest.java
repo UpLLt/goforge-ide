@@ -136,6 +136,58 @@ public final class GoRefactorWorkspacePlatformTest extends BasePlatformTestCase 
             }
         }finally{EditorFactory.getInstance().releaseEditor(editor);}
     }
+    /** The real compiler/planner is exercised by GoAddParameterImportsProtocolProbe;
+     * this uses the same versioned insertion batch through the actual platform transaction. */
+    public void testOrdinaryImportParameterBatchKeepsDirtyCallerAndSingleUndoRedo()throws Exception {
+        String api="package api\nimport \"fmt\"\nfunc Join(first string, second string) string {return fmt.Sprint(first,second)}\n";
+        String app="package app\nimport \"example.test/api\"\nfunc Call()string{return api.Join(left(),right())}\n";
+        String external="package api_test\nimport \"example.test/api\"\nvar _=api.Join(\"c\",\"d\")\n";
+        var definition=source("api/join.go",api);var caller=source("app/call.go",app);var closed=source("api/join_test.go",external);
+        var editor=EditorFactory.getInstance().createEditor(caller,getProject(),PlainTextFileType.INSTANCE,false);
+        try {
+            WriteCommandAction.runWriteCommandAction(getProject(),()->caller.insertString(0,"// unsaved 世界🙂\n"));
+            String dirty=caller.getText();var snapshot=capture();var plan=addParameterPlan(snapshot);
+            GoRefactorApply.apply(getProject(),snapshot,plan,"Add parameter with checked imports");
+            assertTrue(definition.getText().contains("import \"fmt\""));assertTrue(definition.getText().contains("extra int, second string"));
+            assertTrue(caller.getText().contains("left(),7, right()"));assertEquals(app,Files.readString(directory.resolve("app/call.go")));
+            var textEditor=TextEditorProvider.getInstance().getTextEditor(editor);var undo=UndoManager.getInstance(getProject());
+            undo.undo(textEditor);assertEquals(api,definition.getText());assertEquals(dirty,caller.getText());assertEquals(external,closed.getText());
+            assertEquals(api,Files.readString(directory.resolve("api/join.go")));assertEquals(external,Files.readString(directory.resolve("api/join_test.go")));
+            undo.redo(textEditor);assertTrue(definition.getText().contains("import \"fmt\""));assertTrue(closed.getText().contains("\"c\",7, \"d\""));
+            assertTrue(manager().isDocumentUnsaved(caller));assertEquals(app,Files.readString(directory.resolve("app/call.go")));
+        }finally{EditorFactory.getInstance().releaseEditor(editor);}
+    }
+    public void testCheckedParameterUiGateRejectsProjectTargetsAndTags() {
+        var settings=dev.goforge.settings.GoProjectSettings.getInstance(getProject());
+        String os=settings.goos,arch=settings.goarch,tags=settings.buildTags;
+        try {
+            settings.goos="";settings.goarch="";settings.buildTags="";GoRefactorAction.requireCompileConfiguration(getProject());
+            for(String field:List.of("tags","os","arch")) {
+                settings.buildTags=field.equals("tags")?"custom":"";settings.goos=field.equals("os")?"linux":"";settings.goarch=field.equals("arch")?"386":"";
+                var failure=org.junit.Assert.assertThrows(IllegalStateException.class,()->GoRefactorAction.requireCompileConfiguration(getProject()));
+                assertTrue(failure.getMessage().contains("default host build settings"));
+            }
+        }finally{settings.goos=os;settings.goarch=arch;settings.buildTags=tags;}
+    }
+    public void testCheckedParameterUiGateRejectsDirtyModuleWithoutSaving()throws Exception{dirtyMetadataGate("go.mod","module example.test/gate\n\ngo 1.26\n");}
+    public void testCheckedParameterUiGateRejectsDirtyWorkspaceWithoutSaving()throws Exception{dirtyMetadataGate("go.work","go 1.26\nuse .\n");}
+    private void dirtyMetadataGate(String name,String saved)throws Exception {
+        Path base=Files.createDirectories(Path.of(getProject().getBasePath()));Path path=base.resolve(name);
+        byte[] original=Files.exists(path)?Files.readAllBytes(path):null;Files.writeString(path,saved);
+        var file=LocalFileSystem.getInstance().refreshAndFindFileByNioFile(path);assertNotNull(file);var doc=manager().getDocument(file);assertNotNull(doc);
+        var settings=dev.goforge.settings.GoProjectSettings.getInstance(getProject());String os=settings.goos,arch=settings.goarch,tags=settings.buildTags;
+        try {
+            settings.goos="";settings.goarch="";settings.buildTags="";
+            String dirty=doc.getText()+"// unsaved metadata\n";WriteCommandAction.runWriteCommandAction(getProject(),()->doc.setText(dirty));
+            var failure=org.junit.Assert.assertThrows(IllegalStateException.class,()->GoRefactorAction.requireCompileConfiguration(getProject()));
+            assertTrue(failure.getMessage().contains("unsaved module/workspace metadata"));
+            assertEquals(dirty,doc.getText());assertTrue(manager().isDocumentUnsaved(doc));assertEquals(saved,Files.readString(path));
+        }finally{
+            settings.goos=os;settings.goarch=arch;settings.buildTags=tags;
+            Files.write(path,original==null?saved.getBytes(java.nio.charset.StandardCharsets.UTF_8):original);manager().reloadFromDisk(doc);
+            if(original==null)WriteAction.run(()->file.delete(this));
+        }
+    }
     public void testAddParameterStaleCallerRejectsWholeBatch()throws Exception {
         String api="package api\nfunc Join(first string, second string) string {return first+second}\n";
         var definition=source("api/join.go",api);var caller=source("app/call.go","package app\nfunc Call(){api.Join(left(),right())}\n");

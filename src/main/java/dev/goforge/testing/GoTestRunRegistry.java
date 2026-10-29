@@ -75,7 +75,7 @@ public final class GoTestRunRegistry implements AutoCloseable {
     public synchronized String locationHint(String pkg, String name, String nodeId, boolean inferred) {
         if (disposed) return "";
         selectedNames.location(pkg, name, inferred);
-        if (!ordinaryTestName(name)) return "";
+        if (!ordinaryTestName(name) && !topLevelBenchmarkName(name)) return "";
         Observed n = nodes.get(nodeId);
         if (n == null) {
             n = new Observed(pkg, name, nodeId, UUID.randomUUID().toString(), inferred);
@@ -103,7 +103,10 @@ public final class GoTestRunRegistry implements AutoCloseable {
         Observed n = tokens.get(url.substring((PROTOCOL + "://" + runToken + "/").length()));
         return n == null ? null : new ObservedIdentity(n.packageName, n.fullName, n.inferred, n.status);
     }
-    public synchronized Target target(String url) {
+    public synchronized Target target(String url) { return resolve(url, false); }
+    /** Benchmarks are authorized only for the separate Debug action, never ordinary rerun/navigation. */
+    public synchronized Target debugTarget(String url) { return resolve(url, true); }
+    private Target resolve(String url, boolean debug) {
         if (disposed || url == null || !url.startsWith(PROTOCOL + "://" + runToken + "/")) return null;
         String token = url.substring((PROTOCOL + "://" + runToken + "/").length());
         Observed n = tokens.get(token);
@@ -120,7 +123,12 @@ public final class GoTestRunRegistry implements AutoCloseable {
                 source = file; declaration = found;
             }
         }
-        if (declaration == null || !(declaration.kind().equals("test") || declaration.kind().equals("example"))) return null;
+        if (declaration == null) return null;
+        if (!(declaration.kind().equals("test") || declaration.kind().equals("example"))) {
+            if (!debug || !declaration.kind().equals("benchmark") || !topLevelBenchmarkName(n.fullName)
+                    || !terminated || localTerminationRequested
+                    || !(n.status == GoTestEvents.Status.BENCHMARK_COMPLETED || n.status == GoTestEvents.Status.FAILED)) return null;
+        }
         return new Target(n.packageName, n.fullName, top, n.nodeId, url, pkg.directory(), source, declaration, n.status);
     }
     public synchronized List<Target> knownTargets() {
@@ -135,6 +143,11 @@ public final class GoTestRunRegistry implements AutoCloseable {
         if (name == null || name.isEmpty()) return false;
         String top = name.split("/", -1)[0];
         return validPrefix(top, "Test") || validPrefix(top, "Example");
+    }
+    private static boolean topLevelBenchmarkName(String name) {
+        if (name == null) return false;
+        try { GoTestSelection.benchmark(name); return true; }
+        catch (IllegalArgumentException invalid) { return false; }
     }
     private static boolean validPrefix(String name, String prefix) {
         return name.startsWith(prefix) && (name.length() == prefix.length()

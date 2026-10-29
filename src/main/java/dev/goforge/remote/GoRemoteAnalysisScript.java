@@ -4,7 +4,7 @@ package dev.goforge.remote;
 final class GoRemoteAnalysisScript {
     private GoRemoteAnalysisScript(){}
     static final String SOURCE="""
-import os,sys,json,base64,hashlib,stat,subprocess,threading,signal,time,uuid,re
+import os,sys,json,base64,hashlib,stat,subprocess,threading,signal,time,uuid,re,queue,shutil
 root,name,gopls,go,workfile,runtimework=sys.argv[1:7]
 LIMIT=16*1024*1024
 stopping=threading.Event();write_lock=threading.Lock()
@@ -104,6 +104,7 @@ for path,digest in expected.items():
     if read_owned(path)[0]!=digest:raise ValueError('Remote snapshot changed before analysis started')
 env=dict(os.environ);env.update({'GOWORK':'off','GOENV':'off','GOFLAGS':'-mod=readonly','GOPACKAGESDRIVER':'off','GOTOOLCHAIN':'local','GOPROXY':'off','GOSUMDB':'off'})
 if go.startswith('/'):env['PATH']=os.path.dirname(go)+os.pathsep+env.get('PATH','')
+"""+GoRemoteStdlibScript.SOURCE+"""
 private_files=[]
 def cleanup_private():
     for leaf in private_files:
@@ -124,6 +125,8 @@ try:
             fd=os.open(runtimework+'.sum',os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600,dir_fd=rootfd);os.close(fd);private_files.append(runtimework+'.sum')
         env['GOWORK']=os.path.join(root,runtimework)
     if not os.path.samestat(os.fstat(rootfd),os.stat(root,follow_symlinks=False)):raise ValueError('Snapshot root was replaced before startup')
+    try:sdk_initialize()
+    except Exception:sdkinfo={'error':'Remote SDK source identity is unavailable; project analysis remains active'}
     child=subprocess.Popen([gopls,'serve'],cwd=root,env=env,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,start_new_session=True)
 except:
     cleanup_private();os.close(rootfd);raise
@@ -135,8 +138,15 @@ def input_loop():
             if packet is None:break
             for path,digest in metadata_hashes.items():
                 if read_owned(path)[0]!=digest:raise ValueError('Remote workspace/module metadata changed outside this session; create a fresh analysis snapshot')
+            if packet.get('method')=='goforge/readStdlib':
+                request=packet['params']
+                if set(request)!=set(('id','token','path')) or not all(isinstance(request[k],str) for k in request):raise ValueError('Invalid SDK read request')
+                try:sdkqueue.put_nowait(request)
+                except queue.Full:send({'jsonrpc':'2.0','method':'goforge/stdlibSource','params':{'id':request['id'],'error':'Remote source read queue is full'}})
+                continue
             if packet.get('method')=='goforge/snapshotSync':
                 sync(packet['params']['files']);packet=packet['params']['message']
+            if str(packet.get('method','')).startswith('goforge/'):raise ValueError('Reserved bridge method')
             body=json.dumps(packet,separators=(',',':'),ensure_ascii=False).encode('utf-8')
             child.stdin.write(('Content-Length: %d\\r\\n\\r\\n'%len(body)).encode('ascii')+body);child.stdin.flush()
     except Exception as error:
@@ -147,13 +157,15 @@ def output_loop():
         while not stopping.is_set():
             packet=frame(child.stdout)
             if packet is None:break
+            if str(packet.get('method','')).startswith('goforge/'):continue
             send(packet)
     finally:stopping.set()
 def drain_errors():
     # Never forward arbitrary server stderr (which can contain source text or environment values).
     while child.stderr.read(4096):pass
 threading.Thread(target=input_loop,daemon=True).start();threading.Thread(target=output_loop,daemon=True).start();threading.Thread(target=drain_errors,daemon=True).start()
-send({'jsonrpc':'2.0','method':'goforge/bridgeReady','params':{'pid':child.pid}})
+threading.Thread(target=sdk_worker,daemon=True).start()
+send({'jsonrpc':'2.0','method':'goforge/bridgeReady','params':{'pid':child.pid,'stdlib':sdkinfo}})
 try:
     while child.poll() is None and not stopping.wait(.05):pass
 finally:
@@ -164,5 +176,6 @@ finally:
     try:os.killpg(child.pid,signal.SIGKILL)
     except ProcessLookupError:pass
     child.wait();cleanup_private();os.close(rootfd)
+    if sdkfd is not None:os.close(sdkfd)
 """;
 }

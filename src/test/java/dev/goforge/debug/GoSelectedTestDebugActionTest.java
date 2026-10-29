@@ -56,7 +56,7 @@ import java.util.function.Consumer;
 
 /** Actual clicked action, background Task, real source guard and RunManager. No Go/Delve process is spawned. */
 public final class GoSelectedTestDebugActionTest extends BasePlatformTestCase {
-    private static final String TEXT = "package target\nimport \"testing\"\nfunc TestOne(t *testing.T) {}\n";
+    private static final String TEXT = "package target\nimport \"testing\"\nfunc TestOne(t *testing.T) {}\nfunc BenchmarkOne(b *testing.B) {}\n";
     private Path directory;
     private VirtualFile contentRoot;
     private Document document;
@@ -271,6 +271,40 @@ public final class GoSelectedTestDebugActionTest extends BasePlatformTestCase {
         assertTrue(stages.contains("launch_dispatched"));
     }
 
+    public void testCompletedBenchmarkClickCreatesGuardedDapWithBothSelectorsAndTiming() throws Exception {
+        var source=configuration();source.setTestSelection(GoTestSelection.benchmark("BenchmarkOne"));source.setGoArguments("-benchtime=1x -benchmem");
+        var registry=new GoTestRunRegistry(getProject(),source,packageSources());
+        var properties=new GoTestConsoleProperties(source,DefaultRunExecutor.getRunExecutorInstance(),registry);Disposer.register(getTestRootDisposable(),properties);
+        var node=completedBenchmarkNode(registry);assertNull(properties.selectedConfiguration(node));
+        var dispatched=new AtomicReference<RunnerAndConfigurationSettings>();
+        var action=new GoDebugSelectedTestAction((config,indicator,progress)->{
+            assertEquals(GoTestSelection.benchmark("BenchmarkOne"),config.getTestSelection());return prepared(config);
+        },dispatched::set,stages::add).withSelection(()->properties.selectedDebugConfiguration(node));
+        click(action);await(()->dispatched.get()!=null||dialog.get()!=null);assertNull(dialog.get());assertNotNull(dispatched.get());
+        var debug=(DAPRunConfiguration)dispatched.get().getConfiguration();var launch=JsonParser.parseString(debug.getLaunchConfiguration()).getAsJsonObject();
+        assertEquals(List.of("-test.benchtime=1x","-test.benchmem","-test.run=^$","-test.bench=^BenchmarkOne$","-test.count=1"),launch.getAsJsonArray("args").asList().stream().map(v->v.getAsString()).toList());
+        assertTrue(dispatched.get().isTemporary());assertSame(dispatched.get(),manager.getSelectedConfiguration());
+        var environment=ExecutionEnvironmentBuilder.create(getProject(),DefaultDebugExecutor.getDebugExecutorInstance(),debug).build();GoSelectedTestDebugGuard.validate(environment);
+        edit(TEXT+"// benchmark changed after preparation\n");assertThrows(ExecutionException.class,()->GoSelectedTestDebugGuard.validate(environment));
+    }
+    public void testBenchmarkEditDuringPreparationRefusesLaunchAndRegistration() throws Exception {
+        var source=configuration();source.setTestSelection(GoTestSelection.benchmark("BenchmarkOne"));
+        var dispatches=new AtomicInteger();var modality=ModalityState.current();var editComplete=new CompletableFuture<Void>();
+        var action=action(source,(config,indicator,progress)->{
+            var result=prepared(config);
+            ApplicationManager.getApplication().invokeLater(()->{try{edit(TEXT+"// changed benchmark\n");FileDocumentManager.getInstance().saveDocument(document);editComplete.complete(null);}catch(Throwable e){editComplete.completeExceptionally(e);}},modality);
+            editComplete.get(10,TimeUnit.SECONDS);return result;
+        },settings->dispatches.incrementAndGet());
+        click(action);await(()->dialog.get()!=null);assertTrue(dialog.get(),dialog.get().contains("selected test sources"));assertUnlaunched(dispatches);
+    }
+    private SMTestProxy completedBenchmarkNode(GoTestRunRegistry registry) {
+        var events=new GoTestEvents(registry::locationHint);String nodeId=null;
+        for(String action:List.of("run","bench"))for(var emission:events.accept(Map.of("Action",action,"Package","example.com/action","Test","BenchmarkOne"))){registry.observe(emission);if(emission.testName().equals("BenchmarkOne"))nodeId=emission.nodeId();}
+        registry.markTerminated();assertNotNull(nodeId);
+        String url=registry.locationHint("example.com/action","BenchmarkOne",nodeId,false);
+        var target=registry.debugTarget(url);assertNotNull(target);assertEquals(GoTestEvents.Status.BENCHMARK_COMPLETED,target.status());
+        return new SMTestProxy("example.com/action::BenchmarkOne",false,url);
+    }
     private SMTestProxy completedNode(GoTestRunRegistry registry) {
         var events = new GoTestEvents(registry::locationHint);
         for (var action : List.of("run", "pass")) {
@@ -308,7 +342,8 @@ public final class GoSelectedTestDebugActionTest extends BasePlatformTestCase {
         var declaration = new GoTestSourceIndex.Declaration("TestOne", "test", TEXT.indexOf("func "),
                 TEXT.indexOf('}', TEXT.indexOf("func ")) + 1, TEXT.indexOf("TestOne"));
         var snapshot = new GoTestSourceIndex.Snapshot(directory.resolve("fixture_test.go"),
-                GoTestSourceIndex.sha256(TEXT.getBytes(StandardCharsets.UTF_8)), TEXT, List.of(declaration));
+                GoTestSourceIndex.sha256(TEXT.getBytes(StandardCharsets.UTF_8)), TEXT, List.of(declaration,
+                    new GoTestSourceIndex.Declaration("BenchmarkOne", "benchmark", TEXT.indexOf("func BenchmarkOne"), TEXT.length(), TEXT.indexOf("BenchmarkOne"))));
         return Map.of("example.com/action", new GoTestRunRegistry.PackageSources(directory, List.of(snapshot)));
     }
 

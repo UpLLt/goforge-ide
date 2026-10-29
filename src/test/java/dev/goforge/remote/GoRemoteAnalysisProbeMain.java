@@ -20,18 +20,37 @@ public final class GoRemoteAnalysisProbeMain {
             transport.awaitReady(Duration.ofSeconds(15));details.addProperty("remotePid",transport.remotePid());details.addProperty("sshPid",transport.sshPid());
             Files.writeString(receipt,new GsonBuilder().setPrettyPrinting().create().toJson(details));
             Thread input=new Thread(() -> {try {System.in.transferTo(transport.output());}catch(Exception ignored){}finally{transport.closeAsync();}},"fixture input");input.setDaemon(true);input.start();
-            try {transport.input().transferTo(System.out);System.out.flush();}
+            try {
+                var captured=new JsonObject();details.add("sourceSnapshots",captured);
+                JsonObject packet;
+                while((packet=GoRemoteLspFraming.read(transport.input()))!=null){
+                    capture(packet,transport.sources(),captured);
+                    Files.writeString(receipt,new GsonBuilder().setPrettyPrinting().create().toJson(details));
+                    GoRemoteLspFraming.write(System.out,packet);
+                }
+                System.out.flush();
+            }
             catch(java.io.IOException ended) {
                 details.addProperty("streamEnd",ended.getMessage());
                 // A deliberately failed production transport may close its writer while this
                 // recorder is blocked. Preserve both that event and final process evidence.
                 if(!transport.failed())throw ended;
             }finally {
-                transport.close();
+                transport.close();details.addProperty("sourceStoreClosed",!transport.sources().isOpen());
                 details.addProperty("transportFailed",transport.failed());details.addProperty("sshAlive",ProcessHandle.of(transport.sshPid()).map(ProcessHandle::isAlive).orElse(false));
                 details.addProperty("remoteAlive",ProcessHandle.of(transport.remotePid()).map(ProcessHandle::isAlive).orElse(false));
                 Files.writeString(receipt,new GsonBuilder().setPrettyPrinting().create().toJson(details));
             }
+        }
+    }
+    private static void capture(JsonElement value,GoRemoteStdlibSources sources,JsonObject captured){
+        if(value==null||value.isJsonNull())return;
+        if(value.isJsonArray()){value.getAsJsonArray().forEach(item->capture(item,sources,captured));return;}
+        if(value.isJsonObject()){value.getAsJsonObject().entrySet().forEach(item->capture(item.getValue(),sources,captured));return;}
+        if(value.isJsonPrimitive()&&value.getAsJsonPrimitive().isString()){
+            String uri=value.getAsString();if(!uri.startsWith("goforge-remote-source:"))return;
+            var source=sources.find(uri);if(source==null)throw new AssertionError("Response published without a source snapshot");
+            captured.add(uri,new Gson().toJsonTree(source));
         }
     }
 }

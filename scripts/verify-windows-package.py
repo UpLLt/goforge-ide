@@ -296,19 +296,87 @@ def debug(wire, app, project, env, out, cancel=False):
             cleanup_debug_session(process,conn,reader,writer,target,sys.exc_info()[1])
 
 
+def lsp_startup_error(message):
+    params=message.get('params') or {}
+    return message.get('method') in ('window/showMessage','window/logMessage') and params.get('type')==1
+
+
+def wait_lsp_workspace_ready(rpc,timeout=60):
+    """Pinned gopls loads workspace folders after initialize, reporting a paired token."""
+    started=time.monotonic();deadline=started+timeout;token=None;recent=[]
+    while True:
+        remaining=deadline-time.monotonic()
+        if remaining<=0:
+            raise TimeoutError('gopls workspace setup did not complete: '+repr(recent))
+        try:
+            message=rpc.receive_until(lambda m:m.get('method')=='$/progress' or lsp_startup_error(m),timeout=remaining)
+        except TimeoutError as error:
+            raise TimeoutError('gopls workspace setup did not complete: '+repr(recent)) from error
+        if lsp_startup_error(message):
+            raise RuntimeError('gopls workspace setup failed: '+str(message['params'].get('message',''))[:4000])
+        params=message.get('params') or {};value=params.get('value') or {}
+        if not isinstance(value,dict):
+            raise RuntimeError('Invalid gopls workspace progress value')
+        recent.append({'token':params.get('token'),'kind':value.get('kind'),'title':value.get('title'),'message':str(value.get('message',''))[:500]})
+        recent=recent[-20:]
+        if value.get('kind')=='begin' and value.get('title')=='Setting up workspace':
+            current=params.get('token')
+            if isinstance(current,bool) or not isinstance(current,(str,int)) or token is not None:
+                raise RuntimeError('Invalid or duplicate gopls workspace setup token')
+            token=current
+        elif value.get('kind')=='end' and token is not None and type(params.get('token')) is type(token) and params.get('token')==token:
+            if value.get('message')!='Finished loading packages.':
+                raise RuntimeError('gopls workspace setup failed: '+str(value.get('message',''))[:4000])
+            return {'token':token,'title':'Setting up workspace','message':value['message'],
+                    'elapsedSeconds':round(time.monotonic()-started,3)}
+
+
+def wait_lsp_document_ready(rpc,uri,version,timeout=60):
+    """A successful workspace load alone does not acknowledge the opened overlay."""
+    try:
+        message=rpc.receive_until(lambda m:lsp_startup_error(m) or (
+            m.get('method')=='textDocument/publishDiagnostics' and m.get('params',{}).get('uri')==uri
+            and m['params'].get('version')==version),timeout=timeout)
+    except TimeoutError as error:
+        raise TimeoutError('gopls did not diagnose the opened fixture version '+str(version)) from error
+    if lsp_startup_error(message):
+        raise RuntimeError('gopls document setup failed: '+str(message['params'].get('message',''))[:4000])
+    diagnostics=message['params'].get('diagnostics')
+    if not isinstance(diagnostics,list) or any(not isinstance(d,dict) for d in diagnostics):
+        raise RuntimeError('Invalid gopls initial diagnostics')
+    if any(d.get('severity')==1 for d in diagnostics):
+        raise RuntimeError('gopls initial fixture has errors: '+repr(diagnostics)[:4000])
+    return {'uri':uri,'version':version,'errorCount':0,'diagnosticCount':len(diagnostics)}
+
+
+def lsp_project_directory(project):
+    # gopls rejects Windows paths whose components are short-name or case aliases.
+    # Resolve once before deriving cwd, workspace root and every document URI.
+    try:
+        resolved=project.resolve(strict=True)
+    except OSError as error:
+        raise RuntimeError('gopls fixture root could not be resolved: '+str(project)) from error
+    if not resolved.is_dir():
+        raise RuntimeError('gopls fixture root is not a directory: '+str(resolved))
+    return resolved
+
+
 def lsp(wire,app,project,env,out):
+    project=lsp_project_directory(project)
     with (out/'gopls.log').open('w',encoding='utf-8') as log:
-        p=subprocess.Popen([str(app/'goforge-tools/bin/gopls.exe'),'serve'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,
+        p=subprocess.Popen([str(app/'goforge-tools/bin/gopls.exe'),'-rpc.trace','serve'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,
                            stderr=log,cwd=project,env=env)
         try:
             rpc=wire.FramedJson(p.stdout,p.stdin)
             capabilities=rpc.lsp('initialize',{'processId':os.getpid(),'rootUri':project.as_uri(),
-                                 'capabilities':{'textDocument':{'completion':{'completionItem':{'snippetSupport':True}}}},
+                                 'capabilities':{'window':{'workDoneProgress':True},'textDocument':{'completion':{'completionItem':{'snippetSupport':True}},'publishDiagnostics':{'versionSupport':True}}},
                                  'workspaceFolders':[{'uri':project.as_uri(),'name':'Windows native'}]})['capabilities']
             assert capabilities.get('definitionProvider') and capabilities.get('renameProvider'),capabilities
             rpc.notify('initialized',{})
+            workspace_ready=wait_lsp_workspace_ready(rpc)
             source=project/'main.go';text=source.read_text(encoding='utf-8')
             rpc.notify('textDocument/didOpen',{'textDocument':{'uri':source.as_uri(),'languageId':'go','version':1,'text':text}})
+            document_ready=wait_lsp_document_ready(rpc,source.as_uri(),1)
             result=rpc.lsp('textDocument/definition',{'textDocument':{'uri':source.as_uri()},'position':{'line':3,'character':14}})
             assert isinstance(result,list) and result,result
             location=result[0]
@@ -334,7 +402,8 @@ def lsp(wire,app,project,env,out):
                 and not any(d.get('severity')==1 for d in m['params'].get('diagnostics',[])))
             rpc.lsp('shutdown');rpc.notify('exit');p.wait(timeout=15)
             assert p.returncode==0,p.returncode
-            return {'passed':True,'definitionResponse':result,'renameEditCounts':counts,
+            return {'passed':True,'workspaceReady':workspace_ready,'initialDocument':document_ready,
+                    'definitionResponse':result,'renameEditCounts':counts,
                     'completionLabel':'Hello','unsavedDiagnosticCount':len(diagnostics['params']['diagnostics']),
                     'restoredOverlayErrors':0,'renameApplied':False,'exitCode':p.returncode}
         finally:terminate_owned(p)

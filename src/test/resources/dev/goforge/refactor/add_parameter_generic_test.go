@@ -133,3 +133,18 @@ func TestGenericAddParameterRefusesUnprovenCallsAndBindings(t *testing.T) {
   })
  }
 }
+
+func TestOrdinaryImportsRequireTheCompileProofPath(t *testing.T) {
+ source:="package generic\nimport \"fmt\"\nfunc F(first string,second string)string{return fmt.Sprint(first,second)}\nvar _=F(\"a\",\"b\")\n"
+ in:=genericRequest(t,source,Spec{Name:"extra",Type:"int",Index:1,DefaultValue:"7"})
+ refused:=run(in);if refused.Passed||!refused.NeedsCompilation||len(refused.Changes)!=0{t.Fatalf("unchecked imports leaked edits: %+v",refused)}
+ in.CheckedImports=true;planned:=run(in);if !planned.Passed||planned.NeedsCompilation{t.Fatalf("checked mode failed: %+v",planned)}
+ if got:=genericApply(t,in,planned);!strings.Contains(got,"first string,extra int, second string")||!strings.Contains(got,"F(\"a\",7, \"b\")"){t.Fatal(got)}
+}
+func TestCheckedImportsStillRefuseShadowAliasesAndDotImports(t *testing.T) {
+ for _,decl:=range []string{"import int \"fmt\"", "import . \"fmt\""} {
+  source:="package generic\n"+decl+"\nfunc F(first string,second string)string{return first+second}\nvar _=F(\"a\",\"b\")\n"
+  in:=genericRequest(t,source,Spec{Name:"extra",Type:"int",Index:1,DefaultValue:"7"});in.CheckedImports=true
+  result:=run(in);if result.Passed||result.NeedsCompilation||!strings.Contains(result.Reason,"shadow"){t.Fatalf("unproven alias accepted: %+v",result)}
+ }
+}

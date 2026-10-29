@@ -69,7 +69,7 @@ public final class GoDebugSelectedTestAction extends DumbAwareAction {
 
     private GoDebugSelectedTestAction(Supplier<GoRunConfiguration> selection, Preparation preparation,
                                      Consumer<RunnerAndConfigurationSettings> launcher, Consumer<String> stageObserver) {
-        super("Debug selected Go test/subtree", "Debug the selected observed Test/Example and its subtree once",
+        super("Debug selected Go test/benchmark", "Debug an observed Test/Example subtree or one completed top-level Benchmark",
                 AllIcons.Actions.StartDebugger);
         this.selection = selection;
         this.preparation = Objects.requireNonNull(preparation);
@@ -81,7 +81,7 @@ public final class GoDebugSelectedTestAction extends DumbAwareAction {
         return new GoDebugSelectedTestAction(Objects.requireNonNull(selection), preparation, launcher, stageObserver);
     }
     private GoRunConfiguration selectedConfiguration(AnActionEvent event) {
-        return selection == null ? GoTestConsoleProperties.selectedConfiguration(event) : selection.get();
+        return selection == null ? GoTestConsoleProperties.selectedDebugConfiguration(event) : selection.get();
     }
 
     @Override public @NotNull ActionUpdateThread getActionUpdateThread() { return ActionUpdateThread.BGT; }

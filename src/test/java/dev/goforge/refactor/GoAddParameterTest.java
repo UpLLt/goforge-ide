@@ -37,6 +37,14 @@ public final class GoAddParameterTest {
         assertThrows(CancellationException.class,()->GoAddParameter.plan("must-not-start",Map.of(),List.of(),URI,new Position(),SPEC,
                 target->{throw new AssertionError("Unexpected reference request");},()->true));
     }
+    @Test public void checkedImportCancellationCannotStartCompilerOrReferences() {
+        assertThrows(CancellationException.class,()->GoAddParameter.compileCheckedPlan("must-not-start",Map.of(),Path.of("missing"),List.of(),URI,new Position(),SPEC,
+                target->{throw new AssertionError("Unexpected reference request");},()->true));
+    }
+    @Test public void checkedImportsDoNotSilentlyReplaceUserBuildFlags() {
+        assertThrows(IllegalArgumentException.class,()->GoAddParameter.compileCheckedPlan("must-not-start",Map.of("GOFLAGS","-tags=custom"),Path.of("missing"),List.of(),URI,new Position(),SPEC,
+                target->{throw new AssertionError("Unexpected reference request");},()->false));
+    }
     @Test public void uncapturedDeclarationRefusesBeforeCompiler() {
         var source=new GoRefactorWorkspaceEdit.Source(URI,"package p\nfunc F(){}\n",1);
         assertThrows(IllegalArgumentException.class,()->GoAddParameter.plan("must-not-start",Map.of(),List.of(source),

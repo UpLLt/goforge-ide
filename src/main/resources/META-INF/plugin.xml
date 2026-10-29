@@ -15,6 +15,7 @@
     <fileType name="GoForge Go" implementationClass="dev.goforge.language.GoFileType"
               fieldName="INSTANCE" language="GoForgeGo" extensions="go"/>
     <lang.parserDefinition language="GoForgeGo" implementationClass="dev.goforge.language.GoParserDefinition"/>
+    <lang.importOptimizer language="GoForgeGo" implementationClass="dev.goforge.language.GoImportOptimizer"/>
     <lang.commenter language="GoForgeGo" implementationClass="dev.goforge.language.GoCommenter"/>
     <lang.syntaxHighlighterFactory language="GoForgeGo" implementationClass="dev.goforge.language.GoSyntaxHighlighterFactory"/>
     <lang.braceMatcher language="GoForgeGo" implementationClass="dev.goforge.language.GoBraceMatcher"/>

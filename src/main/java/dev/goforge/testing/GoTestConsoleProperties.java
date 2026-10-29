@@ -88,7 +88,7 @@ public final class GoTestConsoleProperties extends SMTRunnerConsoleProperties {
         var actions = new ArrayList<AnAction>(List.of(result.getActions()));
         actions.add(new RerunSelectedAction()); actions.add(new NavigateSourceAction());
         for (var extra : extraActions) actions.add(extra instanceof GoDebugSelectedTestAction debug
-                ? debug.withSelection(this::selectedConfiguration) : extra);
+                ? debug.withSelection(this::selectedDebugConfiguration) : extra);
         result.setActions(actions.toArray(AnAction[]::new));
         if (!registry.hasSourceMapping()) console.print("Go test source mapping is unavailable for this run. Source navigation and selected/failed rerun are disabled; package execution remains available.\n", ConsoleViewContentType.SYSTEM_OUTPUT);
     }
@@ -116,6 +116,30 @@ public final class GoTestConsoleProperties extends SMTRunnerConsoleProperties {
         var target = registry.isTerminated() ? selectedTarget() : null;
         return target == null ? null : cloneFor(target.directory().toString(), List.of(target.fullName()), "test " + target.fullName());
     }
+    /** Separate from ordinary rerun: a completed benchmark retains its own selector kind. */
+    public @Nullable GoRunConfiguration selectedDebugConfiguration() {
+        String url = selectedLocationUrl;
+        return selectionDisposed || registry.project().isDisposed() || url == null ? null : debugConfiguration(url);
+    }
+    public @Nullable GoRunConfiguration selectedDebugConfiguration(@Nullable AbstractTestProxy proxy) {
+        return selectionDisposed || registry.project().isDisposed() || proxy == null ? null : debugConfiguration(proxy.getLocationUrl());
+    }
+    private @Nullable GoRunConfiguration debugConfiguration(String url) {
+        var target = registry.isTerminated() ? registry.debugTarget(url) : null;
+        if (target == null) return null;
+        boolean benchmark = target.declaration().kind().equals("benchmark");
+        return cloneFor(target.directory().toString(), benchmark ? GoTestSelection.benchmark(target.fullName())
+                : GoTestSelection.rerun(List.of(target.fullName())), (benchmark ? "benchmark " : "test ") + target.fullName());
+    }
+    public static @Nullable GoRunConfiguration selectedDebugConfiguration(AnActionEvent event) {
+        var model = event.getData(TestTreeView.MODEL_DATA_KEY);
+        if (model == null || !(model.getProperties() instanceof GoTestConsoleProperties properties)) return null;
+        AbstractTestProxy[] selection = event.getData(AbstractTestProxy.DATA_KEYS);
+        if (selection != null && selection.length != 1) return null;
+        var proxy = event.getData(AbstractTestProxy.DATA_KEY);
+        if (proxy == null && selection != null && selection.length == 1) proxy = selection[0];
+        return properties.selectedDebugConfiguration(proxy);
+    }
     private @Nullable GoTestRunRegistry.Target selectedTarget() {
         String url = selectedLocationUrl;
         return selectionDisposed || registry.project().isDisposed() || url == null ? null : registry.target(url);
@@ -135,6 +159,9 @@ public final class GoTestConsoleProperties extends SMTRunnerConsoleProperties {
         return target == null ? null : cloneFor(target.directory().toString(), List.of(target.fullName()), "test " + target.fullName());
     }
     private GoRunConfiguration cloneFor(String directory, List<String> names, String name) {
+        return cloneFor(directory, GoTestSelection.rerun(names), name);
+    }
+    private GoRunConfiguration cloneFor(String directory, GoTestSelection selection, String name) {
         GoRunConfiguration configuration = registry.originalConfiguration();
         GoTestContextSelection.clear(configuration);
         var context = registry.commandContext();
@@ -146,7 +173,7 @@ public final class GoTestConsoleProperties extends SMTRunnerConsoleProperties {
             dev.goforge.tools.HostTools.putEnvironment(configuration.getEnvironment(), java.util.Map.of("GOFLAGS", rebased.goFlags()));
         }
         configuration.setCommand(GoCommand.TEST); configuration.setDirectory(directory); configuration.setTarget(".");
-        configuration.setTestSelection(GoTestSelection.rerun(names)); configuration.setName(name);
+        configuration.setTestSelection(selection); configuration.setName(name);
         return configuration;
     }
     private @Nullable GoRunConfiguration failedConfiguration(List<? extends AbstractTestProxy> failed) {

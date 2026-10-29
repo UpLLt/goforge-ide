@@ -13,6 +13,8 @@ import java.util.function.Consumer;
 public final class GoRemoteLspTransport implements AutoCloseable {
     private final GoRemoteAnalysisConfig config;
     private final GoRemoteLspMapping mapping;
+    private final GoRemoteStdlibSources sources=new GoRemoteStdlibSources();
+    private final GoRemoteStdlibNavigation navigation;
     private final Consumer<String> notice;
     private final Runnable onFailure;
     private final String runtimeWorkFile,remoteGowork;
@@ -38,6 +40,7 @@ public final class GoRemoteLspTransport implements AutoCloseable {
         String command=GoRemoteScripts.python(GoRemoteAnalysisScript.SOURCE,config.remoteRoot(),config.name(),config.gopls(),config.profile().goExecutable(),config.workspace().workFile(),runtimeWorkFile);
         var builder=new ProcessBuilder(config.profile().ssh(dev.goforge.tools.HostTools.resolve("ssh",environment),command,false)).directory(config.localRoot().toFile());
         dev.goforge.tools.HostTools.putEnvironment(builder.environment(),environment);process=builder.start();
+        navigation=new GoRemoteStdlibNavigation(mapping,sources,p -> GoRemoteLspFraming.write(process.getOutputStream(),p),p -> GoRemoteLspFraming.write(clientInput,p));
         daemon(() -> pumpClient(),"GoForge remote LSP requests");
         daemon(() -> pumpServer(),"GoForge remote LSP responses");
         daemon(() -> {try(var input=process.getErrorStream()){input.transferTo(OutputStream.nullOutputStream());}catch(IOException ignored){}},"GoForge remote LSP stderr");
@@ -47,6 +50,7 @@ public final class GoRemoteLspTransport implements AutoCloseable {
             finally {ready.completeExceptionally(new IOException("Remote analysis ended before the supervisor was ready."));closeAsync();}
         },"GoForge remote LSP lifetime");
     }
+    public GoRemoteStdlibSources sources(){return sources;}
     public InputStream input(){return responses;}
     public OutputStream output(){return clientOutput;}
     public boolean alive(){return !closed.get()&&process.isAlive();}
@@ -90,7 +94,8 @@ public final class GoRemoteLspTransport implements AutoCloseable {
                 }
                 if(method.equals("workspace/didChangeConfiguration")||!packet.has("method")&&packet.has("id")&&configurationIds.remove(packet.get("id").toString()))sanitizeSettings(mapped,remoteGowork);
                 if(method.equals("textDocument/didSave")||method.equals("workspace/didChangeWatchedFiles"))mapped=withSavedFiles(packet,mapped,method);
-                GoRemoteLspFraming.write(process.getOutputStream(),mapped);
+                mapped=navigation.outgoing(packet,mapped);
+                if(mapped!=null)GoRemoteLspFraming.write(process.getOutputStream(),mapped);
             }
         } catch(Exception e){if(!closed.get())fail("Remote analysis stopped: "+safeError(e));}
         finally {closeAsync();}
@@ -125,8 +130,14 @@ public final class GoRemoteLspTransport implements AutoCloseable {
             JsonObject packet;
             while(!closed.get()&&(packet=GoRemoteLspFraming.read(process.getInputStream()))!=null) {
                 String method=string(packet,"method");
-                if(method.equals("goforge/bridgeReady")) {remotePid=packet.getAsJsonObject("params").get("pid").getAsLong();ready.complete(null);continue;}
+                if(method.equals("goforge/bridgeReady")) {
+                    var params=packet.getAsJsonObject("params");remotePid=params.get("pid").getAsLong();
+                    if(params.has("stdlib")&&params.getAsJsonObject("stdlib").has("root"))sources.initialize(params.getAsJsonObject("stdlib"));
+                    ready.complete(null);continue;
+                }
                 if(method.equals("goforge/bridgeFailure")) {fail("Remote analysis stopped: "+packet.getAsJsonObject("params").get("message").getAsString());break;}
+                if(navigation.incoming(packet))continue;
+                if(method.startsWith("goforge/"))continue;
                 if(method.equals("window/logMessage")||method.equals("$/logTrace"))continue;
                 if(method.equals("workspace/configuration")&&packet.has("id"))configurationIds.add(packet.get("id").toString());
                 if(packet.has("result")&&packet.get("result").isJsonObject()&&packet.getAsJsonObject("result").has("capabilities")) {
@@ -192,7 +203,7 @@ public final class GoRemoteLspTransport implements AutoCloseable {
     private static String safeError(Exception e) {return e instanceof IOException||e instanceof IllegalArgumentException?Objects.toString(e.getMessage(),"I/O failure"):"Invalid protocol packet.";}
     private void fail(String reason) {if(!closed.get()){failed=true;onFailure.run();ready.completeExceptionally(new IOException(reason));notice.accept(reason+"\nLocal files were preserved. Stop remote analysis to return to local gopls.\n");}}
     private static void daemon(Runnable run,String name){var thread=new Thread(run,name);thread.setDaemon(true);thread.start();}
-    public void closeAsync(){if(closed.compareAndSet(false,true))daemon(this::shutdown,"GoForge remote LSP cleanup");}
+    public void closeAsync(){if(closed.compareAndSet(false,true)){navigation.close();daemon(this::shutdown,"GoForge remote LSP cleanup");}}
     @Override public void close(){closeAsync();try{awaitStopped(Duration.ofSeconds(6));}catch(Exception e){if(e instanceof InterruptedException)Thread.currentThread().interrupt();}}
     private void shutdown() {
         try {

@@ -13,7 +13,7 @@ import java.util.ArrayList;
 
 /** Go-specific protocol adaptation through LSP4IJ's public launcher hook. */
 public final class GoplsClientFeatures extends LSPClientFeatures {
-    public GoplsClientFeatures(){setCodeActionFeature(new dev.goforge.refactor.GoSignatureCodeActionFeature());}
+    public GoplsClientFeatures(){setFileUriSupport(new dev.goforge.remote.GoRemoteSourceFileUriSupport(this::getProject));setCodeActionFeature(new dev.goforge.refactor.GoSignatureCodeActionFeature());}
     private final java.util.concurrent.ConcurrentMap<String, Integer> sentVersions = new java.util.concurrent.ConcurrentHashMap<>();
     private dev.goforge.refactor.GoRefactorFileCreationGuard fileCreations;
     public Integer getSentDocumentVersion(String uri) { return sentVersions.get(uri); }

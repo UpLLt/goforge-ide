@@ -29,13 +29,30 @@ public final class GoAddParameter {
         }
     }
     private record Source(String uri, String text) { }
-    private record Input(String mode, List<Source> sources, Location target, List<Location> references, Spec spec) { }
-    private record Result(boolean passed, String reason, Location target, Map<String, List<TextEdit>> changes, int checked) { }
+    private record Input(String mode, List<Source> sources, Location target, List<Location> references, Spec spec, boolean checkedImports) { }
+    private record Result(boolean passed, String reason, Location target, Map<String, List<TextEdit>> changes, int checked, boolean needsCompilation) { }
+
+    static final class CompilationRequired extends IllegalStateException {
+        CompilationRequired(String message) { super(message); }
+    }
+    /** Ordinary imports are accepted only inside the existing frozen compile-proof pipeline. */
+    public static GoChangeScalarType.Plan compileCheckedPlan(String go,Map<String,String> environment,Path root,
+            Collection<GoRefactorWorkspaceEdit.Source> snapshot,String uri,Position position,Spec spec,
+            GoSignatureSafety.References references,BooleanSupplier cancelled)throws Exception {
+        Objects.requireNonNull(spec);Objects.requireNonNull(references);
+        return GoChangeScalarType.compileCheckedPlan(go,environment,root,snapshot,uri,position,cancelled,
+                (sources,owned,helperEnv)->plan(go,environment,sources.values(),uri,position,spec,references,cancelled,true));
+    }
 
     /** Worker-only; returns versioned edits for the existing all-file preview/Apply pipeline. */
     public static WorkspaceEdit plan(String go, Map<String, String> environment,
             Collection<GoRefactorWorkspaceEdit.Source> snapshot, String uri, Position position, Spec spec,
             GoSignatureSafety.References references, BooleanSupplier cancelled) throws Exception {
+        return plan(go,environment,snapshot,uri,position,spec,references,cancelled,false);
+    }
+    private static WorkspaceEdit plan(String go,Map<String,String> environment,
+            Collection<GoRefactorWorkspaceEdit.Source> snapshot,String uri,Position position,Spec spec,
+            GoSignatureSafety.References references,BooleanSupplier cancelled,boolean checkedImports)throws Exception {
         Objects.requireNonNull(spec); Objects.requireNonNull(references); Objects.requireNonNull(cancelled);
         checkCancelled(cancelled);
         var sources = new LinkedHashMap<Path, GoRefactorWorkspaceEdit.Source>();
@@ -59,7 +76,7 @@ public final class GoAddParameter {
             Files.writeString(source, GoAddParameterSource.TEXT, StandardCharsets.UTF_8);
             var env = GoSignatureSafety.checkerEnvironment(environment);
             run(List.of(go, "build", "-trimpath", "-buildvcs=false", "-o", binary.toString(), source.toString()), owned, env, cancelled, Duration.ofSeconds(60));
-            Result declaration = inspect(binary, owned, env, new Input("target", inputs, target, null, spec), cancelled);
+            Result declaration = inspect(binary, owned, env, new Input("target", inputs, target, null, spec, checkedImports), cancelled);
             List<? extends Location> found = references.find(declaration.target());
             checkCancelled(cancelled);
             if (found == null || found.size() > 10000)
@@ -71,7 +88,7 @@ public final class GoAddParameter {
                 if (caller == null) throw new IllegalStateException("A parameter reference is outside the captured project; no edits were applied.");
                 normalized.add(new Location(caller.uri(), ref.getRange()));
             }
-            Result result = inspect(binary, owned, env, new Input("plan", inputs, target, normalized, spec), cancelled);
+            Result result = inspect(binary, owned, env, new Input("plan", inputs, target, normalized, spec, checkedImports), cancelled);
             if (result.changes() == null || result.changes().isEmpty() || result.checked() != normalized.size())
                 throw new IllegalStateException("Incomplete add-parameter plan.");
             var edits = new ArrayList<Either<TextDocumentEdit, ResourceOperation>>();
@@ -106,6 +123,7 @@ public final class GoAddParameter {
         String output = run(List.of(binary.toString(), request.toString()), owned, env, cancelled, Duration.ofSeconds(15));
         if (output.length() > 8 * 1024 * 1024) throw new IOException("Parameter planner output exceeded its limit.");
         Result result = new Gson().fromJson(output, Result.class);
+        if (result != null && result.needsCompilation()) throw new CompilationRequired(result.reason());
         if (result == null || !result.passed() || result.target() == null)
             throw new IllegalStateException(result == null ? "Parameter planning failed." : result.reason());
         return result;

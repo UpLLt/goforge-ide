@@ -1,12 +1,14 @@
 # Workflows / 功能用法
 
-Use the action search if a menu is hidden in your selected IDE layout. GoForge does not require its own login. Service credentials belong to the services you choose to connect.
+Use action search for registered menu actions hidden by your layout; console-specific actions require the corresponding console. GoForge does not require its own login. Service credentials belong to the services you choose to connect.
 
-如果当前布局隐藏菜单，可以用动作搜索查找下列名称。GoForge 无自身登录门槛；外部服务使用各自的认证。
+布局隐藏的已注册菜单动作可用动作搜索查找；控制台专属动作需在对应控制台使用。GoForge 无自身登录门槛；外部服务使用各自的认证。
+
+Verification differs by build and host; see [current acceptance and limitations](KNOWN-LIMITATIONS.md#verification-scope--验证范围). Instructions describe current source, not a complete native pass. / 构建与宿主验收分别记录，见[当前验收与差距](KNOWN-LIMITATIONS.md#verification-scope--验证范围)；以下说明当前源码用法，不代表完整原生通过。
 
 | Entry / 入口 | Steps / 操作 | Boundary / 边界 |
 | --- | --- | --- |
-| Go editor | Use local comments, brace pairing and Enter without a language server; open a module for gopls completion, Go to Declaration, Find Usages, Rename and Reformat. / 本地注释、括号和回车无需语言服务；模块内使用 gopls 语义功能。 | Local editing and awaited Go save formatting have bounded platform tests; 921d passed five selected native target comparisons and three candidate-only save checks. Historical 9abc/9ab8 failures remain recorded. / 基础编辑与等待响应的 Go 保存格式化已有平台测试；921d 限定原生保存通过，旧失败保留。 |
+| Go editor | Use local comments, brace pairing and Enter without a language server; open a module for gopls completion, Go to Declaration, Find Usages, Rename and Reformat. / 本地注释、括号和回车无需语言服务；模块内使用 gopls 语义功能。 | Formatting is scoped to supported Go documents; complete editing parity is unverified. / 格式化限受支持 Go 文档，尚未证明完整编辑对齐。 |
 | Run / Debug | Select a Go configuration, choose package/arguments/environment, run or debug, and use the Debug pane for frames/variables/step/stop. / 配置包、参数、环境后运行或调试。 | Local debug needs Delve and the OS debugger prerequisites. Expression completion covers the implemented frame/local/field cases, not every Go expression. |
 | Go Refactor… | Select source, choose an available action, review all file changes, then Apply. Use normal Undo/Redo. / 选择源码，预览全部文件改动，再应用或撤销。 | Unsupported resource operations/commands and stale/conflicting files are refused. Cross-package move/signature parity is incomplete. |
 | Run → Run Go Coverage | Save the module, run coverage, select a row to navigate, use Clear to remove coverage marks. / 保存模块后运行覆盖率，点行跳转，Clear 清除标记。 | One module; saved-file snapshots; no combined go.work report. |
@@ -25,41 +27,47 @@ Enter inside a Go block uses bounded local indentation. With smart indentation e
 
 使用 **Comment with Line Comment / Comment with Block Comment** 操作当前行或选区，普通 Undo/Redo 可撤销重做；包含字符串 `*/` 的块注释选区会拒绝包裹。代码中的括号可配对，注释和字面量中的括号作为普通文本。默认使用视觉宽度 4 的 tab，项目设置可覆盖。
 
-Go 块内回车使用限定范围的本地缩进。开启智能缩进时，原始字符串内回车不复制外围 Go 缩进，只移除光标右侧紧邻的空格/tab 后插入换行，不跨已有换行、闭合反引号或非空白内容；Undo 恢复原文与空白。智能缩进与 **Insert pair } on Enter** 是独立设置。完整续行、switch-case 和多光标行为仍需更广验证；历史保存对照分别归属 9abc 与 921d，不移作新版原生通过。
+Go 块内回车使用限定范围的本地缩进。开启智能缩进时，原始字符串内回车不复制外围 Go 缩进，只移除光标右侧紧邻的空格/tab 后插入换行，不跨已有换行、闭合反引号或非空白内容；Undo 恢复原文与空白。智能缩进与 **Insert pair } on Enter** 是独立设置。完整续行、switch-case 和多光标行为仍需更广验证。
 
 ### Formatting on save / 保存格式化
 
-In **Settings → Tools → Actions on Save → Reformat code**, review whether formatting is enabled and whether Go is selected. The initial default selects Go only; persisted explicit-off and type choices override it. With a ready connected gopls overlay, the Go save action awaits the response and applies a fully validated edit before the platform performs its final save. A later manual edit cancels that pending action; the newer input remains unsaved until you save it. The 921d delayed lifecycle has platform tests and a bounded native one-Save regression. Five selected target cases matched saved bytes on the first read, including 03/08 tab/caret preservation; ordinary Go, explicit OFF and non-Go behavior passed separately. OFF was checked by reopening Settings, then ON was restored; restart persistence was not tested in that native session. Invalid raw syntax displays a formatting-refusal notification and preserves the input.
+In **Settings → Tools → Actions on Save → Reformat code**, review whether formatting is enabled and whether Go is selected. The initial default selects Go only; persisted explicit-off and type choices override it. With a ready connected gopls overlay, the Go save action awaits the response and applies a fully validated edit before the platform performs its final save. A later manual edit cancels that pending action; the newer input remains unsaved until you save it. Invalid raw syntax displays a formatting-refusal notification and preserves the input.
 
-No ready server or connected overlay causes a conservative skip. **Changed lines only** with an active VCS also skips this whole-document-only operation. An Editor closed while its overlay remains connected is covered; closing a tab that disconnects the overlay is not. The current-source imports-on-save addition is described below and still awaits acceptance. Automatic rearrangement and cleanup remain unimplemented. Manual **Reformat Code** remains available for open editors; the dependency's manual no-Editor formatting limitation remains.
+No ready server or connected overlay causes a conservative skip. **Changed lines only** with an active VCS also skips this whole-document-only operation. An Editor closed while its overlay remains connected is covered; closing a tab that disconnects the overlay is not. Imports-on-save is described below. Automatic rearrangement and cleanup remain unimplemented. Manual **Reformat Code** remains available for open editors; the dependency's manual no-Editor formatting limitation remains.
 
 A narrow gopls response filter preserves horizontal whitespace on the active caret's whitespace-only Go-code line when document, overlay, version and caret still match. It does not preserve raw-string/comment whitespace by guessing, and does not handle every merged-edit shape. It also applies to explicit whole-file gopls formatting; it is not a global whitespace policy or a setting change.
 
-在 **Settings → Tools → Actions on Save → Reformat code** 检查开关与文件类型。初始默认只选 Go，已持久化的关闭或类型选择优先。服务器和文档 overlay 就绪时，Go 保存动作等待响应、完整校验后应用，由平台完成最终保存；期间用户继续输入会取消旧动作，新输入保持未保存。921d 平台及限定原生均已验证这条管线：五个选定样例一次保存、首次磁盘读回即匹配，含 03/08 的 tab/光标保留；普通 Go、明确关闭和非 Go 另行通过。关闭状态由重开 Settings 读回，随后恢复 ON，本轮未用重启验证设置持久化；无效 raw 显示格式化拒绝通知并保留输入。
+在 **Settings → Tools → Actions on Save → Reformat code** 检查开关与文件类型。初始默认只选 Go，已持久化的关闭或类型选择优先。服务器和文档 overlay 就绪时，Go 保存动作等待响应、完整校验后应用，由平台完成最终保存；期间用户继续输入会取消旧动作，新输入保持未保存。无效 raw 显示格式化拒绝通知并保留输入。
 
-无就绪服务/overlay，或启用 VCS 且选择 **Changed lines only** 时保守跳过。只关闭 Editor 而保留连接 overlay 的路径已有测试，关闭标签导致 overlay 断开则不作保证。新源码的保存时导入整理见下节，仍待验收；自动重排和 cleanup 尚未实现；打开编辑器后的手动 **Reformat Code** 保留，无 Editor 的手动格式化依赖限制仍在。光标空白行保护只覆盖来源/版本/光标完全匹配的限定水平空白编辑，也作用于显式整文件 gopls 格式化，不是全局空白规则。
+无就绪服务/overlay，或启用 VCS 且选择 **Changed lines only** 时保守跳过。只关闭 Editor 而保留连接 overlay 的路径已有测试，关闭标签导致 overlay 断开则不作保证。保存时导入整理见下节；自动重排和 cleanup 尚未实现；打开编辑器后的手动 **Reformat Code** 保留，无 Editor 的手动格式化依赖限制仍在。光标空白行保护只覆盖来源/版本/光标完全匹配的限定水平空白编辑，也作用于显式整文件 gopls 格式化，不是全局空白规则。
 
 ### Organize imports on save / 保存时整理导入
 
-**Current-source feature; Full 10 integrated regression passed. Native UI and Windows acceptance pending.** In **Settings → Tools → Actions on Save → Optimize imports**, enable the action. In the current 2406 package, Go is missing from the file-type picker; use **All file types** as the current workaround. That choice also enables the preference for other supported file types. This preference is independent of **Reformat code**; neither option enables the other. Open a Go file in a module and wait for its gopls connection before saving. This action does not start a cold language server during Save.
+Enable **Settings → Tools → Actions on Save → Optimize imports**, then select **Go** in its file-type chooser. This preference is independent of **Reformat code**. Open a module Go file and wait for gopls before saving; the save action does not start a cold server.
 
-When both actions are selected, imports are organized first, the document overlay is refreshed, then formatting runs on that updated text. **Changed lines only** with an active VCS skips whole-document formatting but does not disable independently selected import organization. An import action is accepted only when it directly edits the same document at the captured version; ambiguous, command-based, unresolved, other-file or stale edits are refused. No ready overlay means no import mutation. If formatting later fails or is canceled, valid import edits may already be present; inspect the result and save again after any further typing. Full 10 platform tests passed one-step Undo/Redo for imports-only, imports+format and no-op-imports+format. These are controlled platform tests. One bounded 2406 native observation using All file types also passed Save, Undo/Redo and bundled Go tests on stable saved bytes; full native acceptance and the missing-Go picker repair remain pending. Historical format-only results do not establish broader coverage.
+When both actions are enabled, imports run first, the overlay is synchronized, then formatting uses the updated document. VCS **Changed lines only** skips full-file formatting but does not disable independently selected imports. Only exact-version direct edits to the current document are accepted; command-based, unresolved, multi-file, ambiguous or stale changes are refused. No ready overlay means no import edit. If later formatting fails or is cancelled, valid imports already applied may remain. Inspect the buffer before saving again. Combined imports/formatting use one platform Undo/Redo command.
 
-**当前源码功能，Full 10 整合回归已通过；原生界面及 Windows 验收待完成。** 在 **Settings → Tools → Actions on Save → Optimize imports** 开启该项。当前 2406 包的文件类型列表缺少 Go，可暂选 **All file types**；此选择也会对其他受支持文件类型开启该偏好。它与 **Reformat code** 是独立开关，不会互相开启。先打开模块中的 Go 文件并等待 gopls 连接就绪，再保存；保存动作不会临时启动尚未运行的语言服务。
+在 **Settings → Tools → Actions on Save → Optimize imports** 开启，并在文件类型选择器选 **Go**。此开关独立于 **Reformat code**。先打开模块内 Go 文件并等待 gopls 就绪；保存动作不会临时启动服务。
 
-两项均开启时，先整理导入、刷新文档 overlay，再格式化更新后的内容。启用 VCS 并选择 **Changed lines only** 会跳过整文件格式化，但不会关闭独立选择的导入整理。仅接受针对当前文档、版本完全匹配的直接编辑；需要执行命令、继续解析、跨文件或存在歧义/过期的编辑会被拒绝。无就绪 overlay 时不修改导入。后续格式化失败或取消时，已经完成的有效导入编辑可能保留；继续输入后请检查并再次保存。Full 10 平台测试已通过仅导入、导入+格式化、导入无变化+格式化的一步 Undo/Redo。这些是受控平台测试；2406 使用 All file types 的一项限定原生观察另已通过 Save、Undo/Redo 及稳定保存字节上的包内 Go 测试。完整原生验收与缺少 Go 的选择器修复仍待完成，上述历史“仅格式化”结果不代表更广覆盖。
+两项均开启时先整理导入，刷新 overlay，再格式化更新后的文档。VCS 的 **Changed lines only** 跳过整文件格式化，但不关闭独立导入整理。只接受当前文档、版本精确匹配的直接修改；命令式、未解析、跨文件、歧义或过期修改会拒绝，无就绪 overlay 时不改导入。后续格式化失败或取消时，已完成的有效导入可能保留，请检查缓冲区后再保存。导入与格式化合并为一次平台 Undo/Redo。
+
+### Optimize imports manually / 手动整理导入
+
+Open a Go file, wait for gopls, then choose **Code → Optimize Imports**. This uses the current buffer independently of save preferences. Validated edits are applied in one undoable command; save explicitly when ready. Changed documents/connections, disabled features, unsupported edits, cancellation and timeouts do not apply stale edits. A cold or unopened server document is reported as unavailable.
+
+打开 Go 文件并等待 gopls，选择 **Code → Optimize Imports**。它独立于保存开关，使用当前缓冲区，将有效修改作为一次可撤销命令应用，需要时再显式保存。文档/连接变化、功能关闭、不支持的编辑、取消或超时均不会应用过期修改；未就绪或未打开的服务端文档会提示不可用。
 
 ## Run named Go tests / 运行指定 Go 测试
 
 Save the test file, place the caret inside a runnable top-level `Test…` or `Example…` function in a `_test.go` file, and use its context **Run** action. GoForge selects the containing function. An example needs an `Output:` or `Unordered output:` directive to be runnable. A caret inside a `t.Run` body selects its top-level test; select an individual runtime subtest from the completed test tree instead. Outside a recognized runnable declaration, the context action remains a package run. Current development source also recognizes the bounded Benchmark declarations described below. You can also use **Current File → Run** and choose **test at caret in …**; GoForge resolves the current editor's caret before starting. This does not retarget an already named or manual configuration. If the file or configuration changes while GoForge is resolving the target, save/review it and choose Run again; a stale request will not silently run the package.
 
-In **Run → Edit Configurations…**, choose the Go configuration and set **Command** to `test`. **Test selection** offers the following modes; the Benchmark mode is a current-source addition awaiting acceptance:
+In **Run → Edit Configurations…**, choose the Go configuration and set **Command** to `test`. **Test selection** offers the following modes; the Benchmark mode has separate native acceptance limits:
 
 | Mode / 模式 | Configuration / 配置 |
 | --- | --- |
 | **Package / manual** | Set a package target such as `.` or `./...` and supply ordinary **Go arguments** as needed. Use this mode for manual filters, custom benchmark commands or fuzzing. / 填写 `.`、`./...` 等包目标，按需添加 **Go arguments**；手写筛选条件、自定义 benchmark 命令或 fuzzing 使用此模式。 |
 | **Named Test / Example** | Set **Working directory** to the package directory and **Package / file / subcommand** to `.`. Enter one complete name per line in **Test names**, for example `TestOne`, `ExampleHello` or `TestCases/dup#01`. Names are literal, including punctuation; use the exact child name shown in a completed test tree. / 工作目录填写包所在目录，包目标填写 `.`；**Test names** 每行填写一个完整名称，标点按字面含义处理，子测试名称以已完成的测试树为准。 |
-| **One top-level Benchmark** | Current source only: command `test`, package `.`, package working directory, and exactly one full top-level Benchmark name. See the next section; acceptance pending. / 仅当前源码：command 设为 `test`、包为 `.`、工作目录为包目录，仅填写一个顶层 Benchmark 完整名称，见下节；验收待完成。 |
+| **One top-level Benchmark** | Command `test`, package `.`, package working directory, and exactly one full top-level Benchmark name. See the next section. / command 设为 `test`、包为 `.`、工作目录为包目录，仅填写一个顶层 Benchmark 完整名称，见下节。 |
 
 For a named run, select **Run selected names afresh (-count=1)** when you want a new execution instead of a cached result. A selected subtest also runs the necessary parent setup and any descendants of that subtest. Conflicting options such as `-run`, `-bench`, `-count`, fuzzing options or `-overlay` in **Go arguments** or `GOFLAGS` are refused in named mode; remove the conflicting option or choose **Package / manual**. A requested name that never appears in the run is reported as a selection failure, even if Go exits successfully.
 
@@ -69,17 +77,27 @@ For a named run, select **Run selected names afresh (-count=1)** when you want a
 
 ## Run one benchmark / 运行单个基准测试
 
-**Current-source feature; Full 10 integrated regression passed. Native UI and Windows acceptance pending.** Save a `_test.go` file, place the caret inside a top-level `Benchmark…` function, and choose its context **Run** or **Current File → Run**. Alternatively, choose **Command: test → Test selection: One top-level Benchmark** in the run configuration, set the package directory and target `.`, and enter one full name in **Test names**. The generated selection uses `-run=^$` and an exact literal `-bench` filter, so ordinary tests and other top-level benchmarks are excluded. The selected function may still create and execute its own child benchmarks.
+Save a `_test.go` file, place the caret inside a top-level `Benchmark…` function, and choose its context **Run** or **Current File → Run**. Alternatively, choose **Command: test → Test selection: One top-level Benchmark** in the run configuration, set the package directory and target `.`, and enter one full name in **Test names**. The generated selection uses `-run=^$` and an exact literal `-bench` filter, so ordinary tests and other top-level benchmarks are excluded. The selected function may still create and execute its own child benchmarks.
 
 Supported declarations have a body, one `*testing.B` parameter (named or unnamed, including a named alias for the `testing` import), and no results or type parameters. Type-alias chains, dot imports, binding conflicts and incorrect benchmark signatures are unavailable. Conflicting selectors in **Go arguments** or effective `GOFLAGS` are rejected; a stale file/configuration or an unobserved requested benchmark is a selection error, not a fallback to the entire package. Optional `-benchtime=1x -benchmem` can request one iteration with allocation metrics. The Test/Example fresh-run checkbox does not apply to Benchmark mode.
 
-Use **Run** for this selection. **Selected Benchmark Debug**, direct subbenchmark selection, benchmark-result source navigation/per-node rerun, fuzz selection and comparison charts are not included. Existing Test/Example selection and package/manual configurations retain their separate workflows. These instructions describe the integrated source now included in the 2406 Mac package; native GUI and Windows acceptance are pending. The historical 318d package does not contain this addition. A bounded 2406 native Current File caret Run selected only BenchmarkOne, exited 0 and preserved source bytes; this is not complete GUI acceptance.
+Use **Run** first. Current source can then debug the explicitly observed top-level node as described below. Direct editor Benchmark Debug, direct subbenchmark selection, benchmark-result source navigation/per-node rerun, fuzz selection and comparison charts are not included. Existing Test/Example selection and package/manual configurations retain their separate workflows. Native Run has bounded macOS evidence; Debug and Windows acceptance are separate.
 
-**当前源码功能，Full 10 整合回归已通过；原生界面及 Windows 验收待完成。** 保存 `_test.go`，将光标放在顶层 `Benchmark…` 函数内，选择上下文 **Run** 或 **Current File → Run**。也可在运行配置中选择 **Command: test → Test selection: One top-level Benchmark**，工作目录填写包目录、目标填写 `.`，并在 **Test names** 只填一个完整名称。生成的选择使用 `-run=^$` 与精确的字面量 `-bench` 筛选，排除普通测试及其他顶层 Benchmark；被选函数自己创建的子基准仍可能执行。
+保存 `_test.go`，将光标放在顶层 `Benchmark…` 函数内，选择上下文 **Run** 或 **Current File → Run**。也可在运行配置中选择 **Command: test → Test selection: One top-level Benchmark**，工作目录填写包目录、目标填写 `.`，并在 **Test names** 只填一个完整名称。生成的选择使用 `-run=^$` 与精确的字面量 `-bench` 筛选，排除普通测试及其他顶层 Benchmark；被选函数自己创建的子基准仍可能执行。
 
 支持有函数体、单个 `*testing.B` 参数（有名或无名，允许 `testing` 的具名导入别名）、无返回值或类型参数的声明。不支持类型别名链、点导入、绑定冲突或错误签名。**Go arguments** 和实际 `GOFLAGS` 中的冲突筛选参数会被拒绝；源码/配置过期或目标没有实际出现时，报告选择错误，不会退回整包执行。可选填 `-benchtime=1x -benchmem` 运行一次并显示分配指标；Test/Example 的强制重新运行勾选项不适用于 Benchmark 模式。
 
-此选择使用 **Run**。**指定 Benchmark Debug**、直接选择子基准、基准结果源码跳转/逐节点重跑、fuzz 选择及对比图表尚未包含。原有 Test/Example 和包级手工配置保留各自流程。这些操作描述已纳入 2406 Mac 包的整合源码，原生界面与 Windows 验收仍待完成；历史 318d 包不包含这项新增功能。2406 的一项限定原生 Current File 光标位置 Run 检查只运行 BenchmarkOne，退出 0，源码字节未变；这不代表完整界面验收。
+先使用 **Run**，当前源码随后可按下节调试明确出现的顶层节点。直接编辑器 Benchmark Debug、直接选择子基准、基准结果源码跳转/逐节点重跑、fuzz 选择及对比图表尚未包含。原有 Test/Example 和包级手工配置保留各自流程。macOS Run 有限定原生证据；Debug 与 Windows 验收单独记录。
+
+### Debug one observed benchmark / 调试一个已运行的基准测试
+
+First Run the benchmark and wait for its Run console to finish. Save the source, set a breakpoint inside the top-level Benchmark, select its explicitly observed node, then choose **Debug selected Go test/benchmark**. The debug-specific selection uses an exact `-test.bench` filter and `-test.run=^$`, excluding ordinary tests and other top-level benchmarks. Optional `-benchtime=1x` and `-benchmem` are preserved; without an explicit timing flag, Go keeps its normal benchmark timing. Use Debug for frames, variables, stepping and Stop.
+
+The action refuses inferred/output-only nodes, subbenchmark nodes, foreign/disposed consoles and runs stopped locally. It preserves source/configuration guards and rejects unsupported flags. Benchmark source navigation, per-node rerun and direct editor Benchmark Debug remain separate gaps. Platform tests and generated-fixture Delve sessions passed; the native toolbar attempt remains unresolved and Windows acceptance is pending. See the linked verification scope.
+
+先 Run 基准并等待 Run 控制台结束，保存源码、在顶层 Benchmark 内设断点，选中实际出现的节点，再选择 **Debug selected Go test/benchmark**。调试使用精确 `-test.bench` 和 `-test.run=^$`，排除普通测试及其他顶层基准；可选 `-benchtime=1x`、`-benchmem` 会保留，没有显式时间参数时仍使用 Go 默认基准运行时长。通过 Debug 查看栈、变量、步进和 Stop。
+
+仅从输出推测的节点、子基准、其他/已关闭控制台及本地 Stop 的运行不授权此动作；源码/配置守卫与不支持参数拒绝仍保留。基准源码跳转、逐节点重跑、直接编辑器 Benchmark Debug 仍是独立缺口。平台测试与生成夹具 Delve 会话通过；原生工具栏尝试仍未确认，Windows 待验收，详见验证范围。
 
 ## Test results, navigation and rerun / 测试结果、跳转与重跑
 
@@ -97,15 +115,11 @@ After a failure, fix and save the source, then use **Rerun failed top-level test
 
 ### Stop a local test run / 停止本地测试
 
-**319d bounded native check passed:** stopping the generated `TestCancellation` fixture retained the completed child as Passed, marked the root/package/unfinished tests Terminated, and removed both tracked Go/test processes. The root showed `Stopped. 1 test passed`, without a synthetic failure test case. This does not cover every cancellation path or Windows.
-
-Use **Run → Stop** for the active test run. Results already reported as passed, failed or skipped remain unchanged; tests that have not reported a result become interrupted when the process finishes. A genuine test or build failure remains a failure. Stopping before a requested name appears records unfinished work, rather than a missing-name assertion failure. Exit codes or output such as `signal: interrupt` alone do not identify an IDE-requested stop. Raw Go `FAIL`/signal output remains visible. The 311e native check exposed a missing newline before subsequent output. The 319d fix passed decoded-output regression tests and a native output recheck. Some test output is attached when a node finishes or is interrupted, so a running tree node can appear before its buffered log text.
+Use **Run → Stop** for the active test run. Results already reported as passed, failed or skipped remain unchanged; tests that have not reported a result become interrupted when the process finishes. A genuine test or build failure remains a failure. Stopping before a requested name appears records unfinished work, rather than a missing-name assertion failure. Exit codes or output such as `signal: interrupt` alone do not identify an IDE-requested stop. Raw Go `FAIL`/signal output remains visible. Some test output is attached when a node finishes or is interrupted, so a running tree node can appear before its buffered log text.
 
 After termination, **Rerun failed top-level tests in one package** is disabled: a failed-only run would omit unfinished work. Select a mapped, observed Test/Example or runtime subtest and use **Rerun selected Go test/subtree** to explicitly rerun that target and its descendants. The normal source-mapping and argument restrictions still apply.
 
-**319d 限定原生检查通过：**停止生成的 `TestCancellation` 夹具后，已完成子项保持 Passed，根/包/未完成测试显示 Terminated，两个已跟踪的 Go/测试进程均退出。根显示 `Stopped. 1 test passed`，没有合成失败测试项；这不覆盖所有取消路径或 Windows。
-
-使用 **Run → Stop** 停止当前测试。已经报告的通过、失败和跳过结果保持不变；进程结束时，尚未报告结果的测试标为中断。真实测试失败或构建失败仍保留为失败。停止发生在指定名称出现之前时，记录为尚未完成，不制造“未找到指定名称”的断言失败。不能仅凭退出码或 `signal: interrupt` 输出认定是 IDE 主动停止；原始 Go `FAIL`/信号输出仍显示。311e 原生检查发现一处取消诊断与后续输出间缺换行；319d 修复已通过解码输出回归测试及原生输出复验。部分测试日志在节点完成或中断时才附加到结果，树节点开始运行可能早于其缓冲日志显示。
+使用 **Run → Stop** 停止当前测试。已经报告的通过、失败和跳过结果保持不变；进程结束时，尚未报告结果的测试标为中断。真实测试失败或构建失败仍保留为失败。停止发生在指定名称出现之前时，记录为尚未完成，不制造“未找到指定名称”的断言失败。不能仅凭退出码或 `signal: interrupt` 输出认定是 IDE 主动停止；原始 Go `FAIL`/信号输出仍显示。部分测试日志在节点完成或中断时才附加到结果，树节点开始运行可能早于其缓冲日志显示。
 
 终止后，**Rerun failed top-level tests in one package** 禁用，避免只重跑失败项却遗漏未完成工作。可明确选中一个已观察到且可定位的 Test/Example 或运行时子测试，使用 **Rerun selected Go test/subtree** 重跑该目标及其后代；仍须满足正常的源码对应和参数限制。
 
@@ -121,11 +135,7 @@ When the directory changes, flags with complex embedded paths, wrappers or outpu
 
 ## Debug a selected test / 调试选中的测试
 
-**311e bounded native check passed:** `TestCases/dup#01` launched with `-test.run=^TestCases$/^dup#01$ -test.count=1`, stopped at the intended breakpoint, exposed locals and evaluated an expression; adapter and target exited cleanly. That result belongs to 311e; it is not a new a252 native run. Historical f9e0's no-start remains recorded with an unknown cause in [known limitations](KNOWN-LIMITATIONS.md).
-
-**311e 限定原生检查通过：**`TestCases/dup#01` 以 `-test.run=^TestCases$/^dup#01$ -test.count=1` 启动，在预期断点暂停，可查看变量与求值，适配器和目标进程均正常退出。此结果归属 311e，不是 a252 新原生运行。历史 f9e0 原因不明的未启动观察仍保留在[已知差距](KNOWN-LIMITATIONS.md)。
-
-Save the files and set a breakpoint. In a completed test tree, select one Test/Example or runtime subtest and choose **Debug selected Go test/subtree**. Use the ordinary Debug window for breakpoints, stack frames, variables, watches, stepping and Stop. The selected test and its subtree run once, with the necessary parent setup. Local debugging requires Delve and the operating system's normal debugger permissions. If a source file changes during preparation, save and select Debug again.
+Save the files and set a breakpoint. In a completed test tree, select one Test/Example or runtime subtest and choose **Debug selected Go test/benchmark**. Use the ordinary Debug window for breakpoints, stack frames, variables, watches, stepping and Stop. The selected test and its subtree run once, with the necessary parent setup. Local debugging requires Delve and the operating system's normal debugger permissions. If a source file changes during preparation, save and select Debug again.
 
 The selected-test debug action preserves these supported options, subject to the chosen Go toolchain and host platform:
 
@@ -136,21 +146,9 @@ The selected-test debug action preserves these supported options, subject to the
 
 Unsupported options, including coverage/profile collection, `-vet`, custom test-binary flags and `-exec`, stop this shortcut with an explanation. Edit the run configuration or create an explicit Delve configuration for those needs. This action does not silently discard an unsupported option.
 
-先保存文件、设置断点，再在已完成的测试树中选中一个 Test/Example 或运行时子测试，使用 **Debug selected Go test/subtree**。在普通 Debug 窗口中查看断点、调用栈、变量与 Watch，进行步进或 Stop。选中测试及其子树执行一次，并执行必要的父级准备。本地调试需要 Delve 及操作系统正常的调试权限；准备期间源码变化时，保存后重新选择 Debug。
+先保存文件、设置断点，再在已完成的测试树中选中一个 Test/Example 或运行时子测试，使用 **Debug selected Go test/benchmark**。在普通 Debug 窗口中查看断点、调用栈、变量与 Watch，进行步进或 Stop。选中测试及其子树执行一次，并执行必要的父级准备。本地调试需要 Delve 及操作系统正常的调试权限；准备期间源码变化时，保存后重新选择 Debug。
 
 此入口保留上表所列选项，具体可用性仍受 Go 工具链和操作系统限制。覆盖率/性能数据采集、`-vet`、自定义测试程序参数、`-exec` 等未支持选项会明确报错并停止启动。请修改运行配置，或针对这些需求创建显式 Delve 配置；不会悄悄丢弃参数继续调试。
-
-These workflows require no GoForge account, registration, activation or subscription. Full 10 (2406) passed 723 macOS-host JUnit tests, including platform import/format Undo/Redo and selected Benchmark Run regressions. New-feature native UI and Windows acceptance are pending. The standalone Mac package is 2406 with packager checks and independent archive/source audit passed; its native GUI acceptance is pending. Earlier scalar-type GUI checks remain bound to 5259. Earlier a252, 319d and 311e checks retain their own scope in [known limitations](KNOWN-LIMITATIONS.md).
-
-Windows Run 8 validated older 318d: 31/31 preflight checks and 677 product tests passed with one POSIX-shell skip. Assembly passed; native verification failed at temporary configuration isolation after launcher exit 0 and correct relocated home/JBR observations. Bundled Go/gopls/Delve probes were not reached. It does not validate these 2406 features; see [installation status](INSTALL.md#windows-x64).
-
-In e6b3 native checks, Current File selected `TestOne`, `TestTwo` and the `TestCases` parent correctly, and failed-test rerun executed afresh with `-count=1`. However, selected-test rerun/navigation/debug toolbar buttons stayed disabled; f9e0 repairs this integration. Stop cleaned up the tracked Go process and test child, but the tree showed failed/incomplete instead of Interrupted. That display difference remains recorded for e6b3; the newer local-termination behavior passed the bounded 311e native check described above. The earlier 4764 whole-package selection failure remains recorded in [known limitations](KNOWN-LIMITATIONS.md).
-
-上述功能无需 GoForge 账号、注册、激活或订阅。Full 10（2406）已通过 723 项 macOS 宿主 JUnit，包含导入/格式化 Undo/Redo 平台测试及指定 Benchmark Run 回归；新功能原生界面与 Windows 验收待完成。独立 Mac 包现为 2406，打包检查及独立归档/源码审计通过，2406 界面验收待完成；此前标量类型界面检查仍归属 5259；较早 a252、319d 和 311e 检查保留各自范围，见[已知差距](KNOWN-LIMITATIONS.md)。
-
-Windows 第 8 次验证的是旧 318d：31/31 项预检及 677 项产品测试通过，1 项 POSIX shell 跳过。组装通过；启动器退出 0 且迁移 home/JBR 正确后，在临时配置隔离检查失败，包内 Go/gopls/Delve 探针尚未执行；不能将本轮视作这些 2406 功能的验证。见[安装状态](INSTALL.md#windows-x64)。
-
-e6b3 原生检查正确选择 `TestOne`、`TestTwo` 和 `TestCases` 父测试，失败重跑带 `-count=1` 重新执行；但选中测试的重跑/跳转/调试工具栏按钮仍禁用，f9e0 修复这项接线。Stop 清理了已跟踪的 Go 进程与测试子进程，但测试树显示 failed/incomplete 而非 Interrupted，该显示差异仍归属 e6b3；上文的新终止行为已通过 311e 的限定原生检查。此前 4764 误跑整包的失败仍在[已知差距](KNOWN-LIMITATIONS.md)中保留。
 
 ## Change a Go signature / 修改 Go 签名
 
@@ -164,17 +162,13 @@ This bounded operation checks direct callers in the captured project, including 
 
 ### Add one parameter / 新增一个参数
 
-**Generic-call validation:** a252 passed 12 real-gopls/Go protocol cases, 44 standalone helper test nodes (including two parent tests), and seven ordinary-function protocol regression cases, separately from its 633 product JUnit tests. Both a252 packages are prepared and statically verified. Its bounded macOS native check passed three-file preview/Apply, explicit Save, real bundled Go tests and one global Undo/Redo, with all five fixture files restored exactly at the end. A new caller added after preview was rejected before any edits. This is candidate-only acceptance; automatic-save timing and full GoLand parity are not proven. Historical 311e retains its separate non-generic native result.
-
 Place the caret on a function declaration's **`func`** keyword, invoke **Go Refactor…**, and choose **Add parameter to verified project calls…**. Enter the new parameter name, a predeclared scalar type, the insertion position (`0` means first; the current parameter count means last), and the literal value to insert at every verified call. Select **Preview verified callers**, review the declaration and every affected caller, then **Apply**. Preview leaves files unchanged. After Apply, **save the affected files before running an external Go command**: editor changes may still be unsaved. Ordinary Undo/Redo covers the complete change; cancellation or a stale/conflicting file prevents application.
 
 For example, add `count int` at position `1` with default `1`: `Join(left, right)` becomes `Join(left, 1, right)`, with the corresponding parameter inserted in the declaration. The existing caller arguments stay in their original order. This operation supplies the same constant at every verified call; it does not generate caller-specific expressions or update other projects.
 
 Supported functions are free functions with bodies, including generic functions. Generic calls may infer type arguments, supply all of them, or supply a prefix and infer the rest. Parentheses may surround a fully instantiated callee, such as `(Join[string, string])(...)`; uninstantiated or partially instantiated generic values inside parentheses are refused. Existing type parameters, constraints, explicit type arguments and the order of the original value arguments are preserved. Existing value parameters must each have one non-blank name; the new name must not already occur in the function, its type parameters or constraints. Supported new types are `bool`, `string`, predeclared numeric types, `byte`, `rune` and `uintptr`. Defaults are representable numeric/string/rune literals, signed numeric literals, `true` or `false`; `int`, `uint` and `uintptr` defaults use a portable 32-bit range. Boolean defaults appear as constant comparisons in the preview so caller-local names cannot shadow them.
 
-Methods, variadics, grouped/unnamed parameters, function-value references (including instantiated functions used as values), nested instantiations, tuple/variadic call shapes, runtime/test entry points and compiler/linkage directives are refused. Declaration-file imports need explicit aliases. The new scalar type must not be shadowed by a declaration, import or function type parameter; a new parameter of a custom type or type parameter is not supported. All references must fit the captured project and resolve to verified direct calls; an unrelated same-name identifier can also cause a conservative refusal. Arbitrary default expressions, new imported/custom types, existing type/result changes and cross-package declaration moves remain outside this operation.
-
-**泛型调用验证：** a252 已通过 12 项真实 gopls/Go 协议检查、44 个独立 helper 测试节点（含两个父测试）及 7 项普通函数协议回归，均与 633 项产品 JUnit 分开计数。a252 两平台包已准备并通过静态校验。macOS 限定原生检查通过三文件预览/Apply、显式保存、包内真实 Go 测试及一次全局 Undo/Redo，最终 5 个夹具文件逐字节恢复；预览后新增调用文件时，在任何编辑前拒绝旧预览。这是候选应用的限定验收，未证明自动保存时序或完整 GoLand 对齐；历史 311e 保留独立非泛型原生结果。
+Methods, variadics, grouped/unnamed parameters, function-value references (including instantiated functions used as values), nested instantiations, tuple/variadic call shapes, runtime/test entry points and compiler/linkage directives are refused. Ordinary declaration imports require a standalone module, cached dependencies and offline before/after compile checks; project code is not executed. Explicit aliases/no-import cases keep their existing bounded planner. Dot imports and scalar-shadowing bindings are refused. The new scalar type must not be shadowed by a declaration, import or function type parameter; a new parameter of a custom type or type parameter is not supported. All references must fit the captured project and resolve to verified direct calls; an unrelated same-name identifier can also cause a conservative refusal. Arbitrary default expressions, new imported/custom types, existing type/result changes and cross-package declaration moves remain outside this operation.
 
 把光标放在函数声明的 **`func`** 关键字上，执行 **Go Refactor… → Add parameter to verified project calls…**。填写新参数名、Go 预声明标量类型、插入位置（`0` 表示最前，现有参数数量表示末尾）和每个已验证调用都要插入的字面量值。点击 **Preview verified callers**，检查声明和全部调用方后 **Apply**。预览不修改文件；Apply 后编辑器内容可能尚未保存，**先保存受影响文件，再运行外部 Go 命令**。普通 Undo/Redo 撤销或重做整组修改。取消、文件变化或冲突会阻止应用。
 
@@ -182,7 +176,11 @@ Methods, variadics, grouped/unnamed parameters, function-value references (inclu
 
 支持有函数体的普通函数，包括泛型函数。泛型调用可以推断类型实参、完整显式指定，或指定前缀后推断其余类型；括号可包住完整实例化的调用目标，例如 `(Join[string, string])(...)`，但括号内未实例化或仅部分实例化的泛型值会拒绝。原类型参数、约束、显式类型实参及原值实参顺序保持不变。现有值参数须逐个具名且不能是 `_`，新名字不能已出现在函数、类型参数或约束中。新类型限 `bool`、`string`、预声明数值类型、`byte`、`rune` 和 `uintptr`。默认值限类型可表示的数值/字符串/字符字面量、带正负号数值或 `true`/`false`；`int`、`uint`、`uintptr` 按可移植的 32 位范围校验。布尔默认值在预览中呈现为常量比较，避免调用方同名变量遮蔽。
 
-方法、可变参数、合并/未命名参数、函数值引用（含实例化后作为值使用的函数）、嵌套实例化、多返回值/可变参数调用形态、运行时或测试入口，以及带编译/链接指令的函数会拒绝。声明文件的导入必须使用明确别名；新增标量类型被声明、导入或函数类型参数遮蔽时也会拒绝，新增参数的类型不能是自定义类型或类型参数。引用必须位于捕获的项目内并可验证为直接调用；无关的同名标识符也可能触发保守拒绝。任意默认表达式、导入类型/自定义类型、修改现有类型或返回值、跨包移动声明仍不在此操作范围内。
+方法、可变参数、合并/未命名参数、函数值引用（含实例化后作为值使用的函数）、嵌套实例化、多返回值/可变参数调用形态、运行时或测试入口，以及带编译/链接指令的函数会拒绝。声明文件的普通导入需要单独模块、已缓存依赖及离线前后编译检查，不执行项目代码；明确别名/无导入仍用原限定规划器，点导入和标量遮蔽绑定会拒绝。新增标量类型被声明、导入或函数类型参数遮蔽时也会拒绝，新增参数的类型不能是自定义类型或类型参数。引用必须位于捕获的项目内并可验证为直接调用；无关的同名标识符也可能触发保守拒绝。任意默认表达式、导入类型/自定义类型、修改现有类型或返回值、跨包移动声明仍不在此操作范围内。
+
+For ordinary imports, the compile check requires default host settings, one root go.mod, no active/parent go.work, nested modules, local module replacements or vendor tree, and a complete pure-Go source graph. It uses go test -c including tests without executing init, TestMain or tests. Compile success confirms type compatibility, not identical behavior. Module/GOENV/SDK, project build settings, unsaved metadata, the active server and captured sources are rechecked before Apply; changed proof inputs require a new preview.
+
+普通导入的编译检查要求默认宿主设置、根 go.mod、完整纯 Go 源码图，不支持活动/父级 go.work、嵌套模块、本地 module replace 或 vendor。通过 go test -c 编译含测试的源码，不执行 init、TestMain 或测试；编译成功只证明类型兼容，不证明行为完全相同。Apply 前再次校验模块、GOENV、SDK、项目构建设置、未保存元数据、活动服务及捕获源码；证明输入变化时须重新预览。
 
 ### Change an existing scalar type / 修改现有标量类型
 
@@ -216,6 +214,18 @@ This file-list check does not watch the contents of existing non-Go metadata fil
 
 在 **Go Remote → Connection** 填写连接与远端目录，先按 OpenSSH 正常流程核实主机密钥。Save profile 不会自动连接。任务使用已有密钥/agent，交互认证可使用 SSH Terminal。传输须先预览范围；分析需要显式启动独立快照，不覆盖现有远端目录。未保存内容通过 overlay 传递，冲突会停止同步。源码集合固定，新增/删除文件后需建立新会话；这不是完整远端 IDE 后端，外部依赖路径不会伪装成本地文件。
 
+### Remote standard-library sources / 远端标准库源码
+
+Use **Go to Declaration or Usages** and **LSP Type Definition(s)** to open sources from the exact active remote Go SDK's `GOROOT/src`. Start a reviewed Go analysis session first and wait for its remote-initialized message. For example, navigate from `fmt.Println` to `fmt/print.go`, or use Type Definition on an `io.Writer` variable to open `io/io.go`.
+
+The target is a read-only Go editor snapshot identified as remote SDK source, not a local project file. Navigation/copy is available; edits and saves to the SDK are refused. **Stop remote analysis** expires those session URIs and closes its SDK tabs while keeping ordinary project tabs. Reads are bounded (2 MiB per file; 128 files/32 MiB per session cache); a changed SDK, stale request, unsafe path or limit violation is refused. Restart a reviewed session to obtain a new SDK snapshot. Bounded macOS native checks passed exact fmt/io navigation, refused editing/saving and Stop cleanup on an owned localhost SSH fixture. Windows IDE-host and broader remote-host acceptance remain pending.
+
+通过 **Go to Declaration or Usages**、**LSP Type Definition(s)** 跳转到当前远端 Go SDK 的精确 `GOROOT/src`。先启动审阅后的 Go analysis 会话，等待远端分析初始化消息；例如从 `fmt.Println` 跳到 `fmt/print.go`，或在 `io.Writer` 类型变量上使用 Type Definition 打开 `io/io.go`。
+
+目标是标识为远端 SDK 的只读 Go 编辑器快照，不是本地项目文件；允许查看/复制，拒绝修改和保存到 SDK。**Stop remote analysis** 会使本次 URI 失效并关闭所属 SDK 标签，普通项目标签保留。读取上限为每文件 2 MiB、每会话 128 文件/32 MiB；SDK 变化、过期请求、不安全路径或超限会被拒绝，需重新审阅会话获取新快照。macOS 限定原生检查通过自有 localhost SSH 夹具的精确 fmt/io 跳转、编辑/保存拒绝及 Stop 清理；Windows IDE 宿主和更广远端宿主待验收。
+
+This exception does not allow arbitrary dependency/module-cache files, cross-boundary workspace edits or debugger SDK source mapping. / 此例外不开放任意依赖/module-cache 文件、跨边界工作区修改或调试器 SDK 源码映射。
+
 ## Remote debugging / 远端调试
 
 In **Go Remote → Go debug**, select **Package**, **Tests**, **Executable**, or **Attach**, review the configuration, then start. Set the remote Delve executable, package/binary path or PID, program arguments and environment as needed. Arguments are parsed as arguments rather than evaluated by a shell. Environment values belong to the session and are not stored as profile credentials.
@@ -236,3 +246,6 @@ Debugging uses a private copy of `go.work` and `go.work.sum`; the original files
 打开包含 **`go.work`** 的公共目录，所有 `use` 模块及本地 `replace` 目录都须在该根目录下，使用相对路径且不经过符号链接；远端保持相同相对布局。在 **Go debug** 输入相对公共根目录的包路径，例如 `app`，不要选择本身不是模块的工作区根目录。Review 会列出本次绑定的模块。
 
 调试使用 `go.work` 与 `go.work.sum` 的私有副本，不改写原文件。目前支持 1–32 个模块、最多 64 个本地替换目录、最多 512 个可见已保存文件，并受启动清单大小限制；远端依赖须预先就绪。当前源码的 **Go analysis** 也支持按同样目录边界显式审阅的多模块快照，使用私有工作区文件，支持跨模块未保存 overlay；本地或远端模块/工作区元数据变化会停止会话，文件集合或元数据变化后需重新审阅启动。上述 512 文件限制属于调试启动，分析保留其独立快照大小限制。Windows 盘符及 UNC 映射已有协议检查，尚未完成 Windows 原生验收。
+
+
+See [Known limitations / 已知差距](KNOWN-LIMITATIONS.md) for verification boundaries. / 验收边界见已知差距。

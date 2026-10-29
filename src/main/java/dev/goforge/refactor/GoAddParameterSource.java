@@ -26,9 +26,9 @@ final class GoAddParameterSource {
         type Location struct { URI string `json:"uri"`; Range Range `json:"range"` }
         type Source struct { URI string `json:"uri"`; Text string `json:"text"` }
         type Spec struct { Name string `json:"name"`; Type string `json:"type"`; Index int `json:"index"`; DefaultValue string `json:"defaultValue"` }
-        type Input struct { Mode string `json:"mode"`; Sources []Source `json:"sources"`; Target Location `json:"target"`; References []Location `json:"references"`; Spec Spec `json:"spec"` }
+        type Input struct { Mode string `json:"mode"`; Sources []Source `json:"sources"`; Target Location `json:"target"`; References []Location `json:"references"`; Spec Spec `json:"spec"`; CheckedImports bool `json:"checkedImports"` }
         type Edit struct { Range Range `json:"range"`; NewText string `json:"newText"` }
-        type Output struct { Passed bool `json:"passed"`; Reason string `json:"reason,omitempty"`; Target *Location `json:"target,omitempty"`; Changes map[string][]Edit `json:"changes,omitempty"`; Checked int `json:"checked"` }
+        type Output struct { Passed bool `json:"passed"`; Reason string `json:"reason,omitempty"`; Target *Location `json:"target,omitempty"`; Changes map[string][]Edit `json:"changes,omitempty"`; Checked int `json:"checked"`; NeedsCompilation bool `json:"needsCompilation,omitempty"` }
         type Parsed struct { Source; File *ast.File; Tokens *token.File }
         
         func offset(text string,p Position)(int,error) {
@@ -91,11 +91,13 @@ final class GoAddParameterSource {
          collision:=s.Name==decl.Name.Name
          ast.Inspect(decl,func(n ast.Node)bool{if id,ok:=n.(*ast.Ident);ok&&id.Name==s.Name{collision=true};return true})
          if collision{return fail("new parameter name already appears in the function; choose a name that cannot shadow existing code")}
-         // A new type must really be the predeclared scalar. Do not guess implicit import names.
-         for _,imp:=range target.File.Imports{if imp.Name==nil||imp.Name.Name=="."||imp.Name.Name==s.Type{return fail("declaration-file imports must have explicit aliases that do not shadow the new scalar type; dot imports are refused")}}
+         // Only the Java before/after compile-proof path may accept unknown default import names.
+         needsCompilation:=false
+         for _,imp:=range target.File.Imports{if imp.Name==nil{needsCompilation=true;continue};if imp.Name.Name=="."||imp.Name.Name==s.Type{return fail("dot imports and import aliases shadowing the new scalar type are refused")}}
          for _,p:=range files{if parent(p.URI)!=parent(target.URI)||p.File.Name.Name!=target.File.Name.Name{continue};for _,d:=range p.File.Decls{switch d:=d.(type){case *ast.FuncDecl:if d.Recv==nil&&d.Name.Name==s.Type{return fail("new scalar type is shadowed in the declaration package")};case *ast.GenDecl:for _,sp:=range d.Specs{switch v:=sp.(type){case *ast.TypeSpec:if v.Name.Name==s.Type{return fail("new scalar type is shadowed in the declaration package")};case *ast.ValueSpec:for _,n:=range v.Names{if n.Name==s.Type{return fail("new scalar type is shadowed in the declaration package")}}}}}}}
          for _,f:=range decl.Type.Params.List{if f.Names[0].Name==s.Type{return fail("new scalar type is shadowed by an existing parameter")}}
          if decl.Type.Results!=nil{for _,f:=range decl.Type.Results.List{for _,n:=range f.Names{if n.Name==s.Type{return fail("new scalar type is shadowed by a named result")}}}}
+         if needsCompilation&&!in.CheckedImports{return Output{Reason:"Ordinary declaration imports require a frozen before/after compile check.",NeedsCompilation:true}}
          nameStart,nameEnd:=target.Tokens.Offset(decl.Name.Pos()),target.Tokens.Offset(decl.Name.End())
          loc:=Location{target.URI,Range{position(target.Text,nameStart),position(target.Text,nameEnd)}}
          if in.Mode=="target"{return Output{Passed:true,Target:&loc}}

@@ -28,7 +28,9 @@ final class GoAddParameterDialog extends DialogWrapper {
         panel.add(new JLabel("<html>Free functions with separately named parameters; generic functions are supported.<br>"
                 + "Existing type parameters, constraints and explicit type arguments are kept.<br>"
                 + "Existing argument order is preserved. Methods, variadics and function values are refused.<br>"
-                + "Declaration-file imports require explicit aliases; shadowed scalar types are refused.<br>"
+                + "Ordinary imports need a standalone module and an offline before/after compile check.<br>"
+                + "Cached dependencies and default host settings are required; project code is not run.<br>"
+                + "The check confirms type compatibility, not identical behavior. Shadowed scalar types are refused.<br>"
                 + "Defaults: numeric/string/rune literals, signed numbers, true or false.<br>"
                 + "All verified direct calls in the captured project are included in one preview.</html>"), BorderLayout.CENTER);
         return panel;

@@ -184,11 +184,15 @@ def configure(contents: Path, retained: list[str]) -> None:
     launch.update(launcherPath="../MacOS/goforge", vmOptionsFilePath="../bin/goforge.vmoptions")
     launch["bootClassPathJarNames"].insert(0, "goforge-branding.jar")
     args = [a for a in launch["additionalJvmArguments"] if not a.startswith(
-        ("-Didea.vendor.name=", "-Didea.paths.selector=", "-Didea.platform.prefix=", "-Dsplash="))]
+        ("-Didea.vendor.name=", "-Didea.paths.selector=", "-Didea.platform.prefix=", "-Dsplash=",
+         "-Didea.ultimate.features.hints.enabled="))]
     args += ["-Didea.vendor.name=GoForge", f"-Didea.paths.selector={SELECTOR}",
              "-Didea.platform.prefix=Idea", "-Dintellij.platform.load.app.info.from.resources=true",
              "-Didea.disable.collect.statistics=true", "-Didea.suppress.statistics.report=true",
              "-Didea.headless.enable.statistics=false",
+             # Community promotion pages are not GoForge features. Use the platform
+             # display preference; this does not add or unlock any commercial code.
+             "-Didea.ultimate.features.hints.enabled=false",
              "-Dide.no.platform.update=true", "-Didea.initially.ask.config=never", "-Dsplash=false",
              f"-Didea.config.path=$USER_HOME/Library/Application Support/GoForge/{SELECTOR}",
              f"-Didea.system.path=$USER_HOME/Library/Caches/GoForge/{SELECTOR}",

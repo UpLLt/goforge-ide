@@ -59,9 +59,25 @@ public class GoSelectedTestDebugPlanTest {
         assertTrue(((List<?>) launch.get("args")).contains("-test.short"));
     }
 
-    @Test public void selectedBenchmarkCannotBecomeAnOrdinaryTestDebugFilter() {
-        var error=assertThrows(IllegalArgumentException.class,()->GoSelectedTestDebugPlan.launch("/project",GoTestSelection.benchmark("BenchmarkOne"),List.of()));
-        assertTrue(error.getMessage().contains("use Run"));
+    @Test public void benchmarkDebugUsesBothLiteralSelectorAndAnEmptyOrdinaryTestSelector() {
+        var launch = GoSelectedTestDebugPlan.launch("C:\\Users\\开发\\bench project", GoTestSelection.benchmark("Benchmark世界"),
+                List.of("-tags=benchmark_fixture", "-benchtime", "1x", "-benchmem", "-test.timeout=30s"));
+        assertEquals(List.of("-tags=benchmark_fixture"), launch.get("buildFlags"));
+        assertEquals(List.of("-test.benchtime=1x", "-test.benchmem", "-test.timeout=30s", "-test.run=^$", "-test.bench=^Benchmark世界$", "-test.count=1"), launch.get("args"));
+        assertEquals("C:\\Users\\开发\\bench project", launch.get("cwd"));
+    }
+    @Test public void benchmarkTimingIsPreservedWhenExplicitAndNotInventedWhenAbsent() {
+        var launch=GoSelectedTestDebugPlan.launch("/project", GoTestSelection.benchmark("BenchmarkOne"), List.of());
+        assertEquals(List.of("-test.run=^$", "-test.bench=^BenchmarkOne$", "-test.count=1"), launch.get("args"));
+        var explicit=GoSelectedTestDebugPlan.launch("/project", GoTestSelection.benchmark("BenchmarkOne"), List.of("-test.benchtime=2x", "-benchmem=false"));
+        assertEquals(List.of("-test.benchtime=2x", "-test.benchmem=false", "-test.run=^$", "-test.bench=^BenchmarkOne$", "-test.count=1"),explicit.get("args"));
+    }
+    @Test public void benchmarkDebugRejectsSelectorOverridesAndOrdinaryTestsDoNotAcquireBenchmarkFlags() {
+        for(String argument:List.of("-run=TestOther", "-test.run=TestOther", "-bench=.", "-test.bench=.", "-count=4", "-args", "-exec=wrapper"))
+            assertThrows(argument,IllegalArgumentException.class,()->GoSelectedTestDebugPlan.launch("/project",GoTestSelection.benchmark("BenchmarkOne"),List.of(argument)));
+        for(String argument:List.of("-benchtime=1x", "-test.benchmem"))
+            assertThrows(argument,IllegalArgumentException.class,()->GoSelectedTestDebugPlan.launch("/project",GoTestSelection.single("TestOne"),List.of(argument)));
+        assertThrows(IllegalArgumentException.class,()->GoSelectedTestDebugPlan.launch("/project",GoTestSelection.benchmark("BenchmarkOne"),List.of("-benchtime")));
     }
 
 }
