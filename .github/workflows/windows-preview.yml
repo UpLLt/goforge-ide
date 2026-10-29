@@ -155,6 +155,9 @@ jobs:
       - name: Verify native-acceptance environment and failure-reporting contracts
         shell: pwsh
         run: python scripts/test-verify-windows-package.py -v
+      - name: Verify packaged method-refactoring runner contracts
+        shell: pwsh
+        run: python scripts/test-verify-method-refactoring.py -v
       - name: Run product and IntelliJ Platform tests on Windows
         shell: pwsh
         run: .\gradlew.bat -PgoforgeSandboxDirectory=build/verification-sandbox test buildPlugin verifyPluginStructure --no-daemon
@@ -225,6 +228,9 @@ jobs:
       - name: Verify native launcher, relocation, Go, gopls and Delve on Windows
         shell: pwsh
         run: python scripts/verify-windows-package.py --app build/windows/GoForge --report-dir .artifacts/windows-native
+      - name: Verify private-method refactoring with the packaged JBR and Go tools
+        shell: pwsh
+        run: python scripts/verify-method-refactoring.py --app build/windows/GoForge --report-dir .artifacts/windows-method-refactor
       - name: Preserve native verification results
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
@@ -232,6 +238,7 @@ jobs:
           name: windows-native-reports
           path: |
             .artifacts/windows-native
+            .artifacts/windows-method-refactor
             .artifacts/windows-platform-patch
             .artifacts/windows-lsp-lifecycle
           include-hidden-files: true
@@ -248,6 +255,7 @@ jobs:
             build/windows/package-manifest.json
             build/release-sources
             .artifacts/windows-native/native-verification.json
+            .artifacts/windows-method-refactor/verification.json
           include-hidden-files: true
           if-no-files-found: error
           compression-level: 0
