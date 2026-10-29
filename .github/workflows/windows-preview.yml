@@ -133,6 +133,9 @@ jobs:
       GRADLE_USER_HOME: ${{ github.workspace }}/.gradle-user-home
       GOFORGE_PYTHON: python
     steps:
+      - name: Preserve reviewed source bytes on the temporary Windows runner
+        shell: pwsh
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ needs.source.outputs.commit }}
@@ -146,6 +149,9 @@ jobs:
       - name: Verify POSIX bridge mappings for Windows and macOS clients
         shell: pwsh
         run: python scripts/test-remote-debug-paths.py
+      - name: Verify extra-tool preparation and Windows file-handle contracts
+        shell: pwsh
+        run: python scripts/test-setup-extra-tools.py -v
       - name: Run product and IntelliJ Platform tests on Windows
         shell: pwsh
         run: .\gradlew.bat -PgoforgeSandboxDirectory=build/verification-sandbox test buildPlugin verifyPluginStructure --no-daemon
@@ -171,6 +177,9 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 60
     steps:
+      - name: Preserve reviewed source bytes on the temporary Windows runner
+        shell: pwsh
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ needs.source.outputs.commit }}
