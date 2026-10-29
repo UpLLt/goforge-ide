@@ -6,13 +6,23 @@ import com.intellij.execution.process.ProcessEvent;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.util.Key;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
+import com.intellij.testFramework.PlatformTestUtil;
 import java.nio.file.*;
 import java.util.concurrent.*;
 
 /** Actual IntelliJ handler and harmless child; full DAP/Delve/native GUI are separate acceptance. */
 public final class GoDelveProcessHandlerTest extends BasePlatformTestCase {
     public void testNoClientStopIsBoundedAndRemovesOnlyOwnedOutput() throws Exception {
-        ApplicationManager.getApplication().executeOnPooledThread(() -> {
+        assertOwnedStop(false, false);
+    }
+    public void testOrdinaryDestroySendsDisconnectAndLetsResponsiveAdapterExit() throws Exception {
+        assertOwnedStop(true, false);
+    }
+    public void testForceDuringOrdinaryDisconnectDoesNotSendTheRequestTwice() throws Exception {
+        assertOwnedStop(true, true);
+    }
+    private void assertOwnedStop(boolean responsiveDisconnect, boolean forceWhileDisconnecting) throws Exception {
+        var work = ApplicationManager.getApplication().executeOnPooledThread(() -> {
             Path parent = Files.createTempDirectory("goforge-handler-test-");
             Path sibling = Files.writeString(parent.resolve("keep"), "unchanged");
             var output = GoDelveSessionOutput.create(parent); Files.writeString(output.binary(), "owned");
@@ -24,13 +34,31 @@ public final class GoDelveProcessHandlerTest extends BasePlatformTestCase {
                 assertNotNull("compiled child fixture", input); Files.copy(input, bytecode);
             }
             var handler = GoDelveProcessHandler.start(new GeneralCommandLine(javaExecutable, "-cp", classes.toString(), GoDelveCleanupChild.class.getName()), output);
+            var disconnects = new java.util.concurrent.atomic.AtomicInteger();
+            var disconnectEntered = new CountDownLatch(1);
+            if (responsiveDisconnect) handler.setDisconnectRequest(() -> {
+                disconnects.incrementAndGet(); disconnectEntered.countDown();
+                if (forceWhileDisconnecting) {
+                    try { new CountDownLatch(1).await(); }
+                    catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); }
+                    return;
+                }
+                try { handler.getProcess().getOutputStream().write(1); handler.getProcess().getOutputStream().flush(); }
+                catch (java.io.IOException error) { throw new RuntimeException(error); }
+            });
             var ready = new CountDownLatch(1);
             handler.addProcessListener(new ProcessAdapter() { public void onTextAvailable(ProcessEvent event, Key type) { if (event.getText().contains("ready")) ready.countDown(); } });
             try {
                 handler.startNotify(); assertTrue(ready.await(5, TimeUnit.SECONDS));
                 long started = System.nanoTime(); handler.destroyProcess();
                 assertTrue(System.nanoTime() - started < TimeUnit.MILLISECONDS.toNanos(500));
+                if (forceWhileDisconnecting) {
+                    assertTrue(disconnectEntered.await(2, TimeUnit.SECONDS));
+                    handler.killProcess(); handler.killProcess();
+                }
                 handler.cleanupCompletion().get(12, TimeUnit.SECONDS);
+                assertEquals(responsiveDisconnect ? 1 : 0, disconnects.get());
+                if (responsiveDisconnect && !forceWhileDisconnecting) assertEquals("The disconnect callback must allow normal exit", 0, handler.getProcess().exitValue());
                 assertFalse(handler.getProcess().isAlive()); assertFalse(Files.exists(output.directory()));
                 assertEquals("unchanged", Files.readString(sibling));
             } finally {
@@ -41,7 +69,11 @@ public final class GoDelveProcessHandlerTest extends BasePlatformTestCase {
                 Files.delete(sibling); Files.delete(parent);
             }
             return null;
-        }).get(20, TimeUnit.SECONDS);
+        });
+        // Keep platform callbacks dispatchable while the worker starts/stops the real handler.
+        // The original outer deadline stays at 20 seconds; completion still propagates failures.
+        PlatformTestUtil.waitWithEventsDispatching("Owned adapter Stop did not complete", work::isDone, 20);
+        work.get(1, TimeUnit.SECONDS);
     }
     public void testAdapterStartFailureReleasesEmptyOwnedDirectory() throws Exception {
         Path parent = Files.createTempDirectory("goforge-handler-start-test-");

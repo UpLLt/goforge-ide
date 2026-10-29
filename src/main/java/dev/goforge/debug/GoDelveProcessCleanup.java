@@ -62,12 +62,20 @@ final class GoDelveProcessCleanup {
         // Unlike thenRunAsync, completion also closes the client after failure or cancellation.
         return response.whenCompleteAsync((unused, failure) -> dispose.run());
     }
+    void disconnectThenStop(Runnable disconnect, Runnable forceTree) {
+        stop(false, forceTree);
+        requestDisconnect(disconnect);
+    }
     void disconnectThenForce(Runnable disconnect, Runnable forceTree) {
         rememberChildren(); forceTreeCallback = forceTree; stopping.set(true);
         if (completion.isDone()) return;
         // RPC serialization/writes may block before returning a future. They cannot occupy the
         // cleanup worker or delay its force deadline. One daemon request per direct Stop is enough.
         enqueue(() -> { if (process.isAlive() || childrenAlive()) force(forceTree); }, 500);
+        requestDisconnect(disconnect);
+    }
+    private void requestDisconnect(Runnable disconnect) {
+        if (completion.isDone()) return;
         var request = new Thread(() -> {
             if (completion.isDone()) return;
             try { disconnect.run(); }

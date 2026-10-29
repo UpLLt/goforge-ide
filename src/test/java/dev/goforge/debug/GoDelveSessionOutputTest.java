@@ -47,7 +47,10 @@ public class GoDelveSessionOutputTest {
         Path moved = owned.directory().resolveSibling("moved"); Files.writeString(owned.binary(), "generated");
         if (System.getProperty("os.name").startsWith("Windows")) {
             assertThrows(java.io.IOException.class, () -> Files.move(owned.directory(), moved));
+            assertFalse(Files.exists(moved));
+            assertEquals("generated", Files.readString(owned.binary()));
             owned.close();
+            assertFalse(Files.exists(owned.directory()));
         } else {
             Files.move(owned.directory(), moved); Files.createDirectory(owned.directory());
             Files.writeString(owned.binary(), "replacement");
@@ -56,6 +59,19 @@ public class GoDelveSessionOutputTest {
             Files.delete(owned.binary()); Files.delete(owned.directory()); Files.delete(moved);
         }
         Files.delete(parent);
+    }
+    @Test public void releasingOwnershipRetainsOutputAndAllowsDirectoryMove() throws Exception {
+        Path parent = Files.createTempDirectory("delve-output-release-test-");
+        var owned = GoDelveSessionOutput.create(parent);
+        Files.writeString(owned.binary(), "retained");
+        Path moved = owned.directory().resolveSibling("retained-output");
+        owned.release(); owned.release();
+        assertEquals("retained", Files.readString(owned.binary()));
+        Files.move(owned.directory(), moved);
+        assertFalse(Files.exists(owned.directory()));
+        Path binary = moved.resolve(owned.binary().getFileName());
+        assertEquals("retained", Files.readString(binary));
+        Files.delete(binary); Files.delete(moved); Files.delete(parent);
     }
     @Test public void realPlatformLocalWrapperRetainsExactSafeCleanup() throws Exception {
         Path parent = GoDelveSessionOutput.localPath(Files.createTempDirectory("delve-routing-test-"));

@@ -409,7 +409,9 @@ public final class GoTestConsolePlatformTest extends BasePlatformTestCase {
         sourceAction.actionPerformed(event);
         var editor = com.intellij.openapi.fileEditor.FileEditorManager.getInstance(getProject()).getSelectedTextEditor();
         assertNotNull(editor); assertEquals(SOURCE.indexOf("BenchmarkOne"), editor.getCaretModel().getOffset());
-        assertEquals(directory.resolve("fixture_test.go").toString(), FileDocumentManager.getInstance().getFile(editor.getDocument()).getPath());
+        var openedFile = FileDocumentManager.getInstance().getFile(editor.getDocument());
+        assertNotNull(openedFile);
+        assertEquals(directory.resolve("fixture_test.go").toRealPath(), Path.of(openedFile.getPath()).toRealPath());
         session.result.getActions()[0].actionPerformed(session.toolbarEvent()); assertNull(captured.get());
         assertNull(session.registry.target(node.getLocationUrl())); assertNotNull(session.registry.navigationTarget(node.getLocationUrl()));
     }

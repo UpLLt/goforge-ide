@@ -45,7 +45,12 @@ final class GoDelveProcessHandler extends ColoredProcessHandler {
         disconnectRequest.set(request);
         if (!canLaunch() || cleanup.completion().isDone()) disconnectRequest.set(NO_DISCONNECT);
     }
-    @Override protected void destroyProcessImpl() { stopRequested.set(true); cleanup.stop(false, this::forceTree); }
+    @Override protected void destroyProcessImpl() {
+        stopRequested.set(true);
+        // The platform's ordinary toolbar Stop destroys the handler directly;
+        // no DAP client termination is guaranteed to have happened first.
+        cleanup.disconnectThenStop(disconnectRequest.getAndSet(NO_DISCONNECT), this::forceTree);
+    }
     @Override public void killProcess() {
         if (stopRequested.compareAndSet(false, true)) cleanup.disconnectThenForce(disconnectRequest.getAndSet(NO_DISCONNECT), this::forceTree);
         else cleanup.stop(true, this::forceTree);

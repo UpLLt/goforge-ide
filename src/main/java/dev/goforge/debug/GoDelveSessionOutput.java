@@ -165,7 +165,9 @@ final class GoDelveSessionOutput implements AutoCloseable {
             String path = directory.toString();
             if (!path.startsWith("\\\\?\\")) path = path.startsWith("\\\\") ? "\\\\?\\UNC\\" + path.substring(2) : "\\\\?\\" + path;
             Kernel32 api = WindowsApi.INSTANCE;
-            Pointer handle = api.CreateFileW(new WString(path), 0x80, 3, null, 3, 0x02000000 | 0x00200000, null);
+            // Metadata-only access does not participate in share-access checks. Request
+            // FILE_LIST_DIRECTORY as well, so omitting FILE_SHARE_DELETE protects this directory.
+            Pointer handle = api.CreateFileW(new WString(path), 0x01 | 0x80, 3, null, 3, 0x02000000 | 0x00200000, null);
             if (handle == null || Pointer.nativeValue(handle) == -1L)
                 throw new IOException("Cannot protect the debug temporary directory: Win32 " + api.GetLastError());
             try (Memory basic = new Memory(40)) {

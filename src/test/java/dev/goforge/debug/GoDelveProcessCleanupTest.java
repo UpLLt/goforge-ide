@@ -86,6 +86,35 @@ public class GoDelveProcessCleanupTest {
         assertTrue(returned.await(1, TimeUnit.SECONDS)); assertFalse(process.isAlive());
         assertFalse(Files.exists(output.directory())); Files.delete(parent);
     }
+    @Test public void ordinaryDisconnectGetsGraceBeyondTheDirectForceWindow() throws Exception {
+        Path parent = Files.createTempDirectory("delve-cleanup-test-"); var output = GoDelveSessionOutput.create(parent);
+        var process = child(); assertEquals("ready", process.inputReader().readLine()); var kills = new AtomicInteger();
+        var cleanup = new GoDelveProcessCleanup(process, output, message -> fail(message), 2000);
+        cleanup.disconnectThenStop(() -> {
+            try {
+                Thread.sleep(750);
+                process.getOutputStream().write(1); process.getOutputStream().flush();
+            } catch (Exception failure) { throw new RuntimeException(failure); }
+        }, () -> { kills.incrementAndGet(); process.destroyForcibly(); });
+        cleanup.completion().get(7, TimeUnit.SECONDS);
+        assertEquals(0, process.exitValue()); assertEquals(0, kills.get());
+        assertFalse(Files.exists(output.directory())); Files.delete(parent);
+    }
+    @Test public void blockedOrdinaryDisconnectCannotHoldTheGraceDeadline() throws Exception {
+        Path parent = Files.createTempDirectory("delve-cleanup-test-"); var output = GoDelveSessionOutput.create(parent);
+        var process = child(); assertEquals("ready", process.inputReader().readLine());
+        var entered = new CountDownLatch(1); var returned = new CountDownLatch(1);
+        var cleanup = new GoDelveProcessCleanup(process, output, message -> fail(message), 200);
+        cleanup.disconnectThenStop(() -> {
+            entered.countDown();
+            try { new CountDownLatch(1).await(); }
+            catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); }
+            finally { returned.countDown(); }
+        }, process::destroyForcibly);
+        assertTrue(entered.await(1, TimeUnit.SECONDS)); cleanup.completion().get(3, TimeUnit.SECONDS);
+        assertTrue(returned.await(1, TimeUnit.SECONDS)); assertFalse(process.isAlive());
+        assertFalse(Files.exists(output.directory())); Files.delete(parent);
+    }
     private static Runnable once(java.util.concurrent.atomic.AtomicBoolean flag, AtomicInteger calls) {
         return () -> GoDelveProcessCleanup.disposeOnce(flag, calls::incrementAndGet);
     }
