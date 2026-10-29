@@ -23,6 +23,71 @@ from urllib.parse import unquote
 ROOT=Path(__file__).resolve().parents[1]
 
 
+def native_environment(app, temporary, inherited):
+    """Keep generated native fixtures independent of the invoking user's Go setup."""
+    blocked={'GOROOT','GOPATH','GOBIN','GOFLAGS','GOWORK','GOOS','GOARCH','GOAMD64',
+             'GOEXPERIMENT','GOPACKAGESDRIVER','GOMODCACHE','GOPROXY','GOSUMDB',
+             'GOPRIVATE','GONOPROXY','GONOSUMDB','GOVCS','GOFORGE_JDK',
+             'GOFORGE_VM_OPTIONS','GOFORGE_PROPERTIES','JAVA_TOOL_OPTIONS','JDK_JAVA_OPTIONS',
+             '_JAVA_OPTIONS','JAVA_HOME','JDK_HOME','IDEA_JDK','IDEA_VM_OPTIONS','IDEA_PROPERTIES'}
+    env={k.upper():v for k,v in inherited.items() if k.upper() not in blocked}
+    if not env.get('SYSTEMROOT'):
+        raise RuntimeError('Windows verification requires SystemRoot')
+    env.update(APPDATA=str(temporary/'Roaming'),LOCALAPPDATA=str(temporary/'Local'),
+               GOENV='off',GOTOOLCHAIN='local',CGO_ENABLED='0',GOWORK='off',
+               GOOS='windows',GOARCH='amd64',GOAMD64='v1',GOPACKAGESDRIVER='off',
+               GOPATH=str(temporary/'gopath'),GOMODCACHE=str(temporary/'gopath/pkg/mod'),
+               GOCACHE=str(temporary/'gocache'),GOTELEMETRY='off',GOPROXY='off',
+               GOSUMDB='off',GOPRIVATE='',GONOPROXY='',GONOSUMDB='',GOVCS='*:off',
+               PATH=os.pathsep.join([str(app/'goforge-tools/go/bin'),str(app/'goforge-tools/bin'),
+                                     str(Path(env['SYSTEMROOT'])/'System32')]))
+    return env
+
+
+def fixture_hashes(project):
+    """Snapshot all Go inputs, including a newly added source or module file."""
+    return {path.relative_to(project).as_posix():hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in sorted(project.rglob('*')) if path.is_file()
+            and (path.suffix=='.go' or path.name in ('go.mod','go.sum','go.work','go.work.sum'))}
+
+
+def require_fixture_unchanged(project, baseline):
+    actual=fixture_hashes(project)
+    if actual!=baseline:
+        raise RuntimeError('Generated fixture Go inputs changed during read-only verification')
+    return {'passed':True,'sha256':actual}
+
+
+def require_adapter_success(process):
+    code=process.wait(timeout=15)
+    if code!=0:
+        raise RuntimeError('Delve adapter returned '+str(code)+' after disconnect')
+
+
+def require_windows_host():
+    if os.name!='nt':
+        raise RuntimeError('Windows native validation requires Windows; cross-platform runs are rejected')
+
+
+def rename_file_counts(edit, expected, replacement):
+    if not isinstance(edit,dict):raise RuntimeError('Missing workspace rename edit')
+    changes=edit.get('changes')
+    if changes is None:
+        changes={}
+        for item in edit.get('documentChanges',[]):
+            if 'textDocument' not in item or 'edits' not in item:
+                raise RuntimeError('Unexpected resource operation in symbol rename')
+            uri=item['textDocument']['uri']
+            if uri in changes:raise RuntimeError('Duplicate rename document')
+            changes[uri]=item['edits']
+    actual={unquote(uri).casefold():values for uri,values in changes.items()}
+    if set(actual)!={unquote(uri).casefold() for uri in expected}:
+        raise RuntimeError('Symbol rename did not cover exactly the generated caller and declaration files')
+    if any(not values or any(v.get('newText')!=replacement for v in values) for values in actual.values()):
+        raise RuntimeError('Unexpected rename edit text')
+    return {uri:len(values) for uri,values in changes.items()}
+
+
 def load_protocol():
     spec=importlib.util.spec_from_file_location('goforge_windows_wire',ROOT/'scripts/verify-protocols.py')
     p=importlib.util.module_from_spec(spec);spec.loader.exec_module(p)
@@ -112,7 +177,7 @@ def debug(wire, app, project, env, out, cancel=False):
                 assert exited['body']['exitCode']==0,exited
                 rpc.receive_until(lambda m:m.get('event')=='terminated')
                 rpc.dap('disconnect',{'terminateDebuggee':False})
-            process.wait(timeout=15);observed=target;target=None;require_exited(observed)
+            require_adapter_success(process);observed=target;target=None;require_exited(observed)
             return {'passed':True,'adapterExitCode':process.returncode,'targetExited':True,
                     'scope':'launch/breakpoint/locals/evaluate/'+('cancel cleanup' if cancel else 'step/continue/exit cleanup'),
                     'protocol':rpc.dap_diagnostics()}
@@ -130,8 +195,10 @@ def lsp(wire,app,project,env,out):
                            stderr=log,cwd=project,env=env)
         try:
             rpc=wire.FramedJson(p.stdout,p.stdin)
-            rpc.lsp('initialize',{'processId':os.getpid(),'rootUri':project.as_uri(),'capabilities':{},
-                                 'workspaceFolders':[{'uri':project.as_uri(),'name':'Windows native'}]})
+            capabilities=rpc.lsp('initialize',{'processId':os.getpid(),'rootUri':project.as_uri(),
+                                 'capabilities':{'textDocument':{'completion':{'completionItem':{'snippetSupport':True}}}},
+                                 'workspaceFolders':[{'uri':project.as_uri(),'name':'Windows native'}]})['capabilities']
+            assert capabilities.get('definitionProvider') and capabilities.get('renameProvider'),capabilities
             rpc.notify('initialized',{})
             source=project/'main.go';text=source.read_text(encoding='utf-8')
             rpc.notify('textDocument/didOpen',{'textDocument':{'uri':source.as_uri(),'languageId':'go','version':1,'text':text}})
@@ -140,29 +207,47 @@ def lsp(wire,app,project,env,out):
             location=result[0]
             assert unquote(location['uri']).casefold()==unquote((project/'hello.go').as_uri()).casefold(),result
             assert location['range']['start']=={'line':1,'character':5},result
+            at={'textDocument':{'uri':source.as_uri()},'position':{'line':3,'character':14}}
+            rename=rpc.lsp('textDocument/rename',{**at,'newName':'Welcome'})
+            counts=rename_file_counts(rename,[(project/name).as_uri()
+                for name in ('main.go','hello.go','hello_test.go')],'Welcome')
+            completion=rpc.lsp('textDocument/completion',{**at,'context':{'triggerKind':1}})
+            items=completion if isinstance(completion,list) else completion.get('items',[])
+            assert any(item.get('label')=='Hello' for item in items),completion
+            changed=text.replace('Hello()','MissingSymbol()')
+            rpc.notify('textDocument/didChange',{'textDocument':{'uri':source.as_uri(),'version':2},
+                       'contentChanges':[{'text':changed}]})
+            diagnostics=rpc.receive_until(lambda m:m.get('method')=='textDocument/publishDiagnostics'
+                and m.get('params',{}).get('uri')==source.as_uri()
+                and any('MissingSymbol' in d.get('message','') for d in m['params'].get('diagnostics',[])))
+            rpc.notify('textDocument/didChange',{'textDocument':{'uri':source.as_uri(),'version':3},
+                       'contentChanges':[{'text':text}]})
+            rpc.receive_until(lambda m:m.get('method')=='textDocument/publishDiagnostics'
+                and m.get('params',{}).get('uri')==source.as_uri() and m['params'].get('version')==3
+                and not any(d.get('severity')==1 for d in m['params'].get('diagnostics',[])))
             rpc.lsp('shutdown');rpc.notify('exit');p.wait(timeout=15)
             assert p.returncode==0,p.returncode
-            return {'passed':True,'definitionResponse':result,'exitCode':p.returncode}
+            return {'passed':True,'definitionResponse':result,'renameEditCounts':counts,
+                    'completionLabel':'Hello','unsavedDiagnosticCount':len(diagnostics['params']['diagnostics']),
+                    'restoredOverlayErrors':0,'renameApplied':False,'exitCode':p.returncode}
         finally:terminate_owned(p)
 
 
 def main(app,report):
-    if os.name!='nt':raise RuntimeError('Windows native validation requires Windows; cross-platform runs are rejected')
     app=app.resolve();report.mkdir(parents=True,exist_ok=True)
-    build_inputs=app/'goforge-build-inputs.json'
-    identity=json.loads(build_inputs.read_text(encoding='utf-8'))
     result={'passed':False,'scope':'Native launcher and bundled engines; IDE GUI feature validation remains separate',
-            'app':str(app),'checks':{},'pluginZipSha256':identity['pluginZipSha256'],
-            'buildInputsSha256':hashlib.sha256(build_inputs.read_bytes()).hexdigest(),
-            'launcherSha256':hashlib.sha256((app/'bin/goforge64.exe').read_bytes()).hexdigest()}
+            'app':str(app),'hostOS':os.name,'checks':{}}
     try:
+        require_windows_host()
+        build_inputs=app/'goforge-build-inputs.json'
+        identity=json.loads(build_inputs.read_text(encoding='utf-8'))
+        result.update(pluginZipSha256=identity['pluginZipSha256'],
+                      buildInputsSha256=hashlib.sha256(build_inputs.read_bytes()).hexdigest(),
+                      launcherSha256=hashlib.sha256((app/'bin/goforge64.exe').read_bytes()).hexdigest())
         wire=load_protocol()
         with tempfile.TemporaryDirectory(prefix='GoForge relocation 中文 ') as temporary:
             temp=Path(temporary);relocated=temp/'GoForge relocated';shutil.copytree(app,relocated)
-            env={k.upper():v for k,v in os.environ.items() if k.upper() not in {'GOROOT','GOPATH','GOBIN','GOFLAGS','GOFORGE_JDK','GOFORGE_VM_OPTIONS','GOFORGE_PROPERTIES','JAVA_TOOL_OPTIONS','JDK_JAVA_OPTIONS'}}
-            env.update(APPDATA=str(temp/'Roaming'),LOCALAPPDATA=str(temp/'Local'),GOENV='off',GOTOOLCHAIN='local',CGO_ENABLED='0',
-                       GOPATH=str(temp/'gopath'),GOCACHE=str(temp/'gocache'),GOTELEMETRY='off',
-                       PATH=os.pathsep.join([str(relocated/'goforge-tools/go/bin'),str(relocated/'goforge-tools/bin'),str(Path(env['SYSTEMROOT'])/'System32')]))
+            env=native_environment(relocated,temp,os.environ)
             for name in ('APPDATA','LOCALAPPDATA'):Path(env[name]).mkdir()
             powershell=Path(env['SYSTEMROOT'])/'System32/WindowsPowerShell/v1.0/powershell.exe'
             resources=json.loads(command([powershell,'-NoProfile','-NonInteractive','-Command',
@@ -174,6 +259,8 @@ def main(app,report):
             result['checks']['windowsVersionAndSignature']={'passed':True,'properties':resources}
             probe=command([relocated/'bin/goforge64.exe','goforge-package-info'],env=env,timeout=120)
             assert 'product=GoForge' in probe and str(relocated).lower() in probe.lower(),probe
+            runtime=next(x.removeprefix('runtime=') for x in probe.splitlines() if x.startswith('runtime='))
+            assert Path(runtime).resolve()==(relocated/'jbr').resolve(),runtime
             for key in ('config','system','plugins','log'):
                 line=next(x for x in probe.splitlines() if x.startswith(key+'='));assert str(temp).lower() in line.lower(),line
             result['checks']['nativeLauncherRelocation']={'passed':True,'output':probe}
@@ -190,12 +277,14 @@ def main(app,report):
             (project/'main.go').write_text('package main\nimport "fmt"\nfunc main() {\n message := Hello()\n fmt.Println(message)\n fmt.Println("done")\n}\n',encoding='utf-8')
             (project/'hello.go').write_text('package main\nfunc Hello() string { return "Windows native" }\n',encoding='utf-8')
             (project/'hello_test.go').write_text('package main\nimport "testing"\nfunc TestHello(t *testing.T) { if Hello() != "Windows native" { t.Fatal(Hello()) } }\n',encoding='utf-8')
+            baseline=fixture_hashes(project)
             result['checks']['test']={'passed':True,'output':command([go,'test','-count=1','./...'],cwd=project,env=env)}
             output=command([go,'run','.'],cwd=project,env=env);assert 'Windows native' in output
             result['checks']['run']={'passed':True,'output':output}
             result['checks']['gopls']=lsp(wire,relocated,project,env,report)
             result['checks']['debug']=debug(wire,relocated,project,env,report)
             result['checks']['debugCancel']=debug(wire,relocated,project,env,report,cancel=True)
+            result['checks']['fixtureUnchanged']=require_fixture_unchanged(project,baseline)
             result['passed']=True
     except BaseException as error:
         result['error']=type(error).__name__+': '+str(error);raise

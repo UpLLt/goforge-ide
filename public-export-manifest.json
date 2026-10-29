@@ -18,13 +18,13 @@
     },
     {
       "path": "README.md",
-      "sha256": "205c21793edb4694f5ffd878b62d9c1f84278954e6d97207e893efad771cb720",
-      "size": 13442
+      "sha256": "ef65ecdf7616af2b7b9f80d04795850bbba64fa25e02af686070e3afe93c9197",
+      "size": 9895
     },
     {
       "path": "README.zh-CN.md",
-      "sha256": "ded4975323d041be18ad11c40e70442331c77e4ac3b4c6760e7893017d4aab1b",
-      "size": 11805
+      "sha256": "2ffc90d0117a607459ac4fb148b1ed5b0fac99ce30ecb811692bf700284a5992",
+      "size": 8839
     },
     {
       "path": "THIRD-PARTY-NOTICES.md",
@@ -33,18 +33,18 @@
     },
     {
       "path": "build.gradle.kts",
-      "sha256": "a213975a533e4784bc5b3402406e96516a305ef81751208f664c404822ccdfcd",
-      "size": 6097
+      "sha256": "673c49b496ff5e0568c2f2949ade0a829cb8f9a2b78d3b006f98bb3445859bb4",
+      "size": 6443
     },
     {
       "path": "docs/INSTALL.md",
-      "sha256": "9cf481584ca5054f992152e245a1d84251951b0c3db003d386395b330d973185",
-      "size": 27401
+      "sha256": "0a1661ab628d190daa9ad2b62bca039dfb181585e6de0f2ddf794817a61a2a35",
+      "size": 28083
     },
     {
       "path": "docs/KNOWN-LIMITATIONS.md",
-      "sha256": "16d32ab785cbc51e5acf414cad8e8c0a4838489aa2c89e4c64392ccdeaa053ca",
-      "size": 23621
+      "sha256": "f30732500316952f161a5cb33cf5173afa38f6218ef0ec7f6103df7bbf0a0f6f",
+      "size": 28851
     },
     {
       "path": "docs/PUBLIC-RELEASE.md",
@@ -53,8 +53,8 @@
     },
     {
       "path": "docs/USAGE.md",
-      "sha256": "0b969620e82631a64d6de57bb44d33d4c4272d92230147108b1f928fd0714f66",
-      "size": 40313
+      "sha256": "5e1ba55282ced0ed2c56be438120c66944265d4a0195ce26277fe8ed35a63490",
+      "size": 44303
     },
     {
       "path": "examples/hello-go/go.mod",
@@ -168,8 +168,8 @@
     },
     {
       "path": "packaging/windows/WindowsPackageProbe.java",
-      "sha256": "15aaf20a4a7c8330b444b2c1475fb20ad8b79b9700d2568816d932c4a1f4e74b",
-      "size": 3220
+      "sha256": "9381ad4da87d7e20cc06dd2b842ebd5c19fd8edc566281eb49cde1f9dafbf051",
+      "size": 3531
     },
     {
       "path": "packaging/windows/inputs.json",
@@ -253,8 +253,8 @@
     },
     {
       "path": "scripts/export-public-source.py",
-      "sha256": "173131275adc3ed093d0e2eb546b0171c178c00504d90a2e62a35f8508a995cc",
-      "size": 7214
+      "sha256": "6ad88e8ae516b850eb8512e2c9e3d9c6eefd7b93e5597f13030cf5ec01759b48",
+      "size": 7253
     },
     {
       "path": "scripts/package-macos.py",
@@ -273,8 +273,8 @@
     },
     {
       "path": "scripts/patch-lsp4ij-lifecycle.py",
-      "sha256": "f9630f7c15285759d08be853f92283aa91bd7dfba5cb49cc08f7ffc48bab57f6",
-      "size": 7376
+      "sha256": "cface7b96c11b8269c67e992e3c8ee97249b693572f4a5bc21c4785d7f11b687",
+      "size": 7648
     },
     {
       "path": "scripts/patch-lsp4ij-metadata.py",
@@ -318,8 +318,8 @@
     },
     {
       "path": "scripts/test-patch-lsp4ij-lifecycle.py",
-      "sha256": "4a95315f505defe4ff3ce3c8baf4b5a3555eda241aa24632a1818b8f494122f5",
-      "size": 5658
+      "sha256": "bd147c9de199872848814cca9b9551c4faec18984c9395c4c5460bc3d45830da",
+      "size": 6929
     },
     {
       "path": "scripts/test-patch-lsp4ij-metadata.py",
@@ -333,8 +333,13 @@
     },
     {
       "path": "scripts/test-setup-extra-tools.py",
-      "sha256": "87b19ffe1d09892a621e8c6641293ef9f413d26068de6b5e35cf5141bf45bd9d",
-      "size": 12308
+      "sha256": "d224b418944f0d5998dd4ba9acb6e22f3aae7bf12787e1b5b27b64edf413f842",
+      "size": 12415
+    },
+    {
+      "path": "scripts/test-verify-windows-package.py",
+      "sha256": "f7b9bbef311a8d01037b00c3c902d18952f6651a06167c3eeb2d2bf0e9d4e0ee",
+      "size": 8366
     },
     {
       "path": "scripts/verify-protocols.py",
@@ -343,8 +348,8 @@
     },
     {
       "path": "scripts/verify-windows-package.py",
-      "sha256": "d24ca0337ddca362aec6bc10d8264b3961f1975f48eb7e505e8834015bf0ab60",
-      "size": 13314
+      "sha256": "ae8aaeac12a8b97a558f0de9eeeb600d11a358c320896982a8fcded6a0e00fa3",
+      "size": 18534
     },
     {
       "path": "settings.gradle.kts",
@@ -832,6 +837,21 @@
       "size": 13874
     },
     {
+      "path": "src/main/java/dev/goforge/refactor/GoChangeScalarType.java",
+      "sha256": "14c1bbd052bd1cb2ee9dd2c2a6762a9c6971f2527a5148296f04dbf54dee334a",
+      "size": 27786
+    },
+    {
+      "path": "src/main/java/dev/goforge/refactor/GoChangeScalarTypeDialog.java",
+      "sha256": "6cb5c89f5ec373a675e791b0ec36530ed0e217c63b01d86fc9b2ed40b96c31bd",
+      "size": 2689
+    },
+    {
+      "path": "src/main/java/dev/goforge/refactor/GoChangeScalarTypeSource.java",
+      "sha256": "dff37f9f7df42b3a2e66934162d113604e7e3c02ca2a3893b6d004cec4351fe6",
+      "size": 10078
+    },
+    {
       "path": "src/main/java/dev/goforge/refactor/GoChangeSignature.java",
       "sha256": "9ea51d9697216761447ff38669d67f4fdba13c26e4f35d7b85a5f7c9794835e6",
       "size": 2924
@@ -843,8 +863,8 @@
     },
     {
       "path": "src/main/java/dev/goforge/refactor/GoRefactorAction.java",
-      "sha256": "abe8626fd6d5dc16df88e58605412ecd89f195368b67d222926b3b44b37b0a14",
-      "size": 20740
+      "sha256": "7f550d6514f71f7f6075894ecd2ce0b72956e716a12a869103c7b085d63084ed",
+      "size": 25275
     },
     {
       "path": "src/main/java/dev/goforge/refactor/GoRefactorApply.java",
@@ -908,23 +928,33 @@
     },
     {
       "path": "src/main/java/dev/goforge/remote/GoRemoteAnalysisConfig.java",
-      "sha256": "29e13be555460bb6a3f123a30f2d8e61b314db3e41b0456a37e3daab51cdafdc",
-      "size": 2602
+      "sha256": "acf8c3f48130d7ef7ff7364113d5e4a93671855eeaa6db901b08c123758943ef",
+      "size": 3631
+    },
+    {
+      "path": "src/main/java/dev/goforge/remote/GoRemoteAnalysisDocuments.java",
+      "sha256": "ebe9d62aa9708f75af5f632e0f49e0e7207d262ad3c57db24254876f4ca44ff2",
+      "size": 1621
+    },
+    {
+      "path": "src/main/java/dev/goforge/remote/GoRemoteAnalysisReview.java",
+      "sha256": "9be878d8a86c521d1bee9d063d595152e73ed98b44067c3f03fc0711c69fdeef",
+      "size": 3099
     },
     {
       "path": "src/main/java/dev/goforge/remote/GoRemoteAnalysisScript.java",
-      "sha256": "4b5b0a7ea0514cd58be9a3870abf03d9d6977a544f6edaa77ab6bdecb9240433",
-      "size": 7040
+      "sha256": "7aa30ab0b271a72bbbd3189bd7f9f683969caf413485fbde4edabfe94cf53bac",
+      "size": 9442
     },
     {
       "path": "src/main/java/dev/goforge/remote/GoRemoteAnalysisService.java",
-      "sha256": "c50fd0a5fdf2b4e44c96f5328700cc41d4d17d2d63183490fdba54d7f2c542dd",
-      "size": 4403
+      "sha256": "3ca3053b2e79fcbdf48bd0954cfd2e8b70e33557961be7a1444f8444c8e319ba",
+      "size": 5373
     },
     {
       "path": "src/main/java/dev/goforge/remote/GoRemoteBackend.java",
-      "sha256": "707d5fa715713e1bdbef49eaee4803433ed76df6d8113c4ddaa15a71ed5f8a45",
-      "size": 3813
+      "sha256": "6f0c73f58e05f519ff79bcfb138790009aacda94aba9fb22e2141cd524c9be1d",
+      "size": 3850
     },
     {
       "path": "src/main/java/dev/goforge/remote/GoRemoteDebugDocuments.java",
@@ -978,18 +1008,18 @@
     },
     {
       "path": "src/main/java/dev/goforge/remote/GoRemoteLspMapping.java",
-      "sha256": "9570ec71e2f6589cb858fb896e1ecee1dc19f4f3e310c64331de0461e2466899",
-      "size": 5411
+      "sha256": "0aad152574725e52da36ed727fafda50af3b138d8744bf4998aa50fe5d266489",
+      "size": 5993
     },
     {
       "path": "src/main/java/dev/goforge/remote/GoRemoteLspTransport.java",
-      "sha256": "ad1b674b3be1572d06678de5656aabc84eebefe6c85928e63294d983840206fc",
-      "size": 14325
+      "sha256": "39180a86ebd3570c0102e68c0624f42a1eeadb6d08ea390757bae867d6d66c27",
+      "size": 17920
     },
     {
       "path": "src/main/java/dev/goforge/remote/GoRemotePanel.java",
-      "sha256": "d1626ee262e18980f78730580398548b4c2d308a52e873170eb17262504125e6",
-      "size": 12483
+      "sha256": "bcdb9ceb4a33866908c1b53f5e4308f7cc2cb0e96b8b7039c480a5d98926aa0d",
+      "size": 12596
     },
     {
       "path": "src/main/java/dev/goforge/remote/GoRemoteProcess.java",
@@ -1008,8 +1038,8 @@
     },
     {
       "path": "src/main/java/dev/goforge/remote/GoRemoteService.java",
-      "sha256": "5454ae65298995aa2f6ed8bbd8f9bf77c959ddcf0ab370abba6ef685cd4d80fd",
-      "size": 15994
+      "sha256": "6e32d26cd5e1b6ced984f6823450b1bbcc8535542ae27f6e34463f369de7ddce",
+      "size": 16770
     },
     {
       "path": "src/main/java/dev/goforge/remote/GoRemoteSettings.java",
@@ -1507,6 +1537,16 @@
       "size": 3486
     },
     {
+      "path": "src/test/java/dev/goforge/refactor/GoChangeScalarTypeProtocolProbe.java",
+      "sha256": "ebf24fa0bf64dce9b580287f78cec8f453a46ed9e0fe225597c396438af8d1df",
+      "size": 13756
+    },
+    {
+      "path": "src/test/java/dev/goforge/refactor/GoChangeScalarTypeTest.java",
+      "sha256": "7fc3ad07dac66f41aea71bbd712476b7054731867ce524575008cc44ccfdf917",
+      "size": 7493
+    },
+    {
       "path": "src/test/java/dev/goforge/refactor/GoChangeSignatureProtocolProbe.java",
       "sha256": "4b4af30a1c76f714397717211f4290d73699c8961babf487c0135fe9ed6f57d8",
       "size": 18217
@@ -1582,14 +1622,24 @@
       "size": 5100
     },
     {
+      "path": "src/test/java/dev/goforge/remote/GoRemoteAnalysisDocumentsTest.java",
+      "sha256": "ab192ffcf155e6d898f80d9954f76ef39ef9e4c2e6f0eb45abc72039a0729481",
+      "size": 4850
+    },
+    {
       "path": "src/test/java/dev/goforge/remote/GoRemoteAnalysisLifecycleTest.java",
       "sha256": "3d7af985fddca1e3d23a2843f23140e41cdd0563b3aa2ea22ca7610bfc54835a",
       "size": 1647
     },
     {
       "path": "src/test/java/dev/goforge/remote/GoRemoteAnalysisProbeMain.java",
-      "sha256": "e7cbc1324b10bdbe3712d662d1dc82745c400cc3f9889d0b1ae39d15d08d916e",
-      "size": 1979
+      "sha256": "482875761bf47ecaa8b04e1abe0acd13f7a6c6e9e051f2aecf4b2ef96c6ab986",
+      "size": 2636
+    },
+    {
+      "path": "src/test/java/dev/goforge/remote/GoRemoteAnalysisWorkspaceTest.java",
+      "sha256": "ef5f9e54ff2a8b533fb6482af5e68706291f906d51a4a26bcc8728f6c68330d9",
+      "size": 7576
     },
     {
       "path": "src/test/java/dev/goforge/remote/GoRemoteDebugIntegrationTest.java",
@@ -1598,8 +1648,8 @@
     },
     {
       "path": "src/test/java/dev/goforge/remote/GoRemoteDebugPlanTest.java",
-      "sha256": "383b7f6f948f836fbee69b4cd278e0b6985e78fee78de33832a1ab0099562493",
-      "size": 6157
+      "sha256": "03d95be4255897bb9f466001235c482d460eb24b4783c1f216084ace1cfef870",
+      "size": 6461
     },
     {
       "path": "src/test/java/dev/goforge/remote/GoRemoteDebugProbeMain.java",
@@ -1725,6 +1775,11 @@
       "path": "src/test/resources/dev/goforge/refactor/add_parameter_generic_test.go",
       "sha256": "faa810d054dfcec585eebe44af6c1f5ae26eaf5d06602c0c8a8a5a81f7468bb9",
       "size": 9962
+    },
+    {
+      "path": "src/test/resources/dev/goforge/refactor/change_scalar_type_test.go",
+      "sha256": "39285d75a3bfd5f54f3d45f50bf005b49645fed8bf4635965767a9d76aca651c",
+      "size": 5299
     },
     {
       "path": "src/test/resources/dev/goforge/testing/benchmarks/README.txt",

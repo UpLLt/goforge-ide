@@ -68,14 +68,22 @@ public final class GoRemoteService implements Disposable {
     }
     void analyze(GoRemoteProfile p,String gopls) {
         GoRemoteAnalysisConfig.validateExecutable(gopls);
+        GoRemoteAnalysisDocuments.requireSavedMetadata(local());
         long generation=beginAnalysisRequest();
-        start("Prepare remote analysis preview",c -> GoRemoteFiles.snapshot(local(),c),snapshot -> {
+        start("Prepare remote analysis preview",c -> {
+            var environment=new GeneralCommandLine().getEffectiveEnvironment();
+            String go=dev.goforge.tools.GoToolResolver.resolve(dev.goforge.settings.GoForgeSettings.getInstance().goPath,"go",project.getBasePath(),environment);
+            var snapshot=GoRemoteFiles.snapshot(local(),c);
+            return GoRemoteAnalysisReview.inspect(local(),snapshot,go,environment,c);
+        },review -> {
+            var snapshot=review.snapshot();
             var text=new StringBuilder("Local project: ").append(local()).append("\nRemote parent: ").append(p.host()).append(':').append(p.remoteDirectory())
                     .append("\nRemote gopls: ").append(gopls).append("\n\nCreate a NEW private analysis snapshot and switch this project's Go language features to remote gopls.\n")
                     .append("No tools are installed on the remote host. It needs Python 3, Go and gopls.\n")
                     .append("Unsaved editor text is sent as LSP overlays; saving updates ONLY this session's snapshot with conflict checks.\n")
                     .append("Local files are never replaced by download. Rename edits use the normal IDE preview/undo.\n")
-                    .append("Single go.mod module; GOWORK=off, no module downloads or local environment forwarding. Existing remote module cache can be used.\n")
+                    .append(review.description()).append("\nWorkspace metadata stays fixed for this session. Save metadata edits and request a fresh preview to change modules/dependencies.\n")
+                    .append("No module downloads or local environment forwarding. Existing remote module cache can be used.\n")
                     .append("External dependency navigation is unavailable. Adding/deleting/renaming files requires a new snapshot.\n")
                     .append("Stop/close disconnects processes but retains the remote snapshot for your review. Activation is not saved across IDE restarts.\n\n")
                     .append(snapshot.files().size()).append(" saved files, ").append(snapshot.bytes()).append(" bytes:\n");
@@ -83,8 +91,10 @@ public final class GoRemoteService implements Disposable {
             text.append("\nExcluded:\n");snapshot.skipped().forEach(f -> text.append(f).append('\n'));
             if(!new Preview(project,text.toString(),"Start remote analysis","Create snapshot and analyze").showAndGet())return;
             if(!isCurrentAnalysisRequest(generation))return;
-            start("Create remote analysis snapshot",c -> GoRemoteAnalysisConfig.create(backend(),p,local(),gopls,snapshot,c),config -> {
+            GoRemoteAnalysisDocuments.requireSavedMetadata(local());
+            start("Create remote analysis snapshot",c -> GoRemoteAnalysisConfig.create(backend(),p,local(),gopls,review,c),config -> {
                 commitAnalysisRequest(generation,() -> {
+                    GoRemoteAnalysisDocuments.requireSavedMetadata(local());
                     GoRemoteAnalysisService.getInstance(project).activate(config);
                     notice("Remote analysis selected: "+p.host()+":"+config.remoteRoot()+"\nOpen a Go file to initialize the language server. Existing open Go editors reconnect with their current unsaved text.\n");
                 });

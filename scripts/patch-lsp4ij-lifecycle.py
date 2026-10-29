@@ -46,6 +46,10 @@ def rewrite(data, replacement, marker=None, remove_marker=False):
             target.writestr(entry, replacement if entry.filename == CLASS else source.read(entry.filename))
         if marker is not None:
             entry = zipfile.ZipInfo(MARKER, (2026, 1, 1, 0, 0, 0))
+            # ZipInfo defaults to DOS metadata on Windows and Unix elsewhere.
+            # Pin the provenance entry's origin as well as its mode/timestamp so
+            # the reviewed complete-archive hash is identical on every host.
+            entry.create_system = 3
             entry.compress_type = zipfile.ZIP_DEFLATED
             entry.external_attr = 0o100644 << 16
             target.writestr(entry, (json.dumps(marker, indent=2) + '\n').encode())

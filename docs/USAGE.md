@@ -127,11 +127,11 @@ e6b3 原生检查正确选择 `TestOne`、`TestTwo` 和 `TestCases` 父测试，
 
 Place the caret on a declaration's **`func`** keyword, invoke **Go Refactor…**, and select **Change signature across files…**. Edit the proposed function type to reorder existing parameters or remove unused parameters. Keep the original parameter names, parameter types and result types. Review every affected file before Apply; ordinary Undo/Redo covers the whole change.
 
-This bounded operation checks direct callers in the captured project, including synchronized unsaved documents. Caller arguments must be identifiers or literals. Calls, indexing, dereferences, channel receives, indirect function references, variadic expansion, missing references and unsupported generic operations are refused before applying. This reorder/removal dialog does not add parameters; use the separate bounded operation below in current source. Changing existing types/results and moving declarations between packages remain incomplete.
+This bounded operation checks direct callers in the captured project, including synchronized unsaved documents. Caller arguments must be identifiers or literals. Calls, indexing, dereferences, channel receives, indirect function references, variadic expansion, missing references and unsupported generic operations are refused before applying. This reorder/removal dialog does not add parameters; use the separate bounded operation below in current source. For a bounded existing scalar parameter/result type change, use the separate operation below. Arbitrary type changes and moving declarations between packages remain incomplete.
 
 把光标放在声明的 **`func`** 关键字上，执行 **Go Refactor… → Change signature across files…**。在函数类型模板中重排现有参数，或删除未使用参数；保留参数名、类型与返回值类型。检查全部受影响文件后 Apply，普通 Undo/Redo 统一撤销或重做整组修改。
 
-当前会检查项目内直接调用及已同步的未保存文档。实参只接受标识符或字面量；函数调用、下标、解引用、通道接收、间接函数引用、可变参数展开、缺失引用及不支持的泛型操作会在应用前拒绝。此重排/删除对话框不新增参数；当前源码使用下方独立的限定新增操作。修改现有类型/返回值、跨包移动声明仍未完成。
+当前会检查项目内直接调用及已同步的未保存文档。实参只接受标识符或字面量；函数调用、下标、解引用、通道接收、间接函数引用、可变参数展开、缺失引用及不支持的泛型操作会在应用前拒绝。此重排/删除对话框不新增参数；当前源码使用下方独立的限定新增操作。现有标量参数/返回值类型可用下方独立的限定操作；任意类型迁移、跨包移动声明仍未完成。
 
 ### Add one parameter / 新增一个参数
 
@@ -154,6 +154,18 @@ Methods, variadics, grouped/unnamed parameters, function-value references (inclu
 支持有函数体的普通函数，包括泛型函数。泛型调用可以推断类型实参、完整显式指定，或指定前缀后推断其余类型；括号可包住完整实例化的调用目标，例如 `(Join[string, string])(...)`，但括号内未实例化或仅部分实例化的泛型值会拒绝。原类型参数、约束、显式类型实参及原值实参顺序保持不变。现有值参数须逐个具名且不能是 `_`，新名字不能已出现在函数、类型参数或约束中。新类型限 `bool`、`string`、预声明数值类型、`byte`、`rune` 和 `uintptr`。默认值限类型可表示的数值/字符串/字符字面量、带正负号数值或 `true`/`false`；`int`、`uint`、`uintptr` 按可移植的 32 位范围校验。布尔默认值在预览中呈现为常量比较，避免调用方同名变量遮蔽。
 
 方法、可变参数、合并/未命名参数、函数值引用（含实例化后作为值使用的函数）、嵌套实例化、多返回值/可变参数调用形态、运行时或测试入口，以及带编译/链接指令的函数会拒绝。声明文件的导入必须使用明确别名；新增标量类型被声明、导入或函数类型参数遮蔽时也会拒绝，新增参数的类型不能是自定义类型或类型参数。引用必须位于捕获的项目内并可验证为直接调用；无关的同名标识符也可能触发保守拒绝。任意默认表达式、导入类型/自定义类型、修改现有类型或返回值、跨包移动声明仍不在此操作范围内。
+
+### Change an existing scalar type / 修改现有标量类型
+
+In current source, place the caret on a free-function declaration's **`func`** keyword and choose **Go Refactor… → Change scalar parameter/result type…**. Select **Existing parameter** and its zero-based position, or **Single result**; enter a Go predeclared scalar type and select **Compile and preview**. Inspect the change, Apply, and save. The operation edits one type token; it checks captured callers without inserting conversions or rewriting their expressions. Generic function constraints and type arguments are retained. Undo/Redo uses the ordinary refactoring workflow.
+
+Both the captured module and changed module, including tests, must compile in a temporary copy. This check does not execute project initialization, `TestMain`, or tests. Compilation proves static compatibility within that snapshot; changing a type can still change runtime behavior. Missing cached dependencies or incompatible callers produce a refusal before edits.
+
+The current scope requires one standalone module, default host build settings and already-cached dependencies. Methods, function values, grouped parameters, multiple results, build conditions, cgo/assembly, vendor trees, embedded resources, local replacements and references outside the captured project are refused. Save or revert module/workspace metadata first; metadata changes invalidate this operation's preview. The preview also binds the selected Go SDK and effective settings, including cgo and CPU feature selection; changing the SDK or GOENV configuration requires a fresh preview. Pure-Go dependencies under the actual cgo tag remain supported; dependencies requiring C compilation are refused. Stop remote analysis before using this local check. This does not provide arbitrary type migration or full Change Signature parity.
+
+在当前源码中，将光标放到普通函数声明的 **`func`** 上，选择 **Go Refactor… → Change scalar parameter/result type…**。选择现有参数及从 `0` 开始的位置，或选择单一返回值，填写 Go 预声明标量类型，点击 **Compile and preview**。检查后 Apply 并保存；普通 Undo/Redo 可撤销或重做。操作只修改一个类型标识符，检查调用方但不自动插入强制转换或改写表达式，保留泛型约束与类型实参。
+
+检查会在临时副本内分别编译修改前后的模块及测试，不执行项目初始化、`TestMain` 或测试函数。编译通过只证明该快照的静态兼容性，类型变化仍可能改变运行行为。依赖未缓存或调用不兼容会在编辑前拒绝。当前限单独模块、默认本机构建设置；方法、函数值、合并参数、多返回值、条件构建、cgo/汇编、vendor、嵌入资源、本地 replace 和项目外引用仍不支持。先保存或还原模块元数据，元数据变化会使本操作预览失效；预览也绑定 Go SDK 及有效配置（含 cgo 和 CPU 特性），切换 SDK 或修改 GOENV 后需重新预览。实际 cgo 标签下的纯 Go 依赖仍可使用，需要 C 编译的依赖会拒绝；远端分析需先停止。这不等于任意类型迁移或完整签名重构。
 
 ### Preview safety and file changes / 预览期间的文件变化
 
@@ -190,8 +202,8 @@ The adapter binds remote DAP to loopback and relays it through SSH. Local/remote
 
 Open the common directory containing **`go.work`**, with all `use` modules and local `replace` directories beneath that root. Their paths must be relative and free of symlinks. Keep the same relative layout remotely. In **Go debug**, enter the package directory relative to the common root, such as `app`, instead of selecting a non-module workspace root. Review lists the bound modules before starting.
 
-Debugging uses a private copy of `go.work` and `go.work.sum`; the original files remain unchanged. The current review supports 1–32 modules, up to 64 local replacement directories and at most 512 visible saved files within the startup-manifest limit. Dependencies must already be available remotely. This expands remote **debugging**; snapshot **Go analysis** remains single-module. Windows drive and UNC path mapping has protocol checks, but Windows-native acceptance remains pending.
+Debugging uses a private copy of `go.work` and `go.work.sum`; the original files remain unchanged. The current review supports 1–32 modules, up to 64 local replacement directories and at most 512 visible saved files within the startup-manifest limit. Dependencies must already be available remotely. Current source also supports explicitly reviewed **Go analysis** snapshots using the same contained module topology. Analysis uses a private workspace file, supports cross-module unsaved overlays, and stops on local or remote module/workspace metadata changes. Start a fresh reviewed session after metadata or file-set changes. The 512-file limit above is the debug startup limit; analysis retains its separate snapshot size limits. Windows drive and UNC path mapping has protocol checks, but Windows-native acceptance remains pending.
 
 打开包含 **`go.work`** 的公共目录，所有 `use` 模块及本地 `replace` 目录都须在该根目录下，使用相对路径且不经过符号链接；远端保持相同相对布局。在 **Go debug** 输入相对公共根目录的包路径，例如 `app`，不要选择本身不是模块的工作区根目录。Review 会列出本次绑定的模块。
 
-调试使用 `go.work` 与 `go.work.sum` 的私有副本，不改写原文件。目前支持 1–32 个模块、最多 64 个本地替换目录、最多 512 个可见已保存文件，并受启动清单大小限制；远端依赖须预先就绪。这项扩展适用于**调试**，快照 **Go analysis** 仍为单模块。Windows 盘符及 UNC 映射已有协议检查，尚未完成 Windows 原生验收。
+调试使用 `go.work` 与 `go.work.sum` 的私有副本，不改写原文件。目前支持 1–32 个模块、最多 64 个本地替换目录、最多 512 个可见已保存文件，并受启动清单大小限制；远端依赖须预先就绪。当前源码的 **Go analysis** 也支持按同样目录边界显式审阅的多模块快照，使用私有工作区文件，支持跨模块未保存 overlay；本地或远端模块/工作区元数据变化会停止会话，文件集合或元数据变化后需重新审阅启动。上述 512 文件限制属于调试启动，分析保留其独立快照大小限制。Windows 盘符及 UNC 映射已有协议检查，尚未完成 Windows 原生验收。

@@ -88,21 +88,27 @@ tasks.withType<PrepareSandboxTask>().configureEach {
             if (System.getProperty("os.name").startsWith("Windows")) "python" else "python3"
         ).get()
         val result = providers.exec {
+            isIgnoreExitValue = true
             commandLine(python, patchScript.asFile.absolutePath,
                 "--plugin-dir", dependency.absolutePath)
         }
         logger.lifecycle(result.standardOutput.asText.get())
+        val metadataError = result.standardError.asText.get()
+        if (metadataError.isNotBlank()) logger.error(metadataError)
         result.result.get().assertNormalExitValue()
         val platformHome = sourceSets.main.get().compileClasspath.files.single {
             it.name == "app-client.jar"
         }.parentFile.parentFile
         val javac = javaToolchains.compilerFor(java.toolchain).get().executablePath.asFile
         val lifecycleResult = providers.exec {
+            isIgnoreExitValue = true
             commandLine(python, lifecycleScript.asFile.absolutePath,
                 "--plugin-dir", dependency.absolutePath,
                 "--platform-home", platformHome.absolutePath, "--javac", javac.absolutePath)
         }
         logger.lifecycle(lifecycleResult.standardOutput.asText.get())
+        val lifecycleError = lifecycleResult.standardError.asText.get()
+        if (lifecycleError.isNotBlank()) logger.error(lifecycleError)
         lifecycleResult.result.get().assertNormalExitValue()
     }
 }

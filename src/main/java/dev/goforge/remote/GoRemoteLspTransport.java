@@ -15,6 +15,7 @@ public final class GoRemoteLspTransport implements AutoCloseable {
     private final GoRemoteLspMapping mapping;
     private final Consumer<String> notice;
     private final Runnable onFailure;
+    private final String runtimeWorkFile,remoteGowork;
     private final Process process;
     private final PipedInputStream requests=new PipedInputStream(128*1024),responses=new PipedInputStream(128*1024);
     private final PipedOutputStream clientOutput,clientInput;
@@ -28,9 +29,13 @@ public final class GoRemoteLspTransport implements AutoCloseable {
         this(config,environment,notice,() -> {});
     }
     public GoRemoteLspTransport(GoRemoteAnalysisConfig config,Map<String,String> environment,Consumer<String> notice,Runnable onFailure)throws IOException {
-        this.config=config;this.notice=notice;this.onFailure=onFailure;mapping=new GoRemoteLspMapping(config.localRoot(),config.remoteRoot());
+        this.config=config;this.notice=notice;this.onFailure=onFailure;
+        runtimeWorkFile=config.workspace().enabled()?".goforge-runtime-"+UUID.randomUUID()+".work":"";
+        remoteGowork=runtimeWorkFile.isEmpty()?"off":config.remoteRoot()+"/"+runtimeWorkFile;
+        mapping=new GoRemoteLspMapping(config.localRoot(),config.remoteRoot(),runtimeWorkFile);
+        requireMetadataCurrent(config);
         clientOutput=new PipedOutputStream(requests);clientInput=new PipedOutputStream(responses);
-        String command=GoRemoteScripts.python(GoRemoteAnalysisScript.SOURCE,config.remoteRoot(),config.name(),config.gopls(),config.profile().goExecutable());
+        String command=GoRemoteScripts.python(GoRemoteAnalysisScript.SOURCE,config.remoteRoot(),config.name(),config.gopls(),config.profile().goExecutable(),config.workspace().workFile(),runtimeWorkFile);
         var builder=new ProcessBuilder(config.profile().ssh(dev.goforge.tools.HostTools.resolve("ssh",environment),command,false)).directory(config.localRoot().toFile());
         dev.goforge.tools.HostTools.putEnvironment(builder.environment(),environment);process=builder.start();
         daemon(() -> pumpClient(),"GoForge remote LSP requests");
@@ -59,8 +64,15 @@ public final class GoRemoteLspTransport implements AutoCloseable {
                     var params=packet.getAsJsonObject("params");
                     if(params.has("textDocument")&&params.getAsJsonObject("textDocument").has("uri")) {
                         try {
-                            if(!config.files().contains(mapping.relative(params.getAsJsonObject("textDocument").get("uri").getAsString()))) {
+                            String relative=mapping.relative(params.getAsJsonObject("textDocument").get("uri").getAsString());
+                            if(!config.files().contains(relative)) {
                                 reject(packet,"This file was excluded from the remote snapshot. Start a new snapshot to analyze it.");continue;
+                            }
+                            if(GoRemoteAnalysisReview.isMetadata(relative)) {
+                                if(method.equals("textDocument/didChange"))throw new IOException("Workspace/module metadata was edited. Save it and request a fresh remote analysis preview.");
+                                if(method.equals("textDocument/didOpen")&&params.getAsJsonObject("textDocument").has("text")
+                                        &&!GoRemoteFiles.hash(params.getAsJsonObject("textDocument").get("text").getAsString().getBytes(java.nio.charset.StandardCharsets.UTF_8)).equals(config.metadata().get(relative)))
+                                    throw new IOException("Unsaved workspace/module metadata differs from the reviewed snapshot. Save it and start analysis again.");
                             }
                         }catch(IllegalArgumentException outside){reject(packet,outside.getMessage());continue;}
                     }
@@ -73,10 +85,10 @@ public final class GoRemoteLspTransport implements AutoCloseable {
                 try {mapped=mapping.rewrite(packet,true).getAsJsonObject();}
                 catch(IllegalArgumentException boundary){reject(packet,boundary.getMessage());continue;}
                 if(method.equals("initialize")) {
-                    var params=mapped.getAsJsonObject("params");params.add("processId",JsonNull.INSTANCE);
-                    params.addProperty("trace","off");
+                    initializeWorkspace(mapped,mapping,config.localRoot().getFileName().toString());
+                    sanitizeSettings(mapped,remoteGowork);
                 }
-                if(method.equals("workspace/didChangeConfiguration")||!packet.has("method")&&packet.has("id")&&configurationIds.remove(packet.get("id").toString()))sanitizeSettings(mapped);
+                if(method.equals("workspace/didChangeConfiguration")||!packet.has("method")&&packet.has("id")&&configurationIds.remove(packet.get("id").toString()))sanitizeSettings(mapped,remoteGowork);
                 if(method.equals("textDocument/didSave")||method.equals("workspace/didChangeWatchedFiles"))mapped=withSavedFiles(packet,mapped,method);
                 GoRemoteLspFraming.write(process.getOutputStream(),mapped);
             }
@@ -101,6 +113,8 @@ public final class GoRemoteLspTransport implements AutoCloseable {
             byte[] bytes;
             try(var channel=Files.newByteChannel(path,Set.of(StandardOpenOption.READ,LinkOption.NOFOLLOW_LINKS));var stream=java.nio.channels.Channels.newInputStream(channel)) {bytes=stream.readNBytes(GoRemoteFiles.FILE_LIMIT+1);}
             if(bytes.length>GoRemoteFiles.FILE_LIMIT)throw new IOException("Saved file exceeds the 8 MiB snapshot limit.");
+            if(GoRemoteAnalysisReview.isMetadata(relative)&&!GoRemoteFiles.hash(bytes).equals(config.metadata().get(relative)))
+                throw new IOException("Workspace/module metadata changed. Save metadata and create a fresh reviewed analysis snapshot.");
             var row=new JsonObject();row.addProperty("path",relative);row.addProperty("data",Base64.getEncoder().encodeToString(bytes));files.add(row);
         }
         var params=new JsonObject();params.add("files",files);params.add("message",mapped);
@@ -117,7 +131,7 @@ public final class GoRemoteLspTransport implements AutoCloseable {
                 if(method.equals("workspace/configuration")&&packet.has("id"))configurationIds.add(packet.get("id").toString());
                 if(packet.has("result")&&packet.get("result").isJsonObject()&&packet.getAsJsonObject("result").has("capabilities")) {
                     var caps=packet.getAsJsonObject("result").getAsJsonObject("capabilities");caps.remove("executeCommandProvider");
-                    if(!initialized){initialized=true;notice.accept("Remote Go analysis initialized. Unsaved overlays are active; saved content updates only the owned snapshot.\n");}
+                    if(!initialized){initialized=true;notice.accept("Remote Go analysis initialized for "+config.workspace().modules().size()+" module(s). Unsaved Go overlays are active; saved source updates only the owned snapshot. Workspace metadata stays fixed until a fresh review.\n");}
                 }
                 // Keep workspace diagnostics even if a related location is an external dependency.
                 if(method.equals("textDocument/publishDiagnostics"))stripExternalRelatedLocations(packet);
@@ -143,14 +157,34 @@ public final class GoRemoteLspTransport implements AutoCloseable {
         }
     }
     static void sanitizeSettings(JsonElement value) {
+        sanitizeSettings(value,"off");
+    }
+    static void sanitizeSettings(JsonElement value,String gowork) {
         if(value==null)return;
-        if(value.isJsonArray()) {value.getAsJsonArray().forEach(GoRemoteLspTransport::sanitizeSettings);return;}
+        if(value.isJsonArray()) {value.getAsJsonArray().forEach(item -> sanitizeSettings(item,gowork));return;}
         if(!value.isJsonObject())return;
         var object=value.getAsJsonObject();
-        if(object.has("env")) {var env=new JsonObject();env.addProperty("GOWORK","off");env.addProperty("GOTOOLCHAIN","local");env.addProperty("GOPROXY","off");env.addProperty("GOSUMDB","off");object.add("env",env);}
+        if(object.has("env")) {var env=new JsonObject();env.addProperty("GOWORK",gowork);env.addProperty("GOENV","off");env.addProperty("GOFLAGS","-mod=readonly");env.addProperty("GOPACKAGESDRIVER","off");env.addProperty("GOTOOLCHAIN","local");env.addProperty("GOPROXY","off");env.addProperty("GOSUMDB","off");object.add("env",env);}
         // Absolute local build flags cannot describe the remote filesystem. Only build tags are forwarded.
         if(object.has("buildFlags")) {var flags=new JsonArray();for(var flag:object.getAsJsonArray("buildFlags"))if(flag.isJsonPrimitive()&&flag.getAsString().startsWith("-tags="))flags.add(flag);object.add("buildFlags",flags);}
-        for(var entry:object.entrySet())sanitizeSettings(entry.getValue());
+        for(var entry:object.entrySet())sanitizeSettings(entry.getValue(),gowork);
+    }
+    static void initializeWorkspace(JsonObject packet,GoRemoteLspMapping mapping,String name) {
+        var params=packet.getAsJsonObject("params");params.add("processId",JsonNull.INSTANCE);params.addProperty("trace","off");
+        String root=mapping.uri(Path.of(mapping.localRoot()).toUri().toASCIIString(),true);
+        params.addProperty("rootUri",root);params.addProperty("rootPath",mapping.remoteRoot());
+        var folder=new JsonObject();folder.addProperty("uri",root);folder.addProperty("name",name);
+        var folders=new JsonArray();folders.add(folder);params.add("workspaceFolders",folders);
+    }
+    static void requireMetadataCurrent(GoRemoteAnalysisConfig config)throws IOException {
+        for(var entry:config.metadata().entrySet()) {
+            Path path=config.localRoot().resolve(entry.getKey()),walk=config.localRoot();
+            for(Path part:config.localRoot().relativize(path)){walk=walk.resolve(part);if(Files.isSymbolicLink(walk))throw new IOException("Analysis metadata became a symlink; request a fresh review.");}
+            byte[] bytes;
+            try(var channel=Files.newByteChannel(path,Set.of(StandardOpenOption.READ,LinkOption.NOFOLLOW_LINKS));var stream=java.nio.channels.Channels.newInputStream(channel)){bytes=stream.readNBytes(GoRemoteFiles.FILE_LIMIT+1);}
+            if(bytes.length>GoRemoteFiles.FILE_LIMIT||!GoRemoteFiles.hash(bytes).equals(entry.getValue()))throw new IOException("Analysis metadata changed after review; request a fresh analysis snapshot.");
+        }
+        if(!config.workspace().enabled()&&Files.exists(config.localRoot().resolve("go.work"),LinkOption.NOFOLLOW_LINKS))throw new IOException("A go.work appeared after review; request a fresh analysis snapshot.");
     }
     private void reject(JsonObject packet,String reason)throws IOException {notice.accept(reason+"\n");if(packet.has("id"))GoRemoteLspFraming.write(clientInput,error(packet.get("id"),reason));}
     private static JsonObject error(JsonElement id,String reason) {var response=new JsonObject();response.addProperty("jsonrpc","2.0");response.add("id",id);var error=new JsonObject();error.addProperty("code",-32001);error.addProperty("message",reason);response.add("error",error);return response;}

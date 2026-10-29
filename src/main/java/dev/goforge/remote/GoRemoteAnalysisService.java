@@ -22,7 +22,20 @@ public final class GoRemoteAnalysisService implements Disposable {
     private volatile GoRemoteAnalysisConfig active;
     private volatile GoRemoteAnalysisConfig failed;
     private volatile boolean disposed;
-    public GoRemoteAnalysisService(Project project){this.project=project;}
+    public GoRemoteAnalysisService(Project project){
+        this.project=project;
+        com.intellij.openapi.editor.EditorFactory.getInstance().getEventMulticaster().addDocumentListener(
+            new com.intellij.openapi.editor.event.DocumentListener() {
+                @Override public void documentChanged(com.intellij.openapi.editor.event.DocumentEvent event) {
+                    var selected=active;
+                    if(selected!=null&&failed!=selected&&GoRemoteAnalysisDocuments.isMetadata(selected.localRoot(),
+                            com.intellij.openapi.fileEditor.FileDocumentManager.getInstance().getFile(event.getDocument()))) {
+                        failed=selected;transports.forEach(GoRemoteLspTransport::closeAsync);transports.clear();
+                        notice("Remote analysis stopped because workspace/module metadata was edited. Save metadata and start a fresh reviewed snapshot; Go source overlays and local files were preserved.\n");
+                    }
+                }
+            },this);
+    }
     public static GoRemoteAnalysisService getInstance(Project project){return project.getService(GoRemoteAnalysisService.class);}
     public GoRemoteAnalysisConfig active(){return active;}
     public String status(){var selected=active;return selected==null?"Local Go analysis":(failed==selected?"Remote analysis stopped after failure: ":"Remote analysis session: ")+selected.profile().host()+":"+selected.remoteRoot();}

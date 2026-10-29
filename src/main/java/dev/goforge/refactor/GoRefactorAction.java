@@ -20,8 +20,8 @@ import java.util.concurrent.*;
 
 /** Previewed Go refactorings with a stable snapshot and one undoable write command. */
 public final class GoRefactorAction extends AnAction {
-    private record Choice(CodeAction action,GoChangeSignature signature,boolean addParameter) {
-        Choice(CodeAction action){this(action,null,false);}
+    private record Choice(CodeAction action,GoChangeSignature signature,boolean addParameter,boolean scalarType) {
+        Choice(CodeAction action){this(action,null,false,false);}
         @Override public String toString() { return action.getTitle(); }
     }
     private record Query(LanguageServerWrapper wrapper, LanguageServer server, GoRefactorSnapshot snapshot, List<GoRefactorWorkspaceEdit.Source> sources, List<Choice> choices,Position selection) { }
@@ -99,10 +99,11 @@ public final class GoRefactorAction extends AnAction {
                         var prepared=await(server.getTextDocumentService().prepareRename(new GoChangeSignature.PrepareRequest(new TextDocumentIdentifier(uri),range.getStart())),indicator,project,true);
                         var signature=prepared!=null&&prepared.isSecond()?GoChangeSignature.prepared(uri,source,range.getStart(),prepared.getSecond()):null;
                         if(prepared!=null&&prepared.isSecond()&&GoChangeSignature.preparedDeclaration(source,range.getStart(),prepared.getSecond())){
-                            var add=new CodeAction("Add parameter to verified project calls…");add.setKind("goforge.addParameter");choices.add(0,new Choice(add,null,true));
+                            var add=new CodeAction("Add parameter to verified project calls…");add.setKind("goforge.addParameter");choices.add(0,new Choice(add,null,true,false));
+                            var scalar=new CodeAction("Change scalar parameter/result type…");scalar.setKind("goforge.changeScalarType");choices.add(0,new Choice(scalar,null,false,true));
                         }
                         if(signature!=null){
-                            var custom=new CodeAction("Change signature across files…");custom.setKind("goforge.changeSignature");choices.add(0,new Choice(custom,signature,false));
+                            var custom=new CodeAction("Change signature across files…");custom.setKind("goforge.changeSignature");choices.add(0,new Choice(custom,signature,false,false));
                         }
                     }
                     ReadAction.run(snapshot::requireCurrent);
@@ -118,8 +119,11 @@ public final class GoRefactorAction extends AnAction {
                         "No previewable refactoring is available at this selection. Select an expression or statements, place the caret on a call to inline, or on a declaration's func keyword to change its signature.", "Go Refactor"); return; }
                 JBPopupFactory.getInstance().createPopupChooserBuilder(result.choices()).setTitle("Go Refactor")
                         .setItemChosenCallback(choice -> {
-                            String signature=null;GoAddParameter.Spec parameter=null;
-                            if(choice.addParameter()){
+                            String signature=null;GoAddParameter.Spec parameter=null;GoChangeScalarType.Spec scalarType=null;
+                            if(choice.scalarType()){
+                                var dialog=new GoChangeScalarTypeDialog(project);if(!dialog.showAndGet())return;
+                                scalarType=dialog.specification();
+                            }else if(choice.addParameter()){
                                 var dialog=new GoAddParameterDialog(project);if(!dialog.showAndGet())return;
                                 parameter=dialog.specification();
                             }else if(choice.signature()!=null){
@@ -127,23 +131,36 @@ public final class GoRefactorAction extends AnAction {
                                 if(signature==null)return;
                                 try{choice.signature().request(signature);}catch(IllegalArgumentException error){fail(project,error.getMessage());return;}
                             }
-                            preview(project,file,document,stamp,source,result,choice.action(),choice.signature(),signature,parameter);
+                            preview(project,file,document,stamp,source,result,choice.action(),choice.signature(),signature,parameter,scalarType);
                         })
                         .createPopup().showInBestPositionFor(editor);
             }
             @Override public void onThrowable(@NotNull Throwable error) { if (!project.isDisposed()) fail(project, detail(error)); }
         }.queue();
     }
-    private static void preview(Project project, VirtualFile file, Document document, long stamp, String source, Query query, CodeAction action,GoChangeSignature signature,String requestedSignature,GoAddParameter.Spec parameter) {
+    private static void preview(Project project, VirtualFile file, Document document, long stamp, String source, Query query, CodeAction action,GoChangeSignature signature,String requestedSignature,GoAddParameter.Spec parameter,GoChangeScalarType.Spec scalarType) {
         new Task.Backgroundable(project, "Preview " + action.getTitle(), true) {
             GoRefactorWorkspaceEdit result;
+            GoChangeScalarType.Plan checkedType;
+            String checkedGoSetting;
             @Override public void run(@NotNull ProgressIndicator indicator) {
                 try {
                     requireCurrent(project, file, document, stamp);
                     if (query.wrapper().isDisposed() || !query.wrapper().isActive() || query.wrapper().getLanguageServer() != query.server())
                         throw new IllegalStateException("The Go language server restarted. Request the refactoring again.");
                     WorkspaceEdit workspace;
-                    if(parameter!=null){
+                    if(scalarType!=null){
+                        requireScalarConfiguration(project);
+                        var settings=dev.goforge.settings.GoForgeSettings.getInstance();
+                        var command=new com.intellij.execution.configurations.GeneralCommandLine();
+                        Map<String,String> environment=new HashMap<>(command.getEffectiveEnvironment());
+                        String go=dev.goforge.tools.GoToolResolver.resolve(settings.goPath,"go",project.getBasePath(),environment);
+                        checkedGoSetting=settings.goPath;
+                        checkedType=GoChangeScalarType.plan(go,environment,query.snapshot().directory(),query.sources(),query.wrapper().toUriString(file),query.selection(),scalarType,
+                                target->await(query.server().getTextDocumentService().references(new ReferenceParams(new TextDocumentIdentifier(target.getUri()),target.getRange().getStart(),new ReferenceContext(false))),indicator,project,true),
+                                ()->indicator.isCanceled()||project.isDisposed());
+                        workspace=checkedType.workspace();
+                    }else if(parameter!=null){
                         var settings=dev.goforge.settings.GoForgeSettings.getInstance();
                         var command=new com.intellij.execution.configurations.GeneralCommandLine();
                         Map<String,String> environment=new HashMap<>(command.getEffectiveEnvironment());
@@ -182,6 +199,7 @@ public final class GoRefactorAction extends AnAction {
                                 ()->indicator.isCanceled()||project.isDisposed());
                     }
                     query.snapshot().requireDiskCurrent();
+                    if(checkedType!=null)requireScalarProof(project,checkedType,checkedGoSetting,query);
                     ReadAction.run(query.snapshot()::requireCurrent);
                     requireCurrent(project, file, document, stamp);
                 } catch (ProcessCanceledException cancelled) { throw cancelled; }
@@ -197,13 +215,13 @@ public final class GoRefactorAction extends AnAction {
                         new Task.Backgroundable(project,"Validate Go Refactoring",true){
                             @Override public void run(@NotNull ProgressIndicator indicator){
                                 indicator.checkCanceled();
-                                try{query.snapshot().requireDiskCurrent();ReadAction.run(query.snapshot()::requireCurrent);query.snapshot().requireTargetDiskCurrent(result);}
+                                try{query.snapshot().requireDiskCurrent();ReadAction.run(query.snapshot()::requireCurrent);query.snapshot().requireTargetDiskCurrent(result);if(checkedType!=null)requireScalarProof(project,checkedType,checkedGoSetting,query);}
                                 catch(java.io.IOException failure){throw new IllegalStateException("A source could not be revalidated. No edits were applied.",failure);}
                             }
                             @Override public void onSuccess(){
                                 if(project.isDisposed())return;
-                                try{GoRefactorApply.apply(project,query.snapshot(),result,action.getTitle());}
-                                catch(RuntimeException failure){fail(project,detail(failure));}
+                                try{if(checkedType!=null)requireScalarProof(project,checkedType,checkedGoSetting,query);GoRefactorApply.apply(project,query.snapshot(),result,action.getTitle());}
+                                catch(Exception failure){fail(project,detail(failure));}
                             }
                             @Override public void onThrowable(@NotNull Throwable failure){if(!project.isDisposed())fail(project,detail(failure));}
                         }.queue();
@@ -212,6 +230,35 @@ public final class GoRefactorAction extends AnAction {
             }
             @Override public void onThrowable(@NotNull Throwable error) { if (!project.isDisposed()) fail(project, detail(error)); }
         }.queue();
+    }
+    private static void requireScalarProof(Project project,GoChangeScalarType.Plan plan,String selectedGo,Query query)throws java.io.IOException {
+        requireScalarConfiguration(project);
+        if(query.wrapper().isDisposed()||!query.wrapper().isActive()||query.wrapper().getLanguageServer()!=query.server())
+            throw new IllegalStateException("The Go language server restarted. Request a fresh type-change preview.");
+        var settings=dev.goforge.settings.GoForgeSettings.getInstance();
+        if(!Objects.equals(settings.goPath,selectedGo))
+            throw new IllegalStateException("The selected Go SDK changed after type checking. Request a fresh preview.");
+        Map<String,String> environment=new HashMap<>(new com.intellij.execution.configurations.GeneralCommandLine().getEffectiveEnvironment());
+        String go=dev.goforge.tools.GoToolResolver.resolve(settings.goPath,"go",project.getBasePath(),environment);
+        plan.requireCompiler(go,environment);
+    }
+    private static void requireScalarConfiguration(Project project){
+        if(dev.goforge.remote.GoRemoteAnalysisService.getInstance(project).active()!=null)
+            throw new IllegalStateException("Stop remote Go analysis before changing a scalar type; this check uses one local module.");
+        var manager=com.intellij.openapi.fileEditor.FileDocumentManager.getInstance();
+        java.nio.file.Path root=java.nio.file.Path.of(Objects.requireNonNull(project.getBasePath())).toAbsolutePath().normalize();
+        for(var document:manager.getUnsavedDocuments()){
+            var file=manager.getFile(document);
+            if(file!=null&&file.isInLocalFileSystem()){
+                String name=file.getName();var path=file.toNioPath().toAbsolutePath().normalize();
+                if((name.equals("go.mod")||name.equals("go.sum"))&&path.startsWith(root)
+                        ||(name.equals("go.work")||name.equals("go.work.sum"))&&root.startsWith(path.getParent()))
+                    throw new IllegalStateException("Save or revert unsaved module/workspace metadata before changing a scalar type.");
+            }
+        }
+        var settings=dev.goforge.settings.GoProjectSettings.getInstance(project);
+        if(!settings.environment().isEmpty()||!settings.buildFlags().isEmpty())
+            throw new IllegalStateException("Scalar type changes require default host build settings; custom GOOS, GOARCH and build tags are not yet supported.");
     }
     private static boolean isExtractToNewFile(CodeAction action){
         return "refactor.extract.toNewFile".equals(action.getKind())&&action.getCommand()!=null

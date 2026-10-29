@@ -23,6 +23,7 @@ scripts/patch-lsp4ij-lifecycle.py scripts/test-patch-lsp4ij-lifecycle.py
 scripts/patch-installed-plugin-search.py scripts/test-patch-installed-plugin-search.py
 scripts/test-package-lsp-textmate.py scripts/test-patch-lsp4ij-metadata.py scripts/verify-protocols.py
 scripts/package-windows.py scripts/test-package-windows.py scripts/verify-windows-package.py
+scripts/test-verify-windows-package.py
 scripts/test-remote-debug-paths.py
 packaging/macos/README.md packaging/macos/THIRD-PARTY-NOTICES.md
 packaging/macos/GoForgeApplicationInfo.xml packaging/macos/PackageProbe.java

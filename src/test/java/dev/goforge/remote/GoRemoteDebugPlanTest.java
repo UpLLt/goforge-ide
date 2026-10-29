@@ -8,7 +8,14 @@ import static org.junit.Assert.*;
 public final class GoRemoteDebugPlanTest {
     private GoRemoteProfile profile(){return new GoRemoteProfile("fixture.invalid","",2222,"","/workspace space 'quote'","go","");}
     private GoRemoteDebugPlan plan(String mode,String target,int pid,List<String> args,Map<String,String> env){return new GoRemoteDebugPlan(profile(),"/local workspace","dlv",mode,target,pid,Map.of("go.mod","a".repeat(64),"main.go","b".repeat(64)),args,env);}
-    @Test public void packageUsesRemotePathsAndSubstitutePathDirection(){var p=plan("debug","cmd/app",0,List.of(),Map.of());assertEquals("/workspace space 'quote'/cmd/app",p.dapArguments().get("program"));assertEquals(List.of(Map.of("from","/local workspace","to","/workspace space 'quote'")),p.dapArguments().get("substitutePath"));}
+    @Test public void packageUsesRemotePathsAndSubstitutePathDirection()throws Exception{
+        Path local=Files.createTempDirectory("goforge local workspace ").toRealPath();
+        try{
+            var p=new GoRemoteDebugPlan(profile(),local.toString(),"dlv","debug","cmd/app",0,Map.of("go.mod","a".repeat(64),"main.go","b".repeat(64)),List.of(),Map.of());
+            assertEquals("/workspace space 'quote'/cmd/app",p.dapArguments().get("program"));
+            assertEquals(List.of(Map.of("from",local.toString(),"to","/workspace space 'quote'")),p.dapArguments().get("substitutePath"));
+        }finally{Files.delete(local);}
+    }
     @Test public void attachIsRemoteServersLocalPidAndDoesNotLaunchProgram(){var p=plan("attach",".",42,List.of(),Map.of());assertTrue(p.attach());assertEquals("attach",p.dapArguments().get("request"));assertEquals("local",p.dapArguments().get("mode"));assertEquals(42,p.dapArguments().get("processId"));assertFalse(p.dapArguments().containsKey("program"));}
     @Test public void executableAndArgumentsRemainLiteralData(){var p=plan("exec","out/app",0,List.of("space value",";$(not-a-shell)"),Map.of("USER_VALUE","fixture-private-value"));assertEquals("exec",p.dapArguments().get("mode"));assertEquals(List.of("space value",";$(not-a-shell)"),p.dapArguments().get("args"));assertTrue(p.startupJson().contains("fixture-private-value"));assertFalse(String.join(" ",p.command("ssh")).contains("fixture-private-value"));assertFalse(String.join(" ",p.command("ssh")).contains(";$(not-a-shell)"));}
     @Test public void sshKeepsHostVerificationAndNoForwarding(){var command=plan("debug",".",0,List.of(),Map.of()).command("ssh");assertTrue(command.contains("StrictHostKeyChecking=yes"));assertTrue(command.contains("ClearAllForwardings=yes"));assertTrue(command.contains("BatchMode=yes"));assertFalse(command.contains("-L"));}

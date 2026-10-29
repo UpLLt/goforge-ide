@@ -29,7 +29,7 @@ public final class GoRemoteBackend {
     }
     public JsonObject analysisSnapshot(GoRemoteProfile p,String name,GoRemoteFiles.Snapshot snapshot,BooleanSupplier cancel) throws Exception {
         if(!name.matches("goforge-analysis-[a-f0-9-]{36}"))throw new IllegalArgumentException("Invalid analysis snapshot name.");
-        if(snapshot.files().stream().noneMatch(f -> f.path().equals("go.mod")))throw new IllegalArgumentException("Remote analysis requires a go.mod at the local project root.");
+        if(snapshot.files().stream().noneMatch(f -> f.path().equals("go.mod")||f.path().equals("go.work")))throw new IllegalArgumentException("Remote analysis requires a project-root go.mod or a reviewed go.work.");
         return files(p,"analysis",name,snapshot.payload(),cancel);
     }
     public byte[] download(GoRemoteProfile p,String relative,BooleanSupplier cancel) throws Exception {

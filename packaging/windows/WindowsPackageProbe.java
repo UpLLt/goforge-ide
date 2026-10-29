@@ -13,6 +13,10 @@ public final class WindowsPackageProbe {
         String name = ApplicationNamesInfo.getInstance().getFullProductName();
         Path home = Path.of(PathManager.getHomePath()).toRealPath();
         if (!"GoForge".equals(name)) throw new IllegalStateException("Unexpected product: " + name);
+        Path runtime = Path.of(System.getProperty("java.home")).toRealPath();
+        if (!runtime.equals(home.resolve("jbr").toRealPath())) {
+            throw new IllegalStateException("Native launcher did not use its bundled runtime: " + runtime);
+        }
         if (!StatisticsUploadAssistant.isDisableCollectStatistics()
                 || !StatisticsUploadAssistant.isSuppressStatisticsReport()
                 || Boolean.getBoolean("idea.headless.enable.statistics")) {
@@ -40,6 +44,7 @@ public final class WindowsPackageProbe {
         }
         System.out.println("product=" + name);
         System.out.println("home=" + home);
+        System.out.println("runtime=" + runtime);
         System.out.println("config=" + PathManager.getConfigPath());
         System.out.println("system=" + PathManager.getSystemPath());
         System.out.println("plugins=" + PathManager.getPluginsPath());

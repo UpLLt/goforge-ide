@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import tempfile
 import zipfile
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -76,6 +77,24 @@ def main():
             changed = {n for n in base.namelist() if base.read(n) != final.read(n)}
             checks['only_listener_changed'] = changed == {patcher.CLASS}
             checks['only_provenance_added'] = set(final.namelist()) - set(base.namelist()) == {patcher.MARKER}
+            replacement = final.read(patcher.CLASS)
+            provenance = json.loads(final.read(patcher.MARKER))
+            marker = final.getinfo(patcher.MARKER)
+            checks['provenance_metadata_is_pinned'] = marker.create_system == 3 and marker.external_attr == 0o100644 << 16
+        # Recreate the exact archive with each host's ZipInfo constructor default.
+        # Reading existing entries still restores their own central-directory
+        # metadata. A new marker must explicitly override the host default.
+        original_init = zipfile.ZipInfo.__init__
+        archive_hashes = {}
+        for host_system in (0, 3):
+            def host_init(self, *args, **kwargs):
+                original_init(self, *args, **kwargs)
+                self.create_system = host_system
+            with patch.object(zipfile.ZipInfo, '__init__', host_init):
+                rebuilt = patcher.rewrite(before, replacement, provenance)
+            patcher.validate_bytes(rebuilt)
+            archive_hashes[str(host_system)] = patcher.digest(rebuilt)
+        checks['windows_and_posix_archive_bytes_match'] = set(archive_hashes.values()) == {patcher.PATCHED_SHA256}
         jar.write_bytes(after + b'altered archive trailer')
         try:
             patcher.patch(plugin, args.platform_home, args.javac)
@@ -85,6 +104,7 @@ def main():
         # ZIP readers tolerate trailers, so ensure the validation contract explicitly covers them.
         checks['input_cache_unchanged'] = patcher.digest(source_jar.read_bytes()) == original_hash
         result = {'passed': all(checks.values()), 'checks': checks, 'upstream_jar_sha256': original_hash,
+                  'archive_sha256_by_host_zip_default': archive_hashes,
                   'scope': 'Actual pinned LSP4IJ listener/nodes and platform tree cache, controlled service adapters; no native GUI/Gradle/server',
                   'baseline_exit': baseline.returncode, 'fixed_exit': fixed.returncode}
         (args.output / 'result.json').write_text(json.dumps(result, indent=2) + '\n')

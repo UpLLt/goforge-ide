@@ -10,8 +10,14 @@ import java.util.Locale;
 public final class GoRemoteLspMapping {
     private final Path localPath, canonicalLocalPath;
     private final String local,remote;
+    private final String runtimeWorkFile;
     private final java.util.concurrent.ConcurrentMap<String,String> clientUris=new java.util.concurrent.ConcurrentHashMap<>();
     public GoRemoteLspMapping(Path local,String remote) {
+        this(local,remote,"");
+    }
+    GoRemoteLspMapping(Path local,String remote,String runtimeWorkFile) {
+        if(!runtimeWorkFile.isEmpty()&&!runtimeWorkFile.matches("[.]goforge-runtime-[a-f0-9-]{36}[.]work"))throw new IllegalArgumentException("Invalid private workspace name.");
+        this.runtimeWorkFile=runtimeWorkFile;
         localPath=local.toAbsolutePath().normalize();this.local=localPath.toString();
         String root=GoRemoteProfile.absoluteRemote(remote);
         while(root.endsWith("/"))root=root.substring(0,root.length()-1);
@@ -47,6 +53,10 @@ public final class GoRemoteLspMapping {
         if(path==null||!path.equals(remote)&&!path.startsWith(remote+"/"))
             throw new IllegalArgumentException("Remote dependency is outside the analysis snapshot; external dependency navigation is unavailable.");
         String suffix=path.substring(remote.length());
+        if(!runtimeWorkFile.isEmpty()) {
+            if(suffix.equals("/"+runtimeWorkFile))suffix="/go.work";
+            else if(suffix.equals("/"+runtimeWorkFile+".sum"))suffix="/go.work.sum";
+        }
         if(!suffix.isEmpty())GoRemoteProfile.relative(suffix.substring(1));
         String known=clientUris.get(suffix);if(known!=null)return known;
         return (suffix.isEmpty()?localPath:localPath.resolve(suffix.substring(1))).toUri().toASCIIString();

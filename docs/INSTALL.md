@@ -31,7 +31,7 @@ Per-user settings are isolated under `~/Library/Application Support/GoForge/GoFo
 
 ## Windows x64
 
-**Current status: the portable ZIP has been assembled, with official-input checksum, PE/package regression and extracted-layout checks passed. Native Windows launch and UI acceptance are not yet verified. Do not treat cross-packaging as a Windows test pass.**
+**Current status: the frozen a252 portable ZIP passed cross-assembly and static readback checks. Windows CI has resumed, but Runs 2 and 3 failed before package acceptance. Native Windows launch and UI acceptance remain unverified. Cross-packaging is not a Windows test pass.**
 
 The prepared archive is `GoForge-0.1.0-dev-windows-x64.zip`, targeting Windows 10/11 x64. Preparation does not mean it has been publicly released. When a release includes it:
 
@@ -45,7 +45,13 @@ The prepared archive is `GoForge-0.1.0-dev-windows-x64.zip`, targeting Windows 1
 
 The distribution has no GoForge Authenticode signature or installer. The native launcher receives GoForge icon/version resources, which invalidates its original signature; the derivative launcher is unsigned. Follow normal Windows security prompts; do not turn off SmartScreen or antivirus. Remote SSH features additionally require the Windows OpenSSH client; Docker and Kubernetes require their own installations.
 
-**当前状态：便携 ZIP 已组装，官方输入校验、PE/打包回归和解压结构检查通过；尚未验证 Windows 原生启动及界面。跨平台打包成功不等于 Windows 运行通过。** 目标为 Windows 10/11 x64。“已准备”不表示“已公开发布”。发行页实际提供 ZIP 后，使用 `Get-FileHash` 校验，完整解压，再打开 `GoForge\bin\goforge64.exe`。不要在 ZIP 内直接启动。包内置 Java 与 Go 工具，但没有 GoForge Authenticode 签名或安装器。通过正常安全提示处理，不关闭 SmartScreen/杀毒软件。SSH、Docker、kubectl 使用各自系统安装。
+**当前状态：冻结的 a252 便携 ZIP 已通过跨平台组装与静态读回。Windows CI 已恢复，但第 2、3 次运行均在安装包验收前失败；原生启动与界面仍待验证。跨平台打包成功不等于 Windows 运行通过。** 目标为 Windows 10/11 x64。“已准备”不表示“已公开发布”。发行页实际提供 ZIP 后，使用 `Get-FileHash` 校验，完整解压，再打开 `GoForge\bin\goforge64.exe`。不要在 ZIP 内直接启动。包内置 Java 与 Go 工具，但没有 GoForge Authenticode 签名或安装器。通过正常安全提示处理，不关闭 SmartScreen/杀毒软件。SSH、Docker、kubectl 使用各自系统安装。
+
+### Windows CI status / Windows CI 状态
+
+The private repository now contains the a252 source snapshot at `57fd69c145cbbe3780d256b7a03fec793af17691`. Run 2 used older sources and failed during `prepareTestSandbox`; Run 3 used a252 and failed in the POSIX path fixture of the preparation tests. The ZIP metadata and path-fixture fixes passed local regressions; Gradle now prints Python stderr before enforcing a successful exit. These changes are not included in the frozen a252 archives below and have not yet completed a new unified build or Windows acceptance. See the [attempts and verification limits](KNOWN-LIMITATIONS.md#private-validation-and-publication--私有验证与发布).
+
+私有仓库已导入 a252 源码，提交为 `57fd69c145cbbe3780d256b7a03fec793af17691`。第 2 次 CI 使用旧源码，在 `prepareTestSandbox` 失败；第 3 次使用 a252，在准备测试的 POSIX 路径夹具失败。ZIP 元数据与路径夹具修复已通过本机相关回归；Gradle 已改为先打印 Python stderr 再严格检查退出码。这些改动尚未进入下方冻结 a252 包，也未完成新统一构建或 Windows 验收。详见[逐次记录与验证边界](KNOWN-LIMITATIONS.md#private-validation-and-publication--私有验证与发布)。
 
 ## Prepared package identities
 
@@ -56,11 +62,11 @@ The latest frozen plugin build is **a252**: **633/633 macOS-host JUnit tests** (
 | `GoForge-a252-windows-x64.zip` | 771129607 | `7285dd2f4f80fd914a164e87fa169207c3a2fb4baacd78025fc69feb4af2b815` |
 | `GoForge-a252-macos-aarch64.zip` | 751496018 | `864a9f676325c79efb102e59cbbf46ad1bc4e8f7eb5f93e85d9ac7443de3495c` |
 
-Both archives are frozen and their plugin contents match the tested build. Windows ZIP/application/separately extracted contents matched all 16,351 file hashes. The nine packaging and 18 preparation checks reuse the earlier 311e results after verifying identical inputs and original logs; they were not rerun or counted as new tests. **Windows native execution and CI remain unverified.** macOS signing, headless, relocation and extracted-archive checks passed; all 38,999 ZIP entries passed CRC and duplicate-name checks, with plugin contents read back against the tested build.
+Both archives are frozen and their plugin contents match the tested build. Windows ZIP/application/separately extracted contents matched all 16,351 file hashes. The nine packaging and 18 preparation checks reuse the earlier 311e results after verifying identical inputs and original logs; they were not rerun or counted as new tests. **Windows native launch and UI remain unverified; subsequent CI attempts failed as recorded above.** macOS signing, headless, relocation and extracted-archive checks passed; all 38,999 ZIP entries passed CRC and duplicate-name checks, with plugin contents read back against the tested build.
 
 This build adds a bounded generic free-function Add Parameter operation and detects project file inventory changes before applying a preview. It retains existing type parameters, constraints and explicit type arguments. Methods, variadic functions, function-value uses and more general signature changes remain outside this operation. Read [Known limitations](KNOWN-LIMITATIONS.md) before using it. The a252 native macOS check passed the generic three-file preview/apply, explicit Save, one global Undo and Redo, and the stale-preview refusal after adding a new caller. All five fixture files were restored exactly. Actual bundled `go test -count=1 ./...` passed after Save. Normal exit left zero owned processes and zero new ERROR lines; six WARN lines remain recorded, and strict/deep signature verification passed. This is a bounded candidate-only check, not an original-GoLand comparison or full parity.
 
-最新冻结版本 **a252** 在 macOS 主机通过 **633 项 JUnit 测试**（366 component + 267 platform），311 项输入冻结。88 项定向测试包含在总数内，12 项真实泛型协议检查、7 项普通函数协议回归及 Go helper 的 2 个父节点/42 个子测试单独记录。两平台包已封存并校验，**Windows 真机运行及 CI 尚未验证**。9 项打包与 18 项准备检查按相同输入复用原记录，不计为新执行。本轮新增限定范围的泛型普通函数添加参数，以及应用预览前的目录清单变更检查。macOS 实际界面通过三文件预览/应用、保存、一次全局撤销与重做，并在新增调用文件后拒绝旧预览；保存后的真实 Go 测试通过，5 个样例文件最终逐字节恢复。正常退出后零所属进程、零新增 ERROR，6 条 WARN 保留，严格/深度验签通过。这是候选应用的限定检查，仍不代表完整对齐，无公开发行。
+最新冻结版本 **a252** 在 macOS 主机通过 **633 项 JUnit 测试**（366 component + 267 platform），311 项输入冻结。88 项定向测试包含在总数内，12 项真实泛型协议检查、7 项普通函数协议回归及 Go helper 的 2 个父节点/42 个子测试单独记录。两平台包已封存并校验，**Windows 原生启动和界面尚未验证，后续 CI 失败记录见上文**。9 项打包与 18 项准备检查按相同输入复用原记录，不计为新执行。本轮新增限定范围的泛型普通函数添加参数，以及应用预览前的目录清单变更检查。macOS 实际界面通过三文件预览/应用、保存、一次全局撤销与重做，并在新增调用文件后拒绝旧预览；保存后的真实 Go 测试通过，5 个样例文件最终逐字节恢复。正常退出后零所属进程、零新增 ERROR，6 条 WARN 保留，严格/深度验签通过。这是候选应用的限定检查，仍不代表完整对齐，无公开发行。
 
 Current checkout-local evidence (excluded from source exports): `.artifacts/generic-refactor-20261028/full-1/verified-build/`, `protocol-1/`, `ordinary-protocol-1/`, `macos-package/summary.json`, `windows-package/summary.json`, and `native/`.
 
@@ -151,11 +157,11 @@ Current and historical checkout-local records (excluded from source exports):
 
 Read the manifest for the exact archive you install. **Settings → GoForge** opens tool configuration; a Find Action **Plugins:** entry is a plugin toggle, not that settings page.
 
-The `UpLLt/goforge-ide` repository is private. Windows CI #1 imported the reviewed source, then failed at JDK setup before running any tests; package and publish jobs were skipped. The workflow fix is committed as `74233d62e117644bf0018ebaa9c2a94bf657c084`, pinning `25.0.5+8.0.LTS` instead of `25.0.5+8`. The rerun has not started: the latest capability check after user re-enablement still reports disabled in Work settings, so no dispatch or Windows result is claimed. The repository still contains the earlier source/documentation snapshot; the new editor, Windows preparation/workflow and documentation changes have not been synchronized. No Release exists, **publish remains false**, and the full-alignment publication gate remains closed.
+The private repository has since imported the a252 source snapshot and resumed Windows CI. Runs 2 and 3 failed before package acceptance; see the [current Windows CI status](#windows-ci-status--windows-ci-状态). The historical package identities below remain unchanged.
 
 历史 1caa 的 449 项测试与限定原生稳定性复验保留在各自记录中，不作为 9abc 的编辑原生验收。1caa 的完整包身份见下表；Windows 至今只有跨平台组装与静态验证。
 
-私有仓库的首次 Windows CI 已导入源码，但测试前安装 JDK 失败，打包与发布跳过；`74233d62e117644bf0018ebaa9c2a94bf657c084` 已修正完整版本值。重跑尚未开始，用户重新开启后浏览器能力检查仍报告 Work 设置禁用，不能声称已触发或通过。私有仓库仍含旧源码/文档，本轮编辑、Windows 准备及工作流修复尚未同步。无 Release，保持 **publish=false**，完整对齐前不公开。
+私有仓库现已导入 a252 源码并恢复 Windows CI；第 2、3 次运行均在安装包验收前失败，见[当前 Windows CI 状态](#windows-ci-status--windows-ci-状态)。下方历史包身份保持不变。
 
 ### Historical archive identities / 历史包身份
 

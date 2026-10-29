@@ -4,8 +4,8 @@ package dev.goforge.remote;
 final class GoRemoteAnalysisScript {
     private GoRemoteAnalysisScript(){}
     static final String SOURCE="""
-import os,sys,json,base64,hashlib,stat,subprocess,threading,signal,time,uuid
-root,name,gopls,go=sys.argv[1:5]
+import os,sys,json,base64,hashlib,stat,subprocess,threading,signal,time,uuid,re
+root,name,gopls,go,workfile,runtimework=sys.argv[1:7]
 LIMIT=16*1024*1024
 stopping=threading.Event();write_lock=threading.Lock()
 def send(packet):
@@ -40,6 +40,12 @@ fd=os.open('.goforge-analysis.json',os.O_RDONLY|os.O_NOFOLLOW,dir_fd=rootfd)
 with os.fdopen(fd) as stream:marker=json.load(stream)
 if marker['name']!=name:raise ValueError('Snapshot identity mismatch')
 expected=marker['files']
+if workfile not in ('','go.work') or bool(workfile)!=bool(runtimework):raise ValueError('Invalid reviewed workspace binding')
+if runtimework and not re.fullmatch(r'[.]goforge-runtime-[a-f0-9-]{36}[.]work',runtimework):raise ValueError('Invalid private workspace identity')
+if workfile and workfile not in expected:raise ValueError('Workspace file was not reviewed')
+if not workfile and 'go.work' in expected:raise ValueError('Snapshot go.work must be reviewed before analysis')
+def metadata(path):return path.split('/')[-1] in ('go.mod','go.sum','go.work','go.work.sum')
+metadata_hashes={path:digest for path,digest in expected.items() if metadata(path)}
 def parent(path):
     items=parts(path);fd=os.dup(rootfd)
     try:
@@ -48,7 +54,7 @@ def parent(path):
         return fd,items[-1]
     except:
         os.close(fd);raise
-def read_owned(path):
+def read_data(path):
     directory,leaf=parent(path)
     try:
         fd=os.open(leaf,os.O_RDONLY|os.O_NOFOLLOW,dir_fd=directory)
@@ -56,8 +62,11 @@ def read_owned(path):
             info=os.fstat(stream.fileno())
             if not stat.S_ISREG(info.st_mode) or info.st_size>8*1024*1024:raise ValueError('Invalid snapshot file')
             data=stream.read(8*1024*1024+1)
-        return hashlib.sha256(data).hexdigest(),(info.st_dev,info.st_ino,info.st_mtime_ns,info.st_size)
+        return data,(info.st_dev,info.st_ino,info.st_mtime_ns,info.st_size)
     finally:os.close(directory)
+def read_owned(path):
+    data,identity=read_data(path)
+    return hashlib.sha256(data).hexdigest(),identity
 def sync(rows):
     prepared=[];seen=set();total=0
     for row in rows:
@@ -65,6 +74,7 @@ def sync(rows):
         if path not in expected or path in seen:raise ValueError('Snapshot file set changed; rebuild the analysis snapshot')
         seen.add(path);data=base64.b64decode(row['data'],validate=True);total+=len(data)
         if len(data)>8*1024*1024 or total>32*1024*1024:raise ValueError('Save size limit')
+        if metadata(path) and hashlib.sha256(data).hexdigest()!=metadata_hashes[path]:raise ValueError('Workspace/module metadata changed; create a fresh reviewed analysis snapshot')
         digest,identity=read_owned(path)
         if digest!=expected[path]:raise ValueError('Remote snapshot conflict: a file was changed outside this analysis session. Local files were preserved; restart analysis')
         prepared.append((path,data,identity))
@@ -92,15 +102,39 @@ def sync(rows):
         except FileNotFoundError:pass
 for path,digest in expected.items():
     if read_owned(path)[0]!=digest:raise ValueError('Remote snapshot changed before analysis started')
-env=dict(os.environ);env.update({'GOWORK':'off','GOTOOLCHAIN':'local','GOPROXY':'off','GOSUMDB':'off'})
+env=dict(os.environ);env.update({'GOWORK':'off','GOENV':'off','GOFLAGS':'-mod=readonly','GOPACKAGESDRIVER':'off','GOTOOLCHAIN':'local','GOPROXY':'off','GOSUMDB':'off'})
 if go.startswith('/'):env['PATH']=os.path.dirname(go)+os.pathsep+env.get('PATH','')
-child=subprocess.Popen([gopls,'serve'],cwd=root,env=env,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,start_new_session=True)
+private_files=[]
+def cleanup_private():
+    for leaf in private_files:
+        try:os.unlink(leaf,dir_fd=rootfd)
+        except FileNotFoundError:pass
+def private_copy(source,leaf):
+    data,_=read_data(source)
+    fd=os.open(leaf,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600,dir_fd=rootfd)
+    private_files.append(leaf)
+    with os.fdopen(fd,'wb') as stream:stream.write(data)
+try:
+    if workfile:
+        # Same-directory copies preserve relative use/replace paths. Go may write a work sum,
+        # so only the supervisor's private copy is selected as GOWORK, never reviewed metadata.
+        private_copy(workfile,runtimework)
+        if 'go.work.sum' in expected:private_copy('go.work.sum',runtimework+'.sum')
+        else:
+            fd=os.open(runtimework+'.sum',os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600,dir_fd=rootfd);os.close(fd);private_files.append(runtimework+'.sum')
+        env['GOWORK']=os.path.join(root,runtimework)
+    if not os.path.samestat(os.fstat(rootfd),os.stat(root,follow_symlinks=False)):raise ValueError('Snapshot root was replaced before startup')
+    child=subprocess.Popen([gopls,'serve'],cwd=root,env=env,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,start_new_session=True)
+except:
+    cleanup_private();os.close(rootfd);raise
 for sig in (signal.SIGTERM,signal.SIGHUP,signal.SIGINT):signal.signal(sig,lambda *_:stopping.set())
 def input_loop():
     try:
         while not stopping.is_set():
             packet=frame(sys.stdin.buffer)
             if packet is None:break
+            for path,digest in metadata_hashes.items():
+                if read_owned(path)[0]!=digest:raise ValueError('Remote workspace/module metadata changed outside this session; create a fresh analysis snapshot')
             if packet.get('method')=='goforge/snapshotSync':
                 sync(packet['params']['files']);packet=packet['params']['message']
             body=json.dumps(packet,separators=(',',':'),ensure_ascii=False).encode('utf-8')
@@ -129,6 +163,6 @@ finally:
     except subprocess.TimeoutExpired:pass
     try:os.killpg(child.pid,signal.SIGKILL)
     except ProcessLookupError:pass
-    child.wait();os.close(rootfd)
+    child.wait();cleanup_private();os.close(rootfd)
 """;
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Offline filesystem/process-contract regressions; not Windows-native acceptance."""
-from pathlib import Path, PureWindowsPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 import hashlib
 import importlib.util
 import io
@@ -206,7 +206,8 @@ class ProcessInventory(unittest.TestCase):
         for stdout, pattern in (('/opt/tools/node', 'using this tool directory'), ('', 'empty POSIX')):
             with patch.object(extra.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, stdout, '')):
                 with self.assertRaisesRegex(RuntimeError, pattern):
-                    extra.require_tool_directory_idle(Path('/opt/tools'), windows=False)
+                    # This branch models POSIX even when the test runs on Windows.
+                    extra.require_tool_directory_idle(PurePosixPath('/opt/tools'), windows=False)
 
 
 if __name__ == '__main__': unittest.main()
