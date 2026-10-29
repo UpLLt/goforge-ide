@@ -343,8 +343,8 @@
     },
     {
       "path": "scripts/test-verify-windows-package.py",
-      "sha256": "464f5c43306f4015283febdb58fff7eccf2f4b6f33fdc050de0ad670550bce69",
-      "size": 28804
+      "sha256": "1c75ff95dd5f4fab782ec5add3a15597207d849b159b9d82a6666472c22f6f9b",
+      "size": 29011
     },
     {
       "path": "scripts/verify-protocols.py",

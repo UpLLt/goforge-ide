@@ -161,7 +161,9 @@ class WindowsVerifierTest(unittest.TestCase):
         self.assertEqual('Desktop',metadata['powershell']['edition'])
         self.assertTrue(metadata['properties']['product'])
         self.assertTrue(metadata['properties']['description'])
-        self.assertEqual('powershell.exe',metadata['properties']['original'].casefold())
+        # Windows merges version strings from the localized .mui resource when present.
+        # This system-executable fixture is separate from GoForge's exact original/signature gate.
+        self.assertIn(metadata['properties']['original'].casefold(),('powershell.exe','powershell.exe.mui'))
         self.assertIn(metadata['properties']['signature'],('Valid','UnknownError','NotSigned','HashMismatch',
                      'NotTrusted','NotSupportedFileFormat','Incompatible'))
         print('Windows system metadata preflight: '+json.dumps(metadata,ensure_ascii=True,sort_keys=True))
