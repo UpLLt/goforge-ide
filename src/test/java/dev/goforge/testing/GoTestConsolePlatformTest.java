@@ -21,6 +21,7 @@ import com.intellij.openapi.actionSystem.impl.SimpleDataContext;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
+import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.vfs.LocalFileSystem;
@@ -31,6 +32,11 @@ import com.intellij.util.execution.ParametersListUtil;
 import com.intellij.testFramework.PlatformTestUtil;
 import com.intellij.testFramework.PsiTestUtil;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
+import com.intellij.testFramework.RunAll;
+import com.intellij.util.ThrowableRunnable;
+import com.redhat.devtools.lsp4ij.LanguageServiceAccessor;
+import com.redhat.devtools.lsp4ij.LanguageServersRegistry;
+import com.redhat.devtools.lsp4ij.server.definition.LanguageServerDefinition;
 import dev.goforge.run.GoCommand;
 import dev.goforge.run.GoRunConfiguration;
 import dev.goforge.run.GoRunConfigurationType;
@@ -54,8 +60,20 @@ public final class GoTestConsolePlatformTest extends BasePlatformTestCase {
     private String originalHidePassed;
     private static final String HIDE_PASSED_KEY = "GoForgeSupport.hidePassedTests";
     private static final String SOURCE = "package target\nimport \"testing\"\nfunc TestOne(t *testing.T) {}\nfunc TestTwo(t *testing.T) {}\nfunc BenchmarkOne(b *testing.B) {}\n";
+    private LanguageServerDefinition gopls;
+    private LanguageServiceAccessor accessor;
+    private boolean oldGoplsEnabled;
     @Override protected void setUp() throws Exception {
         super.setUp();
+        accessor = LanguageServiceAccessor.getInstance(getProject());
+        assertNoLanguageServer("fixture must start without retained language-server wrappers");
+        gopls = LanguageServersRegistry.getInstance().getServerDefinition("goforge.gopls");
+        assertNotNull(gopls);
+        oldGoplsEnabled = gopls.isEnabled(getProject());
+        // These tests inject discovery or replay results; opening the real editor must
+        // not launch an unrelated gopls instance. Restore only after fixture editors close.
+        gopls.setEnabled(false, getProject());
+        assertFalse(gopls.isEnabled(getProject()));
         testSettings = PropertiesComponent.getInstance();
         originalHidePassed = testSettings.getValue(HIDE_PASSED_KEY);
         Path projectBase = Path.of(getProject().getBasePath());
@@ -65,12 +83,41 @@ public final class GoTestConsolePlatformTest extends BasePlatformTestCase {
         root = LocalFileSystem.getInstance().refreshAndFindFileByNioFile(directory);
         assertNotNull(root); PsiTestUtil.addContentRoot(getModule(), root);
     }
-    @Override protected void tearDown() throws Exception {
-        try { if (root != null) PsiTestUtil.removeContentEntry(getModule(), root); if (directory != null) FileUtil.delete(directory.toFile()); }
-        finally {
-            try { super.tearDown(); }
-            finally { if (testSettings != null) testSettings.setValue(HIDE_PASSED_KEY, originalHidePassed); }
+    @Override protected void runTestRunnable(ThrowableRunnable<Throwable> testRunnable) throws Throwable {
+        Throwable testFailure = null;
+        try {
+            super.runTestRunnable(testRunnable);
+        } catch (Throwable failure) {
+            testFailure = failure;
+            throw failure;
+        } finally {
+            try { assertNoLanguageServer("fixture actions must not create language-server wrappers"); }
+            catch (Throwable isolationFailure) {
+                if (testFailure != null) testFailure.addSuppressed(isolationFailure);
+                else throw isolationFailure;
+            }
         }
+    }
+    private void assertNoLanguageServer(String stage) {
+        if (accessor != null) assertTrue(stage, accessor.getStartedServers().isEmpty());
+    }
+    @Override protected void tearDown() throws Exception {
+        var project = getProject();
+        RunAll.runAll(
+                () -> {
+                    var file = root == null ? null : root.findChild("fixture_test.go");
+                    var document = file == null ? null : FileDocumentManager.getInstance().getCachedDocument(file);
+                    if (document != null) FileDocumentManager.getInstance().saveDocument(document);
+                },
+                () -> { var editors = FileEditorManager.getInstance(project); for (var file : editors.getOpenFiles()) editors.closeFile(file); },
+                // Assert before normal accessor shutdown: cleanup must never hide a leak.
+                () -> assertNoLanguageServer("fixture cleanup must not retain language-server wrappers"),
+                () -> { if (accessor != null) accessor.projectClosing(project); },
+                () -> { if (root != null) PsiTestUtil.removeContentEntry(getModule(), root); },
+                () -> { if (directory != null) FileUtil.delete(directory.toFile()); },
+                () -> super.tearDown(),
+                () -> { if (testSettings != null) testSettings.setValue(HIDE_PASSED_KEY, originalHidePassed); },
+                () -> { if (gopls != null) gopls.setEnabled(oldGoplsEnabled, project); });
     }
     public void testRealServiceMessagesCreateLocatedProxiesAndSelectedActionClonesObservedSubtree() throws Exception {
         var captured = new AtomicReference<GoRunConfiguration>(); var session = session(null, captured);
@@ -83,7 +130,8 @@ public final class GoTestConsolePlatformTest extends BasePlatformTestCase {
         SMTestProxy child = session.node("TestOne/a+b/dup#01");
         assertNotNull(child.getLocationUrl()); assertTrue(child.getLocationUrl().startsWith("goforge-test://"));
         var location = child.getLocation(getProject(), GlobalSearchScope.projectScope(getProject()));
-        assertNotNull(location); assertEquals(SOURCE.indexOf("TestOne"), location.getPsiElement().getTextOffset());
+        assertNotNull(location); assertNotNull(location.getOpenFileDescriptor());
+        assertEquals(SOURCE.indexOf("TestOne"), location.getOpenFileDescriptor().getOffset());
         var event = session.event(child); var selected = session.result.getActions()[0];
         selected.update(event); assertTrue(event.getPresentation().isEnabled()); selected.actionPerformed(event);
         assertNotNull(captured.get()); assertEquals(List.of("TestOne/a+b/dup#01"), captured.get().getTestSelection().testNames());
@@ -334,7 +382,7 @@ public final class GoTestConsolePlatformTest extends BasePlatformTestCase {
         assertTrue(session.registry.missingRequestedTests().isEmpty());
         assertFalse(GoTestRunRegistry.ordinaryTestName("BenchmarkOne/sub")); assertFalse(GoTestRunRegistry.ordinaryTestName("FuzzOne/seed"));
     }
-    public void testCompletedBenchmarkKeepsTypedDebugSelectionWithoutOrdinaryRerunOrNavigation() throws Exception {
+    public void testCompletedBenchmarkKeepsTypedDebugAndNavigationWithoutOrdinaryRerun() throws Exception {
         var session=session(GoTestSelection.benchmark("BenchmarkOne"),new AtomicReference<>(),directory,"-tags=benchmark_fixture -benchtime=1x","");
         session.send("start","example.com/target","");session.send("run","example.com/target","BenchmarkOne");
         session.send("bench","example.com/target","BenchmarkOne");session.send("pass","example.com/target","");session.finish(0);
@@ -344,8 +392,50 @@ public final class GoTestConsolePlatformTest extends BasePlatformTestCase {
         var selected=session.properties.selectedDebugConfiguration();assertNotNull(selected);
         assertEquals(GoTestSelection.benchmark("BenchmarkOne"),selected.getTestSelection());assertEquals("-tags=benchmark_fixture -benchtime=1x",selected.getGoArguments());
         assertEquals(".",selected.getTarget());assertEquals(directory.toString(),selected.getDirectory());
-        for(int i=0;i<3;i++){var event=session.toolbarEvent();session.result.getActions()[i].update(event);assertEquals(i==2,event.getPresentation().isEnabled());}
+        for(int i=0;i<3;i++){var event=session.toolbarEvent();session.result.getActions()[i].update(event);assertEquals(i>=1,event.getPresentation().isEnabled());}
         assertEquals(GoTestSelection.benchmark("BenchmarkOne"),session.configuration.getTestSelection());
+    }
+    public void testCompletedBenchmarkSourceActionOpensExactDeclarationAndKeepsRerunDisabled() throws Exception {
+        var captured = new AtomicReference<GoRunConfiguration>();
+        var session = session(GoTestSelection.benchmark("BenchmarkOne"), captured);
+        session.send("start", "example.com/target", ""); session.send("run", "example.com/target", "BenchmarkOne");
+        session.send("bench", "example.com/target", "BenchmarkOne"); session.send("pass", "example.com/target", ""); session.finish(0);
+        var node = session.node("BenchmarkOne"); session.select(node);
+        var location = node.getLocation(getProject(), GlobalSearchScope.projectScope(getProject()));
+        assertNotNull(location); assertNotNull(location.getOpenFileDescriptor());
+        assertEquals(SOURCE.indexOf("BenchmarkOne"), location.getOpenFileDescriptor().getOffset());
+        var sourceAction = session.result.getActions()[1]; var event = session.toolbarEvent(); sourceAction.update(event);
+        assertTrue(event.getPresentation().isEnabled()); assertEquals("Go to benchmark declaration", event.getPresentation().getText());
+        sourceAction.actionPerformed(event);
+        var editor = com.intellij.openapi.fileEditor.FileEditorManager.getInstance(getProject()).getSelectedTextEditor();
+        assertNotNull(editor); assertEquals(SOURCE.indexOf("BenchmarkOne"), editor.getCaretModel().getOffset());
+        assertEquals(directory.resolve("fixture_test.go").toString(), FileDocumentManager.getInstance().getFile(editor.getDocument()).getPath());
+        session.result.getActions()[0].actionPerformed(session.toolbarEvent()); assertNull(captured.get());
+        assertNull(session.registry.target(node.getLocationUrl())); assertNotNull(session.registry.navigationTarget(node.getLocationUrl()));
+    }
+    public void testBenchmarkNavigationRejectsForeignHintsChangedSourceAndDisposedConsole() throws Exception {
+        var first = session(null, new AtomicReference<>()); var second = session(null, new AtomicReference<>());
+        for (var session : List.of(first, second)) {
+            session.send("start", "example.com/target", ""); session.send("run", "example.com/target", "BenchmarkOne");
+            session.send("bench", "example.com/target", "BenchmarkOne"); session.send("pass", "example.com/target", ""); session.finish(0);
+        }
+        var locator = first.properties.getTestLocator(); var scope = GlobalSearchScope.projectScope(getProject());
+        String hint = first.node("BenchmarkOne").getLocationUrl().substring("goforge-test://".length());
+        String foreign = second.node("BenchmarkOne").getLocationUrl().substring("goforge-test://".length());
+        assertEquals(1, locator.getLocation("goforge-test", hint, getProject(), scope).size());
+        assertTrue(locator.getLocation("goforge-test", foreign, getProject(), scope).isEmpty());
+        var document = first.registry.cachedDocument(directory.resolve("fixture_test.go"));
+        WriteCommandAction.runWriteCommandAction(getProject(), () -> document.insertString(0, "// changed benchmark source\n"));
+        PsiDocumentManager.getInstance(getProject()).commitDocument(document);
+        assertTrue(locator.getLocation("goforge-test", hint, getProject(), scope).isEmpty());
+        WriteCommandAction.runWriteCommandAction(getProject(), () -> document.setText(SOURCE));
+        FileDocumentManager.getInstance().saveDocument(document);
+        PsiDocumentManager.getInstance(getProject()).commitDocument(document);
+        assertFalse(FileDocumentManager.getInstance().isDocumentUnsaved(document));
+        assertEquals(SOURCE, Files.readString(directory.resolve("fixture_test.go")));
+        assertEquals(1, locator.getLocation("goforge-test", hint, getProject(), scope).size());
+        Disposer.dispose(first.console);
+        assertTrue(locator.getLocation("goforge-test", hint, getProject(), scope).isEmpty());
     }
     public void testBenchmarkDebugRequiresExplicitObservationAndNormalCompletion() throws Exception {
         for(boolean inferred:List.of(true,false)){
@@ -355,6 +445,8 @@ public final class GoTestConsolePlatformTest extends BasePlatformTestCase {
             session.send("bench","example.com/target","BenchmarkOne");session.send("pass","example.com/target","");session.finish(0);
             var node=session.node("BenchmarkOne");session.select(node);
             assertNull(session.properties.selectedDebugConfiguration());assertNull(session.registry.debugTarget(node.getLocationUrl()));
+            assertNull(session.registry.navigationTarget(node.getLocationUrl()));
+            var navigationEvent=session.toolbarEvent();session.result.getActions()[1].update(navigationEvent);assertFalse(navigationEvent.getPresentation().isEnabled());
             var event=session.toolbarEvent();session.result.getActions()[2].update(event);assertFalse(event.getPresentation().isEnabled());
         }
     }
@@ -367,6 +459,7 @@ public final class GoTestConsolePlatformTest extends BasePlatformTestCase {
         }
         var node=first.node("BenchmarkOne");assertNull(second.properties.selectedDebugConfiguration(node));
         assertNull(first.properties.selectedDebugConfiguration(first.node("BenchmarkOne/sub")));
+        assertNull(first.registry.navigationTarget(first.node("BenchmarkOne/sub").getLocationUrl()));
         var data=SimpleDataContext.builder().add(CommonDataKeys.PROJECT,getProject()).add(TestTreeView.MODEL_DATA_KEY,first.console.getResultsViewer())
                 .add(AbstractTestProxy.DATA_KEYS,new AbstractTestProxy[]{node,first.node("BenchmarkOne/sub")}).build();
         assertNull(GoTestConsoleProperties.selectedDebugConfiguration(AnActionEvent.createFromDataContext("BenchmarkDebug",new Presentation(),data)));
@@ -378,9 +471,12 @@ public final class GoTestConsolePlatformTest extends BasePlatformTestCase {
     }
     private Session session(GoTestSelection selection, AtomicReference<GoRunConfiguration> captured,
                             Path workingDirectory, String arguments, String actualGoFlags) throws Exception {
-        Path file = directory.resolve("fixture_test.go"); Files.writeString(file, SOURCE);
+        Path file = directory.resolve("fixture_test.go");
+        if (!Files.exists(file)) Files.writeString(file, SOURCE);
+        else assertEquals("A second console must reuse unchanged source instead of overwriting it", SOURCE, Files.readString(file));
         VirtualFile virtual = LocalFileSystem.getInstance().refreshAndFindFileByNioFile(file); assertNotNull(virtual);
-        FileDocumentManager.getInstance().getDocument(virtual);
+        var document = FileDocumentManager.getInstance().getDocument(virtual); assertNotNull(document);
+        assertEquals("Console source must match the saved fixture", SOURCE, document.getText());
         PsiDocumentManager.getInstance(getProject()).commitAllDocuments();
         var snapshot = new GoTestSourceIndex.Snapshot(file, "fixture", SOURCE, List.of(
             new GoTestSourceIndex.Declaration("TestOne", "test", SOURCE.indexOf("func TestOne"), SOURCE.indexOf("func TestTwo"), SOURCE.indexOf("TestOne")),

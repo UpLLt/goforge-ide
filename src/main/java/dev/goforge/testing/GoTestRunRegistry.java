@@ -104,8 +104,10 @@ public final class GoTestRunRegistry implements AutoCloseable {
         return n == null ? null : new ObservedIdentity(n.packageName, n.fullName, n.inferred, n.status);
     }
     public synchronized Target target(String url) { return resolve(url, false); }
-    /** Benchmarks are authorized only for the separate Debug action, never ordinary rerun/navigation. */
+    /** Completed benchmarks use separate targets; they never authorize ordinary test rerun. */
     public synchronized Target debugTarget(String url) { return resolve(url, true); }
+    /** Navigation shares completed benchmark identity checks, without creating a run configuration. */
+    public synchronized Target navigationTarget(String url) { return resolve(url, true); }
     private Target resolve(String url, boolean debug) {
         if (disposed || url == null || !url.startsWith(PROTOCOL + "://" + runToken + "/")) return null;
         String token = url.substring((PROTOCOL + "://" + runToken + "/").length());

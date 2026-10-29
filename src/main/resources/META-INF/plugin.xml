@@ -84,6 +84,11 @@
   </projectListeners>
 
   <actions>
+    <action id="GoForge.DebugBenchmarkAtCaret" class="dev.goforge.debug.GoDebugBenchmarkAtCaretAction"
+            text="Debug Go Benchmark at Caret" description="Debug one iteration of the saved top-level benchmark at the caret">
+      <add-to-group group-id="RunMenu" anchor="last"/>
+      <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+    </action>
     <action id="GoForge.Refactor" class="dev.goforge.refactor.GoRefactorAction" text="Go Refactor…"
             description="Preview and apply Go extract, inline and rewrite actions as one undoable edit">
       <add-to-group group-id="RefactoringMenu" anchor="first"/>

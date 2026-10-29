@@ -17,8 +17,8 @@ GoForge 使用原创代码、公开的 IntelliJ Community 平台、LSP4IJ、gopl
 
 | 平台 | 包与验证情况 |
 | --- | --- |
-| macOS / Apple Silicon | macOS 13.5+；当前 dd87 包已审计，原生界面待验收；此前限定原生工作流属于 bdf5，Benchmark 调试仍未确认。ad-hoc 签名，尚无 Developer ID 公证。 |
-| Windows x64 | 第 9 次产品测试通过，原生 gopls 检查失败；尚无完整验收的 Windows 包。见 [Windows 安装状态](docs/INSTALL.md#windows-x64)。 |
+| macOS / Apple Silicon | macOS 13.5+；dd87 包已审计，限定 Add Parameter 原生流程通过；此前 bdf5 Benchmark 调试通过但 Stop 存在生成文件清理缺口，完整界面待验收。ad-hoc 签名，尚无 Developer ID 公证。 |
+| Windows x64 | 第 10 次产品测试、打包和 9 项原生检查通过；交互界面待验收，启动器无签名。见 [Windows 安装状态](docs/INSTALL.md#windows-x64)。 |
 | Linux / 其他架构 | 暂无已验证的独立发行包。 |
 
 已准备的内部平台包均内置运行时、Go SDK、gopls、Delve、Node、Dev Containers CLI 和 JDBC 驱动。Docker、kubectl、Git、OpenSSH、Cgo 的 C 编译器及 macOS 调试前置工具使用系统安装。包校验值及“已准备”与“已公开发布”的区别见[安装指南](docs/INSTALL.md#prepared-package-identities)。
@@ -29,8 +29,8 @@ GoForge 使用原创代码、公开的 IntelliJ Community 平台、LSP4IJ、gopl
 
 | 模块 | 已实现范围 |
 | --- | --- |
-| Go 编辑 | 本地行/块注释、配对括号、限定块缩进及原始字符串回车；gopls 补全、诊断、跳转、引用、重命名及可用代码动作；等待响应完成的 Go 默认保存格式化及手动 Reformat；独立控制的保存时导入整理先于格式化，另有手动 Optimize Imports 与保存类型列表中的 Go 选项；已有平台测试及限定 macOS 原生检查，Windows 待验收。 |
-| 项目与运行 | 应用/库模块、运行/构建/测试；顶层 Test/Example 选择、运行时子测试重跑、所属声明跳转及单包失败顶层测试重跑；本地终止保留已完成结果，未完成节点标为中断。支持单个顶层 Benchmark Run，并从明确出现且已结束的 Run 控制台节点调试；直接编辑器 Benchmark Debug、子基准选择仍不可用。 |
+| Go 编辑 | 本地行/块注释、配对括号、限定块缩进及原始字符串回车；gopls 补全、诊断、跳转、引用、重命名及可用代码动作；等待响应完成的 Go 默认保存格式化及手动 Reformat；独立控制的保存时导入整理先于格式化，另有手动 Optimize Imports 与保存类型列表中的 Go 选项；macOS/Windows 平台测试及限定 macOS 原生检查通过，Windows 编辑器界面待验收。 |
+| 项目与运行 | 应用/库模块、运行/构建/测试；顶层 Test/Example 选择、运行时子测试重跑、所属声明跳转及单包失败顶层测试重跑；本地终止保留已完成结果，未完成节点标为中断。支持单个顶层 Benchmark Run、已明确出现且完成节点的 Debug/源码跳转，以及保存后从编辑器声明运行一次迭代的 Debug Go Benchmark at Caret；直接子基准选择仍不可用。新入口/跳转不属于已验证 Full 13/第 10 次基线。 |
 | 重构 | 项目内多文件预览与可撤销应用、提取声明到新文件、受保护的跨包参数重排/删除；独立操作支持为项目内已验证的直接调用新增一个标量参数并统一插入字面量默认值，含限定泛型普通函数调用；普通导入走单模块离线编译检查，保留类型参数、约束与实参顺序。当前源码还支持单模块内经过编译检查的标量参数/单返回值类型修改。文件清单变化会使预览失效；拒绝不支持的调用形态和文件操作。 |
 | 调试 | 本地 Delve，含保留受支持参数的指定 Test/Example/子树调试；SSH 远端 package/test/executable 启动和 PID attach，支持经审阅的项目根 `go.work` 多模块；断点、栈、变量、表达式、步进和停止。 |
 | 覆盖率与性能 | 单模块覆盖率及源码着色；CPU/内存采集与 pprof。 |
@@ -62,11 +62,15 @@ GRADLE_USER_HOME="$PWD/.gradle-user-home" ./gradlew \
 
 ## 验证范围
 
-**Full 13（dd87）**通过 **756/756 项 macOS 宿主 JUnit 测试**（433 component + 323 platform，99 份 XML，零失败/错误/跳过）、插件构建与结构检查，345 项构建输入已冻结。该源码新增普通导入下经过编译检查的 Add Parameter；Mac 包已组装并独立审计，原生界面与 Windows 验证仍待完成。
+**当前源码——Full 17（6425）。**通过 **800/800 项 macOS 宿主 JUnit 测试**（463 component + 337 platform，105 份 XML，零失败/错误/跳过）、插件构建与结构检查，358 项输入已冻结。源码新增默认本地调试输出清理、已完成顶层 Benchmark 结果跳转及 **Debug Go Benchmark at Caret**。Full 14–16 的集成失败记录保留；下方既有 dd87 Mac 包与 Windows 第 10 次属于 Full 13，新版本 macOS 打包界面与 Windows 验收仍待完成。
 
-当前已审计 macOS 包为 dd87，验签、无界面启动、迁移及归档检查通过，dd87 原生界面待验收。此前 bdf5 的限定原生检查覆盖手动导入整理及 Undo/Redo、可见的 Go 导入类型入口、指定 Benchmark 运行、远端 SDK 只读跳转与 Stop。Benchmark 调试仍为未确认原因的界面尝试；完整界面验收及当前会话最终退出检查待完成。
+当前清理改动为默认本地 Delve `debug`/`test` 启动分配独立、由本会话拥有的临时输出目录。适配器及已观察到的目标进程退出后，仅删除本会话生成的可执行文件和空目录；不能确认退出或目录归属时保留输出并警告。显式 `output` 路径、`exec`、attach 和远端会话保持各自行为。此改动未包含在已验证的 Full 13/dd87 包及第 10 次 CI 证据中，新版本 macOS 界面与 Windows 验证均待完成。
 
-Windows 第 9 次使用较早 2406 源码：34 项预检、722 项产品测试通过，1 项明确的 POSIX shell 跳过。迁移后的原生启动器、包内工具版本及 Go run/test 通过；gopls 定义请求因 `no views` 失败，尚未进入 Delve 验收。本轮整体失败，Windows 界面及更新源码仍待验收。
+**既有包基线——Full 13（dd87）**通过 **756/756 项 macOS 宿主 JUnit 测试**（433 component + 323 platform，99 份 XML，零失败/错误/跳过）、插件构建与结构检查，345 项输入已冻结。同一审阅源码在 Windows 第 10 次通过 755 项产品测试，1 项既存 POSIX shell 跳过。Mac 包已独立审计，普通导入 Add Parameter 已有限定 macOS 原生证据；完整界面与 GoLand 全面对齐仍未完成。
+
+已审计 dd87 Mac 包通过限定的普通导入 Add Parameter 原生流程：预览/取消、三文件 Apply 与保存、Undo/Redo、保存后包内 Go 测试、恢复夹具字节、正常退出与再次验签。夹具仅为单独模块、标准库导入及 `int` 字面量默认值，仍记录 4 条平台警告。此前 bdf5 原生证据覆盖手动导入整理、可见 Go 类型入口、远端 SDK 只读跳转/Stop，以及选中 Benchmark Run/Debug；Debug 已到达断点、表达式、步进和正常退出，但另一次 Stop 清除了适配器/目标进程后仍留下 `__debug_bin…` 文件。清理修复已通过 Full 17 macOS 宿主测试，打包原生验证仍待完成，完整界面验收尚未完成。
+
+Windows [第 10 次 CI](https://github.com/UpLLt/goforge-ide/actions/runs/40823363745)使用审阅后的 Full 13 源码，**43/43 项预检**、**756 项产品测试＝755 通过＋1 项既存 POSIX shell 跳过**（99 份 XML，零失败/错误）、打包及 **9 项原生检查**通过。迁移启动器/包内 JBR、中文与空格路径、精确独立配置目录、工具版本、Go run/test、gopls、Delve 正常及取消清理通过。Windows 交互式 IDE 界面仍未验收，启动器无签名，`publish=false` 且发布步骤已跳过。
 
 包哈希与安装方式见[安装指南](docs/INSTALL.md#prepared-package-identities)，具体缺口见[已知差距](docs/KNOWN-LIMITATIONS.md#verification-scope--验证范围)。历史结果仅代表对应构建与原检查范围，完整记录由维护者保留。
 

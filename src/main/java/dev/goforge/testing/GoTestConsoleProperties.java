@@ -144,6 +144,10 @@ public final class GoTestConsoleProperties extends SMTRunnerConsoleProperties {
         String url = selectedLocationUrl;
         return selectionDisposed || registry.project().isDisposed() || url == null ? null : registry.target(url);
     }
+    private @Nullable GoTestRunRegistry.Target selectedNavigationTarget() {
+        String url = selectedLocationUrl;
+        return selectionDisposed || registry.project().isDisposed() || url == null ? null : registry.navigationTarget(url);
+    }
     public static @Nullable GoRunConfiguration selectedConfiguration(AnActionEvent event) {
         var model = event.getData(TestTreeView.MODEL_DATA_KEY);
         if (model == null || !(model.getProperties() instanceof GoTestConsoleProperties properties)) return null;
@@ -266,19 +270,21 @@ public final class GoTestConsoleProperties extends SMTRunnerConsoleProperties {
         NavigateSourceAction() { super("Go to test declaration", "Runtime subtests navigate to their containing top-level test", null); }
         @Override public @NotNull ActionUpdateThread getActionUpdateThread() { return ActionUpdateThread.BGT; }
         @Override public void update(@NotNull AnActionEvent event) {
-            var target = selectedTarget(); event.getPresentation().setEnabled(target != null);
-            event.getPresentation().setText(target != null && target.fullName().contains("/") ? "Go to containing test declaration" : "Go to test declaration");
+            var target = selectedNavigationTarget(); event.getPresentation().setEnabled(target != null);
+            event.getPresentation().setText(target != null && target.declaration().kind().equals("benchmark")
+                    ? "Go to benchmark declaration"
+                    : target != null && target.fullName().contains("/") ? "Go to containing test declaration" : "Go to test declaration");
         }
         @Override public void actionPerformed(@NotNull AnActionEvent event) {
-            var target = selectedTarget(); if (target == null) return;
+            var target = selectedNavigationTarget(); if (target == null) return;
             String path = target.locationUrl().substring((GoTestRunRegistry.PROTOCOL + "://").length());
             var locations = locator.getLocation(GoTestRunRegistry.PROTOCOL, path, registry.project(), GlobalSearchScope.projectScope(registry.project()));
             if (locations.isEmpty()) {
-                Messages.showInfoMessage(registry.project(), "The indexed source has changed or is unavailable. Run this test again to refresh source navigation.", "Go Test Source");
+                Messages.showInfoMessage(registry.project(), "The indexed source has changed or is unavailable. Run this test or benchmark again to refresh source navigation.", "Go Test Source");
                 return;
             }
-            var element = locations.getFirst().getPsiElement();
-            new OpenFileDescriptor(registry.project(), element.getContainingFile().getVirtualFile(), element.getTextOffset()).navigate(true);
+            var descriptor = locations.getFirst().getOpenFileDescriptor();
+            if (descriptor != null) descriptor.navigate(true);
         }
     }
 }

@@ -81,23 +81,41 @@ Save a `_test.go` file, place the caret inside a top-level `Benchmark…` functi
 
 Supported declarations have a body, one `*testing.B` parameter (named or unnamed, including a named alias for the `testing` import), and no results or type parameters. Type-alias chains, dot imports, binding conflicts and incorrect benchmark signatures are unavailable. Conflicting selectors in **Go arguments** or effective `GOFLAGS` are rejected; a stale file/configuration or an unobserved requested benchmark is a selection error, not a fallback to the entire package. Optional `-benchtime=1x -benchmem` can request one iteration with allocation metrics. The Test/Example fresh-run checkbox does not apply to Benchmark mode.
 
-Use **Run** first. Current source can then debug the explicitly observed top-level node as described below. Direct editor Benchmark Debug, direct subbenchmark selection, benchmark-result source navigation/per-node rerun, fuzz selection and comparison charts are not included. Existing Test/Example selection and package/manual configurations retain their separate workflows. Native Run has bounded macOS evidence; Debug and Windows acceptance are separate.
+After **Run**, current source can debug an explicitly observed top-level node or navigate to its declaration. A separate **Debug Go Benchmark at Caret** action now starts directly from the saved editor declaration; see below. Direct subbenchmark selection, benchmark per-node rerun, fuzz selection and comparison charts remain unavailable. Existing Test/Example and package/manual workflows retain their separate behavior. The new editor/navigation actions are outside the Full 13/Run 10 baseline; packaged GUI and Windows validation are pending.
 
 保存 `_test.go`，将光标放在顶层 `Benchmark…` 函数内，选择上下文 **Run** 或 **Current File → Run**。也可在运行配置中选择 **Command: test → Test selection: One top-level Benchmark**，工作目录填写包目录、目标填写 `.`，并在 **Test names** 只填一个完整名称。生成的选择使用 `-run=^$` 与精确的字面量 `-bench` 筛选，排除普通测试及其他顶层 Benchmark；被选函数自己创建的子基准仍可能执行。
 
 支持有函数体、单个 `*testing.B` 参数（有名或无名，允许 `testing` 的具名导入别名）、无返回值或类型参数的声明。不支持类型别名链、点导入、绑定冲突或错误签名。**Go arguments** 和实际 `GOFLAGS` 中的冲突筛选参数会被拒绝；源码/配置过期或目标没有实际出现时，报告选择错误，不会退回整包执行。可选填 `-benchtime=1x -benchmem` 运行一次并显示分配指标；Test/Example 的强制重新运行勾选项不适用于 Benchmark 模式。
 
-先使用 **Run**，当前源码随后可按下节调试明确出现的顶层节点。直接编辑器 Benchmark Debug、直接选择子基准、基准结果源码跳转/逐节点重跑、fuzz 选择及对比图表尚未包含。原有 Test/Example 和包级手工配置保留各自流程。macOS Run 有限定原生证据；Debug 与 Windows 验收单独记录。
+**Run** 后可调试明确出现的顶层节点，或跳转到其声明；新增独立 **Debug Go Benchmark at Caret** 动作可直接从已保存的编辑器声明启动，见下方。直接子基准选择、基准逐节点重跑、fuzz 选择及对比图表仍不可用；原 Test/Example 和包级手工配置保留各自行为。新编辑器入口/跳转不属于 Full 13/第 10 次基线，打包界面与 Windows 验证待完成。
 
 ### Debug one observed benchmark / 调试一个已运行的基准测试
 
 First Run the benchmark and wait for its Run console to finish. Save the source, set a breakpoint inside the top-level Benchmark, select its explicitly observed node, then choose **Debug selected Go test/benchmark**. The debug-specific selection uses an exact `-test.bench` filter and `-test.run=^$`, excluding ordinary tests and other top-level benchmarks. Optional `-benchtime=1x` and `-benchmem` are preserved; without an explicit timing flag, Go keeps its normal benchmark timing. Use Debug for frames, variables, stepping and Stop.
 
-The action refuses inferred/output-only nodes, subbenchmark nodes, foreign/disposed consoles and runs stopped locally. It preserves source/configuration guards and rejects unsupported flags. Benchmark source navigation, per-node rerun and direct editor Benchmark Debug remain separate gaps. Platform tests and generated-fixture Delve sessions passed; the native toolbar attempt remains unresolved and Windows acceptance is pending. See the linked verification scope.
+The action refuses inferred/output-only nodes, subbenchmark nodes, foreign/disposed consoles and runs stopped locally. It preserves source/configuration guards and rejects unsupported flags. Current source adds completed-node declaration navigation and a separate direct editor Debug action. Benchmark per-node rerun remains unavailable. Earlier observed-node platform tests passed on macOS and Windows; those results do not cover the new entries. A bounded bdf5 macOS native session passed breakpoint, evaluation, step, resume and exit; a separate Stop removed adapter/target processes but left a generated `__debug_bin…` file. Its cleanup repair has Full 17 macOS-host tests; packaged native verification remains pending. Windows Run 10 checked direct Delve normal/cancel protocols, not this IDE toolbar or benchmark workflow. See the linked verification scope.
 
 先 Run 基准并等待 Run 控制台结束，保存源码、在顶层 Benchmark 内设断点，选中实际出现的节点，再选择 **Debug selected Go test/benchmark**。调试使用精确 `-test.bench` 和 `-test.run=^$`，排除普通测试及其他顶层基准；可选 `-benchtime=1x`、`-benchmem` 会保留，没有显式时间参数时仍使用 Go 默认基准运行时长。通过 Debug 查看栈、变量、步进和 Stop。
 
-仅从输出推测的节点、子基准、其他/已关闭控制台及本地 Stop 的运行不授权此动作；源码/配置守卫与不支持参数拒绝仍保留。基准源码跳转、逐节点重跑、直接编辑器 Benchmark Debug 仍是独立缺口。平台测试与生成夹具 Delve 会话通过；原生工具栏尝试仍未确认，Windows 待验收，详见验证范围。
+仅从输出推测的节点、子基准、其他/已关闭控制台及本地 Stop 的运行不授权此动作；源码/配置守卫与不支持参数拒绝仍保留。当前源码新增完成节点声明跳转及独立编辑器直接 Debug，基准逐节点重跑仍不可用。较早选中节点流程的 macOS/Windows 平台测试通过，不包含新入口；bdf5 macOS 限定原生会话通过断点、表达式、步进、继续与退出，但另一次 Stop 清除适配器/目标进程后仍留下 `__debug_bin…` 文件，清理修复已有 Full 17 macOS 宿主测试，打包原生验证仍待完成。Windows 第 10 次检查了直接 Delve 正常/取消协议，不是本 IDE 工具栏或 Benchmark 流程；详见验证范围。
+
+The new editor Debug, completed-result navigation and session-output cleanup are included in Full 17 (800 passing macOS-host tests). The existing dd87 Mac package and Windows Run 10 do not include these changes; new packaged GUI and Windows validation remain pending. / 新编辑器 Debug、完成结果跳转与会话输出清理已纳入 Full 17（800 项 macOS 宿主测试通过）；既有 dd87 Mac 包和 Windows 第 10 次不含这些改动，新版本打包界面与 Windows 验证仍待完成。
+
+### Debug a benchmark at the editor caret / 直接调试光标所在基准测试
+
+Save the `_test.go` file and set a breakpoint inside a supported top-level `Benchmark…` function. Put the caret inside that function, then choose **Run → Debug Go Benchmark at Caret** or the same editor context-menu action. When the declaration is already known, the menu may show **Debug BenchmarkName at Caret**. No prior benchmark Run is needed. Preparation checks the current package build and creates a temporary local Delve configuration for the selected declaration.
+
+This entry uses an exact literal `-test.bench` filter, `-test.run=^$`, `-test.count=1` and `-test.benchtime=1x`. Ordinary tests and other top-level benchmarks are excluded; the selected function may still execute its own child benchmarks. Current Go tool paths and project build settings apply. Save all package source changes first. A moved/renamed file, changed source or Go settings, build-excluded declaration, conflicting timing/CPU-list options or unsupported flags cause refusal rather than package-wide fallback. Preparation cancellation does not start a debug session. The same source/path/settings guard applies to later launches of this temporary configuration; select the action again after changes.
+
+先保存 `_test.go`，在受支持的顶层 `Benchmark…` 函数内设断点，将光标放在该函数中，选择 **Run → Debug Go Benchmark at Caret** 或编辑器右键中的同名动作。已识别声明时，菜单可能显示 **Debug BenchmarkName at Caret**。无需先 Run 基准；准备阶段检查当前包的实际构建范围，并为所选声明创建临时本地 Delve 配置。
+
+该入口使用精确字面量 `-test.bench`、`-test.run=^$`、`-test.count=1` 和 `-test.benchtime=1x`，排除普通测试及其他顶层 Benchmark；所选函数仍可能执行它自行创建的子基准。沿用当前 Go 工具路径和项目构建设置，先保存包内源码改动。文件移动/重命名、源码或 Go 设置变化、声明不在当前构建范围、时间/CPU 列表冲突或不支持的参数会拒绝，不退回整包调试；取消准备不会启动调试会话。临时配置后续启动仍校验原源码、路径和设置，变化后请重新选择此动作。
+
+### Navigate from a completed benchmark / 从已完成基准结果跳转
+
+Wait for a benchmark Run console to finish, select an explicitly observed top-level Benchmark node, then use **Go to benchmark declaration**. The editor opens at the function name's exact parsed source position. A live, locally stopped, inferred/output-only, subbenchmark, foreign or disposed result does not authorize this navigation. The captured file/text must still match; if it changed, Run again to refresh the result. Navigation does not rerun the benchmark or enable per-node rerun.
+
+等待 Benchmark Run 控制台结束，选中实际出现的顶层 Benchmark 节点，使用 **Go to benchmark declaration**，编辑器会定位到源码解析确认的函数名位置。运行中、本地 Stop、仅从输出推测、子基准、其他或已关闭控制台结果不允许此跳转；捕获文件/文本变化后需重新 Run 刷新。跳转不会重跑基准，也不开放逐节点重跑。
 
 ## Test results, navigation and rerun / 测试结果、跳转与重跑
 
@@ -150,6 +168,10 @@ Unsupported options, including coverage/profile collection, `-vet`, custom test-
 
 此入口保留上表所列选项，具体可用性仍受 Go 工具链和操作系统限制。覆盖率/性能数据采集、`-vet`、自定义测试程序参数、`-exec` 等未支持选项会明确报错并停止启动。请修改运行配置，或针对这些需求创建显式 Delve 配置；不会悄悄丢弃参数继续调试。
 
+The current cleanup change gives default local Delve launches in `debug`/`test` mode a separate, session-owned temporary output directory. After the adapter and observed target processes exit, it removes only that session’s generated executable and empty directory. If exit or ownership cannot be established, it retains the output and reports a warning. Explicit `output` paths, `exec`, attach and remote sessions retain their separate behavior. The change is not included in the verified Full 13/dd87 packages or Run 10 evidence; new macOS GUI and Windows validation remain pending.
+
+当前清理改动为默认本地 Delve `debug`/`test` 启动分配独立、由本会话拥有的临时输出目录。适配器及已观察到的目标进程退出后，仅删除本会话生成的可执行文件和空目录；不能确认退出或目录归属时保留输出并警告。显式 `output` 路径、`exec`、attach 和远端会话保持各自行为。此改动未包含在已验证的 Full 13/dd87 包及第 10 次 CI 证据中，新版本 macOS 界面与 Windows 验证均待完成。
+
 ## Change a Go signature / 修改 Go 签名
 
 Place the caret on a declaration's **`func`** keyword, invoke **Go Refactor…**, and select **Change signature across files…**. Edit the proposed function type to reorder existing parameters or remove unused parameters. Keep the original parameter names, parameter types and result types. Review every affected file before Apply; ordinary Undo/Redo covers the whole change.
@@ -181,6 +203,8 @@ Methods, variadics, grouped/unnamed parameters, function-value references (inclu
 For ordinary imports, the compile check requires default host settings, one root go.mod, no active/parent go.work, nested modules, local module replacements or vendor tree, and a complete pure-Go source graph. It uses go test -c including tests without executing init, TestMain or tests. Compile success confirms type compatibility, not identical behavior. Module/GOENV/SDK, project build settings, unsaved metadata, the active server and captured sources are rechecked before Apply; changed proof inputs require a new preview.
 
 普通导入的编译检查要求默认宿主设置、根 go.mod、完整纯 Go 源码图，不支持活动/父级 go.work、嵌套模块、本地 module replace 或 vendor。通过 go test -c 编译含测试的源码，不执行 init、TestMain 或测试；编译成功只证明类型兼容，不证明行为完全相同。Apply 前再次校验模块、GOENV、SDK、项目构建设置、未保存元数据、活动服务及捕获源码；证明输入变化时须重新预览。
+
+Bounded dd87 macOS native acceptance used one module with ordinary standard-library imports, adding `extra int` at index `1` with literal default `7`: preview/cancel preserved all sources; Apply changed the declaration and two callers across three files; Save, Undo/Redo, bundled Go tests after saved edits, final restoration and normal exit passed. Place the caret on `func`; a caret after the function name did not expose this signature operation. This does not establish methods, arbitrary defaults or Windows GUI acceptance. / dd87 macOS 限定原生检查使用单模块及普通标准库导入，在位置 `1` 新增 `extra int`、默认值 `7`：预览/取消保留源码，Apply 修改三文件中的声明和两个调用，保存、Undo/Redo、保存后包内 Go 测试、最终恢复及正常退出通过。光标须放在 `func`，函数名后的光标未显示该签名操作；不代表方法、任意默认值或 Windows 界面验收。
 
 ### Change an existing scalar type / 修改现有标量类型
 

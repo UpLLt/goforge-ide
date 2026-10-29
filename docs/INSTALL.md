@@ -12,9 +12,9 @@ GoForge 本身无需账号或激活。请使用与你的系统和 CPU 一致的�
 
 ## macOS Apple Silicon
 
-Current audited internal package: **GoForge-0.1.0-dev-macos-aarch64.zip (Full 13/dd87)**. Packager checks and independent archive readback passed. dd87 native GUI acceptance is pending; earlier selected native workflows belong to bdf5. See [package identities](#prepared-package-identities).
+Current audited internal package: **GoForge-0.1.0-dev-macos-aarch64.zip (Full 13/dd87)**. Packager checks and independent archive readback passed, as did a bounded ordinary-import Add Parameter native workflow. Full GUI acceptance remains pending; earlier Benchmark Debug evidence belongs to bdf5 and has a Stop-generated-file cleanup gap. See [package identities](#prepared-package-identities).
 
-当前已审计内部包为 **GoForge-0.1.0-dev-macos-aarch64.zip（Full 13/dd87）**，打包检查与独立归档读回通过。dd87 原生界面待验收，此前部分原生通过属于 bdf5，校验值见[包身份](#prepared-package-identities)。
+当前已审计内部包为 **GoForge-0.1.0-dev-macos-aarch64.zip（Full 13/dd87）**，打包检查、独立归档读回及限定普通导入 Add Parameter 原生流程通过，完整界面仍待验收。此前 Benchmark Debug 证据属于 bdf5，Stop 后生成文件清理存在缺口；校验值见[包身份](#prepared-package-identities)。
 
 Requirements: macOS **13.5+**, Apple Silicon. The development package contains its Java runtime and Go tools. Git, Cgo, and local debugging may additionally need Apple's Command Line Tools; Delve uses Apple's debugger components. No global Go installation is required for bundled pure-Go workflows.
 
@@ -35,7 +35,7 @@ Per-user settings are isolated under `~/Library/Application Support/GoForge/GoFo
 
 ## Windows x64
 
-**Current status:** See [CI status](#windows-ci-status--windows-ci-状态). Windows Run 9 (older 2406 source) passed 34 preflight checks and 722 product tests, with one explicit POSIX-shell skip. The relocated native launcher, bundled tool versions and Go run/test passed; gopls definition failed with `no views`, so Delve acceptance was not reached. The run failed; Windows GUI and newer-source acceptance remain pending.
+**Current status:** Run 10 passed product tests, packaging and nine native engine/launcher checks; Windows interactive IDE GUI acceptance remains pending. This is an unsigned internal archive, not a public release. See [CI status](#windows-ci-status--windows-ci-状态).
 
 The prepared archive is `GoForge-0.1.0-dev-windows-x64.zip`, targeting Windows 10/11 x64. Preparation does not mean it has been publicly released. When a release includes it:
 
@@ -49,34 +49,44 @@ The prepared archive is `GoForge-0.1.0-dev-windows-x64.zip`, targeting Windows 1
 
 The distribution has no GoForge Authenticode signature or installer. The native launcher receives GoForge icon/version resources, which invalidates its original signature; the derivative launcher is unsigned. Follow normal Windows security prompts; do not turn off SmartScreen or antivirus. Remote SSH features additionally require the Windows OpenSSH client; Docker and Kubernetes require their own installations.
 
-**当前状态：** Windows 第 9 次使用较早 2406 源码：34 项预检、722 项产品测试通过，1 项明确的 POSIX shell 跳过。迁移后的原生启动器、包内工具版本及 Go run/test 通过；gopls 定义请求因 `no views` 失败，尚未进入 Delve 验收。本轮整体失败，Windows 界面及更新源码仍待验收。 目标为 Windows 10/11 x64；获授权取得内部 ZIP 或未来实际提供发行 ZIP 后，校验并完整解压，再打开 `GoForge\bin\goforge64.exe`。当前无 GoForge Authenticode 签名或安装器，按正常安全提示处理，不关闭 SmartScreen/杀毒软件。
+**当前状态：** 第 10 次产品测试、打包和 9 项原生引擎/启动器检查通过，Windows 交互式 IDE 界面待验收。这是无签名的内部包，不是公开发行。目标 Windows 10/11 x64；取得内部 ZIP 后校验、完整解压，再运行 `GoForge\bin\goforge64.exe`。遵循正常安全提示，不关闭 SmartScreen/杀毒软件。详细结果见下方 CI 状态。
 
 ### Windows CI status / Windows CI 状态
 
-[Private Run 9 (`40819479810`)](https://github.com/UpLLt/goforge-ide/actions/runs/40819479810) checked frozen 2406 plus its configuration-isolation repair: 34/34 preflight passed; 723 product tests = 722 passed + one existing POSIX-shell skip, no failures/errors (97 XML). The native report confirms the relocated launcher, exact owned configuration paths and Go run/test; gopls returned `no views` before Delve. Final release export was not reached. Run 10 has not started.
+Windows [Run 10](https://github.com/UpLLt/goforge-ide/actions/runs/40823363745) passed on the reviewed Full 13 source: **43/43 preflight checks**, **756 product tests = 755 passed + one existing POSIX-shell skip** (99 XML, no failures/errors), packaging and **nine native checks**. The relocated launcher/bundled JBR, Unicode and space paths, exact isolated configuration paths, tool versions, Go run/test, gopls and Delve normal/cancel cleanup passed. Windows interactive IDE GUI remains unverified; the launcher is unsigned, and publication was skipped with `publish=false`.
 
-[私有第 9 次 CI](https://github.com/UpLLt/goforge-ide/actions/runs/40819479810)基于冻结 2406 与配置隔离修复：34/34 预检通过，723 项产品测试为 722 通过、1 项既存 POSIX shell 跳过，0 失败/错误（97 XML）。原生报告确认迁移启动器、精确独立配置路径及 Go run/test；随后 gopls 返回 `no views`，Delve 和最终发行导出未执行。第 10 次尚未启动。
+Windows [第 10 次 CI](https://github.com/UpLLt/goforge-ide/actions/runs/40823363745)使用审阅后的 Full 13 源码，**43/43 项预检**、**756 项产品测试＝755 通过＋1 项既存 POSIX shell 跳过**（99 份 XML，零失败/错误）、打包及 **9 项原生检查**通过。迁移启动器/包内 JBR、中文与空格路径、精确独立配置目录、工具版本、Go run/test、gopls、Delve 正常及取消清理通过。Windows 交互式 IDE 界面仍未验收，启动器无签名，`publish=false` 且发布步骤已跳过。
 
-These results do not cover bdf5/dd87 additions or Windows GUI. See [verification scope](KNOWN-LIMITATIONS.md#verification-scope--验证范围). / 这些结果不覆盖 bdf5/dd87 新增功能及 Windows 界面，见[验证范围](KNOWN-LIMITATIONS.md#verification-scope--验证范围)。
+The run used checkout `c0d92d8397497a1aa33460139bc22210c761093a`, imported from reviewed source ZIP `08e592b36144b958889e99e5fb7de0a5ed4f1c7af30eaaba6ce8a090e348cb34`. Its exact 756 test identities match Full 13. These are real Windows runner results, not a Windows GUI pass or proof of full parity. See [verification scope](KNOWN-LIMITATIONS.md#verification-scope--验证范围). / 本轮 checkout 与源码 ZIP 身份如上，756 项测试身份与 Full 13 一致；这是实际 Windows runner 结果，不代表 Windows 界面或完整功能对齐通过。详见[验证范围](KNOWN-LIMITATIONS.md#verification-scope--验证范围)。
 
 ## Prepared package identities
 
-**Full 13 (dd87)** passed **756/756 macOS-host JUnit tests** (433 component + 323 platform; 99 XML reports, no failures/errors/skips), plugin build and structure verification. Its 345 build inputs are frozen. This source includes compile-checked Add Parameter support for ordinary imports; its Mac archive is assembled and independently audited; native GUI and Windows verification remain pending.
+**Current source — Full 17 (6425).** Passed **800/800 macOS-host JUnit tests** (463 component + 337 platform; 105 XML reports, no failures/errors/skips), plugin build and structure verification, with 358 frozen inputs. This source adds default local debug-output cleanup, navigation from completed top-level Benchmark results, and **Debug Go Benchmark at Caret**. Full 14–16 remain recorded failed integration runs. The existing dd87 Mac package and Windows Run 10 below belong to Full 13; new packaged macOS GUI and Windows acceptance remain pending.
 
-**Full 13（dd87）**通过 **756/756 项 macOS 宿主 JUnit 测试**（433 component + 323 platform，99 份 XML，零失败/错误/跳过）、插件构建与结构检查，345 项构建输入已冻结。该源码新增普通导入下经过编译检查的 Add Parameter；Mac 包已组装并独立审计，原生界面与 Windows 验证仍待完成。
+The current cleanup change gives default local Delve launches in `debug`/`test` mode a separate, session-owned temporary output directory. After the adapter and observed target processes exit, it removes only that session’s generated executable and empty directory. If exit or ownership cannot be established, it retains the output and reports a warning. Explicit `output` paths, `exec`, attach and remote sessions retain their separate behavior. The change is not included in the verified Full 13/dd87 packages or Run 10 evidence; new macOS GUI and Windows validation remain pending.
+
+**当前源码——Full 17（6425）。**通过 **800/800 项 macOS 宿主 JUnit 测试**（463 component + 337 platform，105 份 XML，零失败/错误/跳过）、插件构建与结构检查，358 项输入已冻结。源码新增默认本地调试输出清理、已完成顶层 Benchmark 结果跳转及 **Debug Go Benchmark at Caret**。Full 14–16 的集成失败记录保留；下方既有 dd87 Mac 包与 Windows 第 10 次属于 Full 13，新版本 macOS 打包界面与 Windows 验收仍待完成。
+
+Current Full 17 macOS-host plugin ZIP: `6425c793e27247a0002e6495635e4d165cdc895c488b682b581ba437abd62685` (15,047,565 bytes). This is a development plugin artifact, not a new standalone app archive. / 此哈希属于 Full 17 的 macOS 宿主插件产物，不表示新的独立应用包已完成。
+
+当前清理改动为默认本地 Delve `debug`/`test` 启动分配独立、由本会话拥有的临时输出目录。适配器及已观察到的目标进程退出后，仅删除本会话生成的可执行文件和空目录；不能确认退出或目录归属时保留输出并警告。显式 `output` 路径、`exec`、attach 和远端会话保持各自行为。此改动未包含在已验证的 Full 13/dd87 包及第 10 次 CI 证据中，新版本 macOS 界面与 Windows 验证均待完成。
+
+**Packaged baseline — Full 13 (dd87)** passed **756/756 macOS-host JUnit tests** (433 component + 323 platform; 99 XML reports, no failures/errors/skips), plugin build and structure verification, with 345 frozen build inputs. The same reviewed source passed Windows Run 10 with 755 product tests and one existing POSIX-shell skip. Its Mac archive is independently audited; ordinary-import Add Parameter has bounded macOS native evidence. Full GUI and complete GoLand parity remain unverified.
+
+**既有包基线——Full 13（dd87）**通过 **756/756 项 macOS 宿主 JUnit 测试**（433 component + 323 platform，99 份 XML，零失败/错误/跳过）、插件构建与结构检查，345 项输入已冻结。同一审阅源码在 Windows 第 10 次通过 755 项产品测试，1 项既存 POSIX shell 跳过。Mac 包已独立审计，普通导入 Add Parameter 已有限定 macOS 原生证据；完整界面与 GoLand 全面对齐仍未完成。
 
 | Current artifact / 当前产物 | Bytes / 字节 | SHA-256 |
 | --- | ---: | --- |
 | Full 13/dd87 plugin ZIP (not a standalone app) / 插件 ZIP（非独立应用） | 15004033 | `dd8738a5b4fddbf4fc87d3f7ab1b7d7d4cad1b391f0931a7b291e83c54193279` |
 | `GoForge-0.1.0-dev-macos-aarch64.zip` (dd87) | 751616260 | `c652c5e3ada58ae8b9f7ba54e7272a57af4bfec51958ce3f3951989f83e54fc1` |
 
-The dd87 Mac archive contains the exact Full 13 plugin listed above, with the reviewed packaging-only promotion default. Its source inputs, plugin members, bundled tools and notices passed independent readback; signing/headless/relocation/extraction checks have separate successful packager receipts. Independent audit SHA-256: `c0b70ec7b355548ef02d873a7b7c03516860ee5d0742eb15e81edb8b1d8c5f92`. dd87 native GUI acceptance is pending. No accepted current Windows archive is available.
+The dd87 Mac archive contains the exact Full 13 plugin listed above, with the reviewed packaging-only promotion default. Its source inputs, plugin members, bundled tools and notices passed independent readback; signing/headless/relocation/extraction checks have separate successful packager receipts. Independent audit SHA-256: `c0b70ec7b355548ef02d873a7b7c03516860ee5d0742eb15e81edb8b1d8c5f92`. The bounded Add Parameter native workflow passed; full GUI acceptance remains pending. Run 10 assembled and natively checked the Windows package. The large Windows archive download is still pending; its checksum and independent archive readback will be recorded after download, separately from these Mac identities.
 
-dd87 Mac 包含上表精确 Full 13 插件及经过审阅的打包层推广提示默认设置。源码输入、插件成员、工具与许可说明已独立读回；验签、无界面启动、迁移和解压检查有独立打包记录。独立审计哈希如上，dd87 原生界面待验收，目前没有验收完成的当前 Windows 包。
+dd87 Mac 包含上表精确 Full 13 插件及经过审阅的打包层推广提示默认设置。源码输入、插件成员、工具与许可说明已独立读回；验签、无界面启动、迁移和解压检查有独立打包记录。独立审计哈希如上，dd87 限定 Add Parameter 原生流程通过，完整界面仍待验收。第 10 次已组装并原生检查 Windows 包；大归档下载尚未完成，下载后将另行核对校验值并独立读回，与以上 Mac 身份分别记录。
 
-The current audited macOS package is dd87. Signing, headless startup, relocation and archive checks passed; dd87 native GUI acceptance is pending. The earlier bdf5 bounded native checks cover manual imports with Undo/Redo, the visible Go import-type entry, selected Benchmark Run, and remote SDK read-only navigation/Stop. Benchmark Debug remains an unresolved UI attempt; full GUI acceptance and final exit checks for the current session are pending.
+The audited dd87 Mac package passed a bounded ordinary-import Add Parameter workflow: preview/cancel, three-file Apply and Save, Undo/Redo, bundled Go tests after saved edits, restored fixture bytes, normal exit and signature recheck. The fixture uses one standalone module, standard-library imports and an `int` literal default; four platform warnings remain recorded. Earlier bdf5 native evidence covers manual imports, the visible Go type entry, remote SDK read-only navigation/Stop, and selected Benchmark Run/Debug. Benchmark Debug reached breakpoint/evaluation/step/exit; a separate Stop removed adapter/target processes but left a generated `__debug_bin…` file. The cleanup repair has Full 17 macOS-host tests; packaged native and full GUI acceptance remain pending.
 
-当前已审计 macOS 包为 dd87，验签、无界面启动、迁移及归档检查通过，dd87 原生界面待验收。此前 bdf5 的限定原生检查覆盖手动导入整理及 Undo/Redo、可见的 Go 导入类型入口、指定 Benchmark 运行、远端 SDK 只读跳转与 Stop。Benchmark 调试仍为未确认原因的界面尝试；完整界面验收及当前会话最终退出检查待完成。
+已审计 dd87 Mac 包通过限定的普通导入 Add Parameter 原生流程：预览/取消、三文件 Apply 与保存、Undo/Redo、保存后包内 Go 测试、恢复夹具字节、正常退出与再次验签。夹具仅为单独模块、标准库导入及 `int` 字面量默认值，仍记录 4 条平台警告。此前 bdf5 原生证据覆盖手动导入整理、可见 Go 类型入口、远端 SDK 只读跳转/Stop，以及选中 Benchmark Run/Debug；Debug 已到达断点、表达式、步进和正常退出，但另一次 Stop 清除了适配器/目标进程后仍留下 `__debug_bin…` 文件。清理修复已通过 Full 17 macOS 宿主测试，打包原生验证仍待完成，完整界面验收尚未完成。
 
 Earlier archives below remain checksum references only. Detailed build/test history is retained in internal records. Always read the manifest for the exact archive you install; never transfer a native pass from one build or host to another.
 

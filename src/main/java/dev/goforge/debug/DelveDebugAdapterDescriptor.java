@@ -24,8 +24,15 @@ import org.jetbrains.annotations.Nullable;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.Map;
+import java.util.LinkedHashMap;
+import com.redhat.devtools.lsp4ij.dap.client.DAPClient;
+import com.redhat.devtools.lsp4ij.settings.ServerTrace;
+import com.intellij.execution.process.ProcessTerminatedListener;
 
 public final class DelveDebugAdapterDescriptor extends DefaultDebugAdapterDescriptor {
+    private GoDelveSessionOutput generatedOutput;
+    private GoDelveProcessHandler ownedHandler;
     public DelveDebugAdapterDescriptor(@NotNull RunConfigurationOptions options,
             @NotNull ExecutionEnvironment environment, @NotNull DebugAdapterServerDefinition definition) {
         super(options, environment, definition);
@@ -54,19 +61,55 @@ public final class DelveDebugAdapterDescriptor extends DefaultDebugAdapterDescri
             command.withEnvironment(dev.goforge.tools.HostTools.withPrependedPath(env, Path.of(go).getParent()));
             if (options instanceof WorkingDirectoryConfigurable working && working.getWorkingDirectory() != null
                     && !working.getWorkingDirectory().isBlank()) command.withWorkDirectory(working.getWorkingDirectory());
-            var handler = startServer(command);
+            com.intellij.execution.process.OSProcessHandler handler;
+            if (GoDelveSessionOutput.required(super.getDapParameters(), getDebugMode() == DebugMode.LAUNCH)) {
+                generatedOutput = GoDelveSessionOutput.create(Path.of(System.getProperty("java.io.tmpdir")));
+                ownedHandler = GoDelveProcessHandler.start(command, generatedOutput);
+                handler = ownedHandler;
+                ProcessTerminatedListener.attach(handler);
+            } else handler = startServer(command);
             try {
                 handler.setShouldDestroyProcessRecursively(true);
                 com.intellij.openapi.progress.ProgressManager.checkCanceled();
                 if (environment.getProject().isDisposed()) throw new ExecutionException("The debug project was closed.");
                 return handler;
             } catch (ExecutionException | RuntimeException | Error failure) {
+                if (!handler.isStartNotified()) handler.startNotify();
                 handler.destroyProcess();
                 throw failure;
             }
-        } catch (IllegalArgumentException | IllegalStateException e) {
+        } catch (java.io.IOException | IllegalArgumentException | IllegalStateException e) {
             throw new ExecutionException(e.getMessage(), e);
         }
+    }
+
+    @Override public @NotNull DAPClient createClient(@NotNull DAPDebugProcess process,
+            @NotNull Map<String, Object> parameters, boolean debug, @NotNull DebugMode mode,
+            @NotNull ServerTrace trace, @Nullable DAPClient parent) {
+        if (generatedOutput == null || parent != null) return super.createClient(process, parameters, debug, mode, trace, parent);
+        if (!ownedHandler.canLaunch()) throw new java.util.concurrent.CancellationException("The debug session was stopped before launch.");
+        if (!GoDelveSessionOutput.required(parameters, mode == DebugMode.LAUNCH))
+            throw new IllegalStateException("Debug launch configuration changed after the adapter started.");
+        var owned = new LinkedHashMap<>(parameters);
+        owned.put("output", generatedOutput.binary().toString());
+        var disconnectStarted = new java.util.concurrent.atomic.AtomicBoolean();
+        var disposed = new java.util.concurrent.atomic.AtomicBoolean();
+        DAPClient client = new DAPClient(process, owned, debug, mode, trace, parent) {
+            @Override public void dispose() { GoDelveProcessCleanup.disposeOnce(disposed, super::dispose); }
+            @Override public void terminate() {
+                if (disconnectStarted.compareAndSet(false, true)) super.terminate();
+            }
+        };
+        // A failed or permanently pending disconnect must not retain the client after its session ends.
+        ownedHandler.cleanupCompletion().whenCompleteAsync((unused, failure) -> client.dispose());
+        ownedHandler.setDisconnectRequest(() -> {
+            var server = client.getDebugProtocolServer();
+            if (server == null || !disconnectStarted.compareAndSet(false, true)) return;
+            var disconnect = new org.eclipse.lsp4j.debug.DisconnectArguments();
+            disconnect.setTerminateDebuggee(true); // Only this local launch owns a generated output/target.
+            GoDelveProcessCleanup.disconnectAndDispose(() -> server.disconnect(disconnect), client::dispose);
+        });
+        return client;
     }
 
     @Override public @NotNull ServerReadyConfig getServerReadyConfig(@NotNull DebugMode mode) {

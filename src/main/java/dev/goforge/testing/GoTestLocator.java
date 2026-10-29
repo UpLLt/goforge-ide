@@ -5,6 +5,7 @@ import com.intellij.execution.PsiLocation;
 import com.intellij.execution.testframework.sm.runner.SMTestLocator;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
+import com.intellij.openapi.fileEditor.OpenFileDescriptor;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.ModificationTracker;
 import com.intellij.openapi.vfs.LocalFileSystem;
@@ -23,7 +24,7 @@ public final class GoTestLocator implements SMTestLocator {
     @Override public @NotNull List<Location> getLocation(@NotNull String protocol, @NotNull String path,
                                                         @NotNull Project project, @NotNull GlobalSearchScope scope) {
         if (!protocol.equals(GoTestRunRegistry.PROTOCOL) || project != registry.project() || project.isDisposed()) return List.of();
-        var target = registry.target(protocol + "://" + path);
+        var target = registry.navigationTarget(protocol + "://" + path);
         if (target == null) return List.of();
         return ReadAction.compute(() -> {
             var file = LocalFileSystem.getInstance().findFileByNioFile(target.source().file());
@@ -38,8 +39,17 @@ public final class GoTestLocator implements SMTestLocator {
                     || !PsiDocumentManager.getInstance(project).isCommitted(document)) return List.of();
             var psiFile = PsiManager.getInstance(project).findFile(file);
             if (psiFile == null || !psiFile.getText().equals(target.source().text())) return List.of();
-            var identifier = psiFile.findElementAt(target.declaration().nameOffset());
-            return identifier == null ? List.of() : List.of(PsiLocation.fromPsiElement(identifier));
+            int offset = target.declaration().nameOffset();
+            String name = target.declaration().name();
+            if (offset < 0 || offset + name.length() > document.getTextLength()
+                    || !document.getText().regionMatches(offset, name, 0, name.length())) return List.of();
+            // Semantic-token PSI may represent the whole document as one element.
+            // Keep the validated AST name offset in the navigation descriptor.
+            return List.of(new PsiLocation<>(project, psiFile) {
+                @Override public OpenFileDescriptor getOpenFileDescriptor() {
+                    return file.isValid() ? new OpenFileDescriptor(project, file, offset) : null;
+                }
+            });
         });
     }
     @Override public @NotNull ModificationTracker getLocationCacheModificationTracker(@NotNull Project project) {

@@ -69,10 +69,12 @@ public final class GoSelectedTestDebugGuardTest extends BasePlatformTestCase {
     }
 
     public void testDirtyDocumentCannotBeCapturedEvenWhenDiskStillMatchesTheIndex() throws Exception {
-        edit(SOURCE + "// unsaved edit\n");
-        assertTrue(FileDocumentManager.getInstance().isDocumentUnsaved(document));
-        assertEquals(SOURCE, Files.readString(directory.resolve("fixture_test.go")));
-        assertThrows(ExecutionException.class, () -> GoSelectedTestDebugGuard.capture(getProject(), sources()));
+        WriteCommandAction.writeCommandAction(getProject()).run(() -> {
+            document.setText(SOURCE + "// unsaved edit\n");
+            assertTrue(FileDocumentManager.getInstance().isDocumentUnsaved(document));
+            assertEquals(SOURCE, Files.readString(directory.resolve("fixture_test.go")));
+            assertThrows(ExecutionException.class, () -> GoSelectedTestDebugGuard.capture(getProject(), sources()));
+        });
     }
 
     public void testEditThenActualSaveStillRefusesThePreviouslyPreparedDescriptor() throws Exception {

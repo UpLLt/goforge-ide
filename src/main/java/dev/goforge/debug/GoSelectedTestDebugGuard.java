@@ -20,12 +20,23 @@ import java.util.Map;
 /** Refuses a changed selection after the normal platform save-before-debug boundary. */
 public final class GoSelectedTestDebugGuard {
     private static final Key<GoSelectedTestDebugGuard> KEY = Key.create("goforge.debug.selected.test.sources");
-    private record Entry(VirtualFile file, long fileStamp, Document document, long documentStamp, String text) { }
+    private record Entry(VirtualFile file, String sourcePath, long fileStamp, Document document, long documentStamp, String text) { }
     private final Project project;
     private final List<Entry> entries;
+    @FunctionalInterface interface Validation { void check() throws ExecutionException; }
+    private final Validation additionalCheck;
     private GoSelectedTestDebugGuard(Project project, List<Entry> entries) {
+        this(project, entries, () -> {});
+    }
+    private GoSelectedTestDebugGuard(Project project, List<Entry> entries, Validation additionalCheck) {
         this.project = project;
         this.entries = List.copyOf(entries);
+        this.additionalCheck = additionalCheck;
+    }
+
+    GoSelectedTestDebugGuard withAdditionalCheck(Validation validation) {
+        java.util.Objects.requireNonNull(validation);
+        return new GoSelectedTestDebugGuard(project, entries, () -> { additionalCheck.check(); validation.check(); });
     }
 
     public static GoSelectedTestDebugGuard capture(Project project,
@@ -39,7 +50,7 @@ public final class GoSelectedTestDebugGuard {
                 if (file == null || !file.isValid() || document == null
                         || FileDocumentManager.getInstance().isDocumentUnsaved(document)
                         || !document.getText().equals(snapshot.text())) return List.of();
-                captured.add(new Entry(file, file.getModificationStamp(), document,
+                captured.add(new Entry(file, file.getPath(), file.getModificationStamp(), document,
                         document.getModificationStamp(), snapshot.text()));
             }
             return captured;
@@ -52,11 +63,13 @@ public final class GoSelectedTestDebugGuard {
 
     public void validate() throws ExecutionException {
         boolean valid = ReadAction.compute(() -> !project.isDisposed() && entries.stream().allMatch(entry ->
-                entry.file().isValid() && entry.file().getModificationStamp() == entry.fileStamp()
+                entry.file().isValid() && entry.file().getPath().equals(entry.sourcePath())
+                && entry.file().getModificationStamp() == entry.fileStamp()
                 && entry.document().getModificationStamp() == entry.documentStamp()
                 && !FileDocumentManager.getInstance().isDocumentUnsaved(entry.document())
                 && entry.document().getText().equals(entry.text())));
         if (!valid) throw stale();
+        additionalCheck.check();
     }
 
     public static void validate(ExecutionEnvironment environment) throws ExecutionException {
