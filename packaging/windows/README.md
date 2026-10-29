@@ -15,7 +15,7 @@ Product settings use the standard `%APPDATA%/GoForge/GoForge2026.1` and
 
 ## Build
 
-Use Python 3.9 or later, a JDK with `javac` 21 or later, and exactly Go 1.26.4.
+Use Python 3.9 or later, **Temurin JDK 25.0.5+8**, and exactly Go 1.26.4. For `actions/setup-java`, pin the complete Adoptium SemVer **`25.0.5+8.0.LTS`**; `25.0.5+8` does not match that available build. Java bytecode targets 21, but the pinned lifecycle replacement also verifies its exact compiler output, so a different JDK is not an accepted substitute without revalidation.
 Build the plugin with the repository Gradle wrapper first. The assembler supports
 Windows, macOS and Linux; it never claims Windows execution when cross-assembled.
 

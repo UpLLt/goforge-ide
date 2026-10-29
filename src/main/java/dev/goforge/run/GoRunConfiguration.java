@@ -1,8 +1,6 @@
 package dev.goforge.run;
 
 import com.intellij.execution.ExecutionException;
-import com.intellij.execution.ExecutionResult;
-import com.intellij.execution.DefaultExecutionResult;
 import com.intellij.execution.Executor;
 import com.intellij.execution.configurations.CommandLineState;
 import com.intellij.execution.configurations.ConfigurationFactory;
@@ -16,16 +14,15 @@ import com.intellij.execution.process.KillableColoredProcessHandler;
 import com.intellij.execution.process.ProcessHandler;
 import com.intellij.execution.process.ProcessTerminatedListener;
 import com.intellij.execution.runners.ExecutionEnvironment;
-import com.intellij.execution.runners.ProgramRunner;
-import com.intellij.execution.testframework.sm.SMTestRunnerConnectionUtil;
-import com.intellij.execution.testframework.sm.runner.SMTRunnerConsoleProperties;
 import com.intellij.openapi.options.SettingsEditor;
 import com.intellij.openapi.project.Project;
 import com.intellij.util.execution.ParametersListUtil;
 import dev.goforge.settings.GoForgeSettings;
 import dev.goforge.settings.GoProjectSettings;
 import dev.goforge.tools.GoToolResolver;
-import dev.goforge.testing.GoTestProcessHandler;
+import dev.goforge.tools.HostTools;
+import dev.goforge.testing.GoTestSelection;
+import dev.goforge.testing.GoTestSelector;
 import org.jdom.Element;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -34,6 +31,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 public final class GoRunConfiguration extends RunConfigurationBase<RunConfigurationOptions> {
@@ -43,6 +41,9 @@ public final class GoRunConfiguration extends RunConfigurationBase<RunConfigurat
     private String goArguments = "";
     private String programArguments = "";
     private Map<String, String> environment = new LinkedHashMap<>();
+    private GoTestSelection testSelection;
+    private String testSelectionReadError;
+    private List<Element> invalidTestSelectionXml = List.of();
 
     public GoRunConfiguration(Project project, ConfigurationFactory factory, String name) {
         super(project, factory, name);
@@ -59,10 +60,18 @@ public final class GoRunConfiguration extends RunConfigurationBase<RunConfigurat
     public String getProgramArguments() { return programArguments; }
     public void setProgramArguments(String value) { programArguments = value; }
     public Map<String, String> getEnvironment() { return environment; }
+    public @Nullable GoTestSelection getTestSelection() { return testSelection; }
+    public @Nullable String getTestSelectionReadError() { return testSelectionReadError; }
+    public void setTestSelection(@Nullable GoTestSelection value) {
+        testSelection = value;
+        testSelectionReadError = null;
+        invalidTestSelectionXml = List.of();
+    }
 
     @Override public GoRunConfiguration clone() {
         GoRunConfiguration copy = (GoRunConfiguration) super.clone();
         copy.environment = new LinkedHashMap<>(environment);
+        copy.invalidTestSelectionXml = invalidTestSelectionXml.stream().map(Element::clone).toList();
         return copy;
     }
 
@@ -81,8 +90,9 @@ public final class GoRunConfiguration extends RunConfigurationBase<RunConfigurat
                         : "Put flags in Go arguments, not in Package / file target.");
             for (String key : environment.keySet()) if (!key.matches("[A-Za-z_][A-Za-z0-9_]*"))
                 throw new RuntimeConfigurationError("Invalid environment variable name: " + key);
-            GoToolResolver.resolve(GoForgeSettings.getInstance().goPath, "go", getProject().getBasePath(),
-                new GeneralCommandLine().withEnvironment(environment).getEffectiveEnvironment());
+            var effectiveEnvironment = baseCommandLine().getEffectiveEnvironment();
+            validateTestSelection(effectiveEnvironment);
+            GoToolResolver.resolve(GoForgeSettings.getInstance().goPath, "go", getProject().getBasePath(), effectiveEnvironment);
         } catch (IllegalArgumentException | IllegalStateException e) {
             throw new RuntimeConfigurationError(e.getMessage());
         }
@@ -90,7 +100,8 @@ public final class GoRunConfiguration extends RunConfigurationBase<RunConfigurat
 
     public GeneralCommandLine createCommandLine() {
         var defaults = GoProjectSettings.getInstance(getProject());
-        var line = new GeneralCommandLine().withEnvironment(defaults.environment()).withEnvironment(environment).withWorkDirectory(directory).withCharset(StandardCharsets.UTF_8);
+        var line = baseCommandLine().withWorkDirectory(directory);
+        validateTestSelection(line.getEffectiveEnvironment());
         String go = GoToolResolver.resolve(GoForgeSettings.getInstance().goPath, "go", getProject().getBasePath(), line.getEffectiveEnvironment());
         line.withExePath(go).withParameters(command.argument());
         if (command == GoCommand.RUN || command == GoCommand.TEST || command == GoCommand.BUILD
@@ -104,26 +115,33 @@ public final class GoRunConfiguration extends RunConfigurationBase<RunConfigurat
         } else {
             line.addParameters(ParametersListUtil.parse(goArguments));
             if (command == GoCommand.TEST) line.addParameter("-json");
+            if (testSelection != null) line.addParameters(GoTestSelector.arguments(testSelection));
             line.addParameters(targets);
         }
         if (command == GoCommand.RUN) line.addParameters(ParametersListUtil.parse(programArguments));
         return line;
     }
 
+    private GeneralCommandLine baseCommandLine() {
+        return new GeneralCommandLine().withEnvironment(GoProjectSettings.getInstance(getProject()).environment())
+            .withEnvironment(environment).withCharset(StandardCharsets.UTF_8);
+    }
+
+    private void validateTestSelection(Map<String, String> effectiveEnvironment) {
+        if (testSelectionReadError != null)
+            throw new IllegalArgumentException(testSelectionReadError + " Open the run configuration and correct the test selection.");
+        if (testSelection == null) return;
+        if (command != GoCommand.TEST || !".".equals(target))
+            throw new IllegalArgumentException("Named Test/Example selection requires the test command and package target '.'. Choose its package working directory, or choose Package / manual.");
+        GoTestSelector.validateArguments(ParametersListUtil.parse(goArguments), HostTools.environmentValue(effectiveEnvironment, "GOFLAGS"));
+    }
+
     @Override public @Nullable RunProfileState getState(@NotNull Executor executor, @NotNull ExecutionEnvironment environment) {
+        if (command == GoCommand.TEST) return new GoTestCommandLineState(clone(), environment);
         return new CommandLineState(environment) {
-            @Override public @NotNull ExecutionResult execute(@NotNull Executor executor, @NotNull ProgramRunner<?> runner) throws ExecutionException {
-                if (command != GoCommand.TEST) return super.execute(executor, runner);
-                ProcessHandler handler = startProcess();
-                var properties = new SMTRunnerConsoleProperties(GoRunConfiguration.this, "GoForge", executor);
-                properties.setIdBasedTestTree(true);
-                var console = SMTestRunnerConnectionUtil.createAndAttachConsole("GoForge", handler, properties);
-                return new DefaultExecutionResult(console, handler, createActions(console, handler, executor));
-            }
             @Override protected @NotNull ProcessHandler startProcess() throws ExecutionException {
                 try {
-                    var handler = command == GoCommand.TEST ? new GoTestProcessHandler(createCommandLine())
-                        : new KillableColoredProcessHandler(createCommandLine());
+                    var handler = new KillableColoredProcessHandler(createCommandLine());
                     handler.setShouldDestroyProcessRecursively(true);
                     ProcessTerminatedListener.attach(handler);
                     return handler;
@@ -145,6 +163,13 @@ public final class GoRunConfiguration extends RunConfigurationBase<RunConfigurat
         Element env = new Element("goforge-environment");
         environment.forEach((key,value) -> env.addContent(new Element("entry").setAttribute("name",key).setAttribute("value",value)));
         element.addContent(env);
+        element.removeChildren("goforge-test-selection");
+        if (testSelection != null) {
+            Element selected = new Element("goforge-test-selection").setAttribute("version", "1")
+                .setAttribute("rerun", Boolean.toString(testSelection.rerun()));
+            for (String name : testSelection.testNames()) selected.addContent(new Element("test").setAttribute("name", name));
+            element.addContent(selected);
+        } else for (Element invalid : invalidTestSelectionXml) element.addContent(invalid.clone());
     }
 
     @Override public void readExternal(@NotNull Element element) {
@@ -160,6 +185,26 @@ public final class GoRunConfiguration extends RunConfigurationBase<RunConfigurat
         if (env != null) for (Element entry : env.getChildren("entry")) {
             String name = entry.getAttributeValue("name"), value = entry.getAttributeValue("value");
             if (name != null && value != null) environment.put(name, value);
+        }
+        setTestSelection(null);
+        var selections = element.getChildren("goforge-test-selection");
+        if (!selections.isEmpty()) {
+            try {
+                if (selections.size() != 1) throw new IllegalArgumentException("Multiple structured test selections were saved.");
+                Element selected = selections.getFirst();
+                String rerun = selected.getAttributeValue("rerun", "false");
+                if (!"1".equals(selected.getAttributeValue("version")))
+                    throw new IllegalArgumentException("Unsupported structured test selection version.");
+                if (!"true".equals(rerun) && !"false".equals(rerun))
+                    throw new IllegalArgumentException("Invalid structured test rerun flag.");
+                if (selected.getChildren().stream().anyMatch(child -> !"test".equals(child.getName())))
+                    throw new IllegalArgumentException("Invalid structured test selection entry.");
+                setTestSelection(new GoTestSelection(selected.getChildren("test").stream()
+                    .map(child -> child.getAttributeValue("name")).toList(), Boolean.parseBoolean(rerun)));
+            } catch (IllegalArgumentException | NullPointerException invalid) {
+                testSelectionReadError = invalid.getMessage() == null ? "Invalid structured test selection." : invalid.getMessage();
+                invalidTestSelectionXml = selections.stream().map(Element::clone).toList();
+            }
         }
     }
 }

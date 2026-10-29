@@ -239,14 +239,18 @@ def verify_relocation() -> dict:
                 "temporaryCopyRemovedAfterTest": True}
 
 
-def package(plugin_zip: Path, archive: bool) -> dict:
+def package(plugin_zip: Path, archive: bool, platform_home: Path | None = None, lsp_dir: Path | None = None) -> dict:
     if sys.platform != "darwin": raise RuntimeError("This script builds the macOS arm64 development package")
     if not plugin_zip.is_file(): raise RuntimeError("Build the GoForge plugin ZIP first")
     plugin_sha256 = digest(plugin_zip)
-    source = find_one(f"*/transforms/*/transformed/ideaIC-{PLATFORM}-aarch64/Resources/product-info.json").parent.parent
+    # Toolchain changes can leave more than one valid Gradle transform in the cache.
+    # An explicit dependency from the current build avoids guessing between them.
+    source = platform_home.resolve() if platform_home else find_one(f"*/transforms/*/transformed/ideaIC-{PLATFORM}-aarch64/Resources/product-info.json").parent.parent
     original = json.loads((source / "Resources/product-info.json").read_text())
     if (original["productCode"], original["buildNumber"]) != ("IC", BUILD): raise RuntimeError("Unexpected platform identity")
-    lsp = find_one("*/transforms/*/transformed/com.redhat.devtools.lsp4ij-0.21.0/lsp4ij/lib/lsp4ij-0.21.0.jar").parent.parent
+    lsp = lsp_dir.resolve() if lsp_dir else find_one("*/transforms/*/transformed/com.redhat.devtools.lsp4ij-0.21.0/lsp4ij/lib/lsp4ij-0.21.0.jar").parent.parent
+    if not (lsp / "lib/lsp4ij-0.21.0.jar").is_file():
+        raise RuntimeError("Expected the pinned LSP4IJ dependency directory")
     go = (ROOT / ".tools/bin/go").resolve(strict=True)
     if run(ROOT / ".tools/bin/gopls", "version").strip() != "golang.org/x/tools/gopls v0.23.0":
         raise RuntimeError("Expected gopls 0.23.0")
@@ -428,5 +432,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--plugin-zip", type=Path, default=ROOT / "build/distributions/goforge-0.1.0-dev.zip")
     parser.add_argument("--archive", action="store_true", help="Also create a distributable development ZIP")
+    parser.add_argument("--platform-home", type=Path, help="Pinned Community platform contents directory resolved by this build")
+    parser.add_argument("--lsp-dir", type=Path, help="Pinned LSP4IJ plugin directory resolved by this build")
     arguments = parser.parse_args()
-    package(arguments.plugin_zip.resolve(), arguments.archive)
+    package(arguments.plugin_zip.resolve(), arguments.archive, arguments.platform_home, arguments.lsp_dir)

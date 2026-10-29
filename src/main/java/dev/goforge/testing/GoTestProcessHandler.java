@@ -10,14 +10,44 @@ import com.intellij.openapi.util.Key;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
+import java.util.Objects;
 
 /** Bridges go test JSON lines into the platform's id-based SM test tree. */
 public final class GoTestProcessHandler extends KillableProcessHandler {
-    private final GoTestEvents events = new GoTestEvents();
+    private final GoTestEvents events;
+    private final GoTestRunRegistry registry;
     private final Gson gson = new Gson();
     private final StringBuilder stdout = new StringBuilder();
+    private boolean finalized;
 
-    public GoTestProcessHandler(GeneralCommandLine command) throws ExecutionException { super(command); }
+    public GoTestProcessHandler(GeneralCommandLine command, GoTestRunRegistry registry) throws ExecutionException {
+        super(requireRegistry(command, registry)); this.registry = registry;
+        events = new GoTestEvents(registry::locationHint);
+    }
+    private static GeneralCommandLine requireRegistry(GeneralCommandLine command, GoTestRunRegistry registry) {
+        // The per-console registry carries termination into the SM finish hook,
+        // including empty runs. Reject unsupported use before super spawns an OS process.
+        Objects.requireNonNull(registry, "A Go test run registry is required for the console lifecycle");
+        return command;
+    }
+    public GoTestRunRegistry getRegistry() { return registry; }
+
+    @Override public void destroyProcess() {
+        recordLocalTermination();
+        super.destroyProcess();
+    }
+    @Override public void killProcess() {
+        recordLocalTermination();
+        super.killProcess();
+    }
+    private synchronized void recordLocalTermination() {
+        // Ignore a delayed Stop after the OS process has already exited. Record
+        // provenance before the platform signal, without holding this monitor
+        // during process-tree cleanup. This also covers force-kill escalation.
+        if (!finalized && !isProcessTerminated() && getProcess().isAlive() && events.requestTermination()) {
+            registry.markLocalTerminationRequested();
+        }
+    }
 
     @Override public synchronized void notifyTextAvailable(@NotNull String text, @NotNull Key outputType) {
         if (ProcessOutputTypes.STDERR.equals(outputType)) {
@@ -53,15 +83,19 @@ public final class GoTestProcessHandler extends KillableProcessHandler {
 
     private void emit(Iterable<GoTestEvents.Emission> emissions) {
         for (var emission : emissions) {
+            registry.observe(emission);
             if (emission.teamCityMessage() != null && !emission.teamCityMessage().isBlank())
                 super.notifyTextAvailable(emission.teamCityMessage() + "\n", ProcessOutputTypes.STDOUT);
         }
     }
 
     @Override protected synchronized void notifyProcessTerminated(int exitCode) {
+        if (finalized) return;
+        finalized = true;
         try {
             if (!stdout.isEmpty()) { consumeLine(stdout.toString()); stdout.setLength(0); }
+            emit(events.selectedTestsNotObserved(registry.missingRequestedTests()));
             emit(events.finishProcess(exitCode));
-        } finally { super.notifyProcessTerminated(exitCode); }
+        } finally { registry.markTerminated(); super.notifyProcessTerminated(exitCode); }
     }
 }

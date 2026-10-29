@@ -29,8 +29,8 @@ public final class GoParserDefinition implements ParserDefinition {
     }
     @Override public @NotNull IFileElementType getFileNodeType() { return FILE; }
     @Override public @NotNull TokenSet getWhitespaceTokens() { return TokenSet.create(TokenType.WHITE_SPACE); }
-    @Override public @NotNull TokenSet getCommentTokens() { return TokenSet.EMPTY; }
-    @Override public @NotNull TokenSet getStringLiteralElements() { return TokenSet.EMPTY; }
+    @Override public @NotNull TokenSet getCommentTokens() { return TokenSet.create(GoSourceLexer.LINE_COMMENT, GoSourceLexer.BLOCK_COMMENT); }
+    @Override public @NotNull TokenSet getStringLiteralElements() { return TokenSet.create(GoSourceLexer.STRING, GoSourceLexer.RAW_STRING, GoSourceLexer.RUNE); }
     @Override public @NotNull PsiElement createElement(ASTNode node) { return new ASTWrapperPsiElement(node); }
     @Override public @NotNull PsiFile createFile(@NotNull FileViewProvider viewProvider) { return new GoFile(viewProvider); }
     @Override public SpaceRequirements spaceExistenceTypeBetweenTokens(ASTNode left, ASTNode right) {

@@ -95,6 +95,68 @@ def validate_tar(archive, prefix, expected, destination):
             target.write_bytes(content); target.chmod(member.mode & 0o777)
 
 
+def require_tool_directory_idle(destination, *, windows=None, environment=None):
+    """Check command lines before repairing an existing tool tree; never stop processes.
+
+    This is a process-use guard, not a claim to enumerate every open file handle.
+    An unreadable Windows process is uncertainty, not proof that the tree is idle.
+    Only the kernel/idle PIDs, which cannot be a user-space tool, are exempt.
+    """
+    windows = os.name == 'nt' if windows is None else windows
+    environment = os.environ if environment is None else environment
+    if windows:
+        system_root = next((value for key, value in environment.items()
+                            if key.casefold() == 'systemroot'), '')
+        if not system_root:
+            raise RuntimeError('Cannot verify tool-directory use: Windows SystemRoot is unavailable')
+        powershell = Path(system_root) / 'System32/WindowsPowerShell/v1.0/powershell.exe'
+        script = ("$ErrorActionPreference = 'Stop'; "
+                  "[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); "
+                  "$items = @(Get-CimInstance Win32_Process | "
+                  "Select-Object ProcessId, ExecutablePath, CommandLine); "
+                  "ConvertTo-Json -InputObject $items -Compress -Depth 3")
+        command = [str(powershell), '-NoProfile', '-NonInteractive', '-Command', script]
+    else:
+        command = ['/bin/ps', '-axo', 'args=']
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, encoding='utf-8',
+                                errors='strict', check=True, timeout=30)
+    except (OSError, subprocess.SubprocessError, UnicodeError) as error:
+        raise RuntimeError('Cannot verify tool-directory use; repair was not attempted') from error
+    if windows:
+        try:
+            entries = json.loads(result.stdout)
+        except (ValueError, TypeError) as error:
+            raise RuntimeError('Cannot verify tool-directory use: invalid Windows process inventory') from error
+        if not isinstance(entries, list) or not entries:
+            raise RuntimeError('Cannot verify tool-directory use: expected a nonempty Windows process array')
+        lines = []
+        for entry in entries:
+            if (not isinstance(entry, dict) or set(entry) != {'ProcessId', 'ExecutablePath', 'CommandLine'}
+                    or type(entry['ProcessId']) is not int or entry['ProcessId'] < 0
+                    or (entry['ExecutablePath'] is not None and not isinstance(entry['ExecutablePath'], str))):
+                raise RuntimeError('Cannot verify tool-directory use: malformed Windows process entry')
+            line = entry['CommandLine']
+            if line is None and entry['ProcessId'] in (0, 4) and entry['ExecutablePath'] is None:
+                continue
+            if not isinstance(line, str) or not line.strip():
+                raise RuntimeError('Cannot verify tool-directory use: unreadable command line for process '
+                                   + str(entry['ProcessId']) + '; repair was not attempted')
+            # Check both argv and the native image path; paths are case-insensitive on this host.
+            lines.extend((line, entry['ExecutablePath'] or ''))
+        needle = str(destination).replace('\\', '/').rstrip('/').casefold()
+        lines = [line.replace('\\', '/').casefold() for line in lines]
+    else:
+        if not result.stdout.strip():
+            raise RuntimeError('Cannot verify tool-directory use: empty POSIX process inventory')
+        needle = str(destination).rstrip('/')
+        lines = result.stdout.splitlines()
+    # A directory argument itself also counts; similarly named sibling paths do not.
+    suffixes = ('/', '"', "'", ' ', '\t')
+    if any(needle + suffix in line or line.endswith(needle) for line in lines for suffix in suffixes):
+        raise RuntimeError('A process is using this tool directory; stop it before --repair: ' + str(destination))
+
+
 class Preparer:
     def __init__(self, root, *, check=False, offline=False, repair=False):
         self.root = root.resolve()
@@ -141,9 +203,10 @@ class Preparer:
         if target.exists() and not self.repair: raise RuntimeError('Cached checksum mismatch; use --repair: ' + str(target))
         self.cache.mkdir(parents=True, exist_ok=True)
         request = urllib.request.Request(url, headers={'User-Agent':'GoForge-local-extra-tools/1'})
-        with tempfile.NamedTemporaryFile(dir=self.cache, delete=False) as stream:
-            temporary = Path(stream.name)
-            try:
+        temporary = None
+        try:
+            with tempfile.NamedTemporaryFile(dir=self.cache, delete=False) as stream:
+                temporary = Path(stream.name)
                 with urllib.request.urlopen(request, timeout=60) as response:
                     size = 0
                     while True:
@@ -152,28 +215,30 @@ class Preparer:
                         size += len(chunk)
                         if size > 200 * 1024 * 1024: raise RuntimeError('Unexpected oversized tool download')
                         stream.write(chunk)
-                stream.flush()
-                if not valid(temporary): raise RuntimeError('Official download checksum mismatch: ' + filename)
-                if target.exists():
-                    backup = self.owned(self.backup / target.relative_to(self.root)); backup.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(target, backup)
-                os.replace(temporary, target)
-            finally:
+            # Windows cannot rename/unlink the ordinary CRT handle while it is open.
+            if not valid(temporary): raise RuntimeError('Official download checksum mismatch: ' + filename)
+            self.owned(target)
+            if target.exists():
+                if not self.repair:
+                    raise RuntimeError('Cache destination appeared during download; refusing to replace it: ' + str(target))
+                backup = self.owned(self.backup / target.relative_to(self.root)); backup.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(target, backup)
+            os.replace(temporary, target)
+        finally:
+            if temporary is not None:
                 temporary.unlink(missing_ok=True)
         self.downloads += 1
         return target
 
     def tool_tree(self, destination, description, prefix, archive_name, *, exact=False):
+        self.owned(destination)
         complete = all(self.matches(destination / name, checksum) for name, checksum in description['files'].items())
         if complete and exact:
-            complete = {str(p.relative_to(destination)) for p in destination.rglob('*') if p.is_file()} == set(description['files'])
+            complete = {p.relative_to(destination).as_posix() for p in destination.rglob('*') if p.is_file()} == set(description['files'])
         if complete:
             self.actions.append('reused verified ' + str(destination.relative_to(self.root))); return
         if self.check: raise RuntimeError('Missing/mismatched tool files: ' + str(destination))
         if destination.exists() and not self.repair: raise RuntimeError('Incomplete or changed tool; --repair preserves it before restoring: ' + str(destination))
-        # This only guards the tool directory being restored, never stops processes.
-        processes = subprocess.run(['/bin/ps', '-axo', 'args='], capture_output=True, text=True, check=True).stdout
-        if str(destination) + '/' in processes: raise RuntimeError('A process is using this tool directory; stop it before --repair: ' + str(destination))
         archive = self.obtain(description['url'], archive_name,
                               description.get('archiveSha256', description.get('integrity')),
                               'sha256' if 'archiveSha256' in description else 'sha512')
@@ -181,10 +246,16 @@ class Preparer:
         with tempfile.TemporaryDirectory(prefix='.goforge-prepare-', dir=destination.parent) as temporary:
             stage = Path(temporary) / 'content'; stage.mkdir()
             validate_tar(archive, prefix, description['files'], stage)
+            self.owned(destination)
             if destination.exists():
+                if not self.repair:
+                    raise RuntimeError('Tool directory appeared during preparation; refusing to replace it: ' + str(destination))
+                require_tool_directory_idle(destination)
                 backup = self.owned(self.backup / destination.relative_to(self.root)); backup.parent.mkdir(parents=True, exist_ok=True)
                 destination.rename(backup)
-            stage.rename(destination)
+            # copytree reserves the destination with exclusive mkdir. A concurrent
+            # creator cannot be overwritten by POSIX rename of an empty directory.
+            shutil.copytree(stage, destination)
         self.actions.append('restored ' + str(destination.relative_to(self.root)))
 
     def binary_jar(self, entry):

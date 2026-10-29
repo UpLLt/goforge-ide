@@ -17,7 +17,7 @@ FILES = '''README.md README.zh-CN.md LICENSE NOTICE THIRD-PARTY-NOTICES.md
 gradle/wrapper/gradle-wrapper.jar gradle/wrapper/gradle-wrapper.properties
 docs/INSTALL.md docs/USAGE.md docs/KNOWN-LIMITATIONS.md docs/PUBLIC-RELEASE.md
 scripts/export-public-source.py scripts/prepare-release-sources.py
-scripts/setup-jdk.py scripts/setup-tools.sh scripts/setup-extra-tools.py scripts/dev-ide.sh
+scripts/setup-jdk.py scripts/setup-tools.sh scripts/setup-extra-tools.py scripts/test-setup-extra-tools.py scripts/dev-ide.sh
 scripts/package-macos.py scripts/patch-lsp4ij-metadata.py
 scripts/patch-lsp4ij-lifecycle.py scripts/test-patch-lsp4ij-lifecycle.py
 scripts/patch-installed-plugin-search.py scripts/test-patch-installed-plugin-search.py
@@ -42,7 +42,7 @@ patches/intellij-252-installed-search/InstalledSearchGateProbe.java
 patches/intellij-252-installed-search/EssentialPluginToggleGuard.java
 patches/intellij-252-installed-search/EssentialPluginToggleProbe.java
 patches/intellij-252-installed-search/PatchInstalledSearch.java'''.split()
-TREES = {'src': {'.java', '.xml', '.txt', '.json', '.jsonl', '.http', '.rest', '.go', '.mod', '.sum'},
+TREES = {'src': {'.java', '.kt', '.xml', '.txt', '.json', '.jsonl', '.http', '.rest', '.go', '.mod', '.sum'},
          'examples/hello-go': {'.go', '.mod', '.sum'}}
 OPTIONAL = {'scripts/package-windows.py', 'scripts/test-package-windows.py', 'scripts/verify-windows-package.py',
             'packaging/windows/README.md', 'packaging/windows/README.txt', 'packaging/windows/THIRD-PARTY-NOTICES.md',

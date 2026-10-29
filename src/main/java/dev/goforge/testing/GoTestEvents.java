@@ -22,7 +22,9 @@ import java.util.Set;
  * have only run/output events (Go 1.26's testing.B.Run/processBench); an observed
  * package pass completes explicitly started, valid Benchmark functions and
  * their descendants. This is package-level evidence, not an individual terminal
- * event or an inference from process exit 0. Other missing results are INCOMPLETE.
+ * event or an inference from process exit 0. Other missing results are INCOMPLETE,
+ * except after a trusted local termination request: those nodes remain unfinished
+ * on the SM wire and are recorded as INTERRUPTED for the owning finish lifecycle.
  *
  * <p>The canonical tree is the structured nodeId/parentId stream. Service messages
  * include IntelliJ's id-based-tree attributes and a separate flow for every test;
@@ -37,12 +39,12 @@ import java.util.Set;
  * Never forward raw program output as service messages.
  */
 public final class GoTestEvents {
-    public enum Status { RUNNING, PAUSED, PASSED, FAILED, SKIPPED, BENCHMARK_COMPLETED, INCOMPLETE }
+    public enum Status { RUNNING, PAUSED, PASSED, FAILED, SKIPPED, BENCHMARK_COMPLETED, INCOMPLETE, INTERRUPTED }
     public enum Kind {
         SUITE_STARTED, SUITE_FINISHED, TEST_STARTED, TEST_FINISHED, TEST_FAILED,
         TEST_SKIPPED, TEST_PAUSED, TEST_RESUMED, TEST_OUTPUT, OUTPUT_ATTACHMENT,
         PACKAGE_OUTPUT, BUILD_OUTPUT, PROCESS_OUTPUT, OUTPUT_REDIRECTED,
-        INFRASTRUCTURE_FAILURE, PROTOCOL_WARNING
+        INFRASTRUCTURE_FAILURE, PROTOCOL_WARNING, TEST_INTERRUPTED, SUITE_INTERRUPTED
     }
 
     /** Empty teamCityMessage means the consumer should not write a service line. */
@@ -98,21 +100,37 @@ public final class GoTestEvents {
         final Node node;
         final Map<String, Node> tests = new LinkedHashMap<>();
         final Map<String, Integer> attempts = new LinkedHashMap<>();
-        boolean failed, incomplete;
+        boolean failed, incomplete, interrupted;
+        Event deferredTerminal;
         PackageState(Node node) { this.node = node; }
     }
 
     private final Map<String, PackageState> packages = new LinkedHashMap<>();
     private final Map<String, Integer> packageAttempts = new LinkedHashMap<>();
     private final Set<String> failedBuilds = new LinkedHashSet<>();
+    @FunctionalInterface
+    public interface LocationProvider {
+        String locationHint(String packageName, String testName, String nodeId, boolean inferred);
+    }
+    private final LocationProvider locations;
     private final int maxBufferedOutputChars;
     private int bufferedOutputChars, infrastructureSequence;
-    private boolean finished, observedFailure;
+    private boolean finished, observedFailure, terminationRequested;
 
-    public GoTestEvents() { this(1_048_576); }
-    public GoTestEvents(int maxBufferedOutputChars) {
+    public GoTestEvents() { this(1_048_576, (pkg, name, id, inferred) -> ""); }
+    public GoTestEvents(int maxBufferedOutputChars) { this(maxBufferedOutputChars, (pkg, name, id, inferred) -> ""); }
+    public GoTestEvents(LocationProvider locations) { this(1_048_576, locations); }
+    public GoTestEvents(int maxBufferedOutputChars, LocationProvider locations) {
         if (maxBufferedOutputChars < 0) throw new IllegalArgumentException("Output buffer must be nonnegative");
         this.maxBufferedOutputChars = maxBufferedOutputChars;
+        this.locations = Objects.requireNonNull(locations);
+    }
+
+    /** Trusted local process control only; exit codes and process output cannot set this. */
+    public boolean requestTermination() {
+        if (finished || terminationRequested) return false;
+        terminationRequested = true;
+        return true;
     }
 
     public List<Emission> accept(Map<String, Object> event) {
@@ -170,7 +188,18 @@ public final class GoTestEvents {
         if (event.test().isEmpty()) {
             switch (event.action()) {
                 case "output" -> log(out, Kind.PACKAGE_OUTPUT, pkg.node, event.output());
-                case "pass", "fail", "skip" -> finishPackage(pkg, event, out);
+                case "pass", "fail", "skip" -> {
+                    if (!terminationRequested) finishPackage(pkg, event, out);
+                    else if (pkg.deferredTerminal != null) warn(out, pkg.node, "Duplicate package result after local termination request");
+                    else {
+                        // Drain genuine terminal test events before deciding which tests
+                        // were interrupted. A package fail alone after Stop is ambiguous.
+                        pkg.deferredTerminal = event;
+                        log(out, Kind.PACKAGE_OUTPUT, pkg.node, "Go package reported " + event.action()
+                                + " after a local termination request"
+                                + (event.failedBuild().isEmpty() ? "" : "; FailedBuild=" + event.failedBuild()) + "\n");
+                    }
+                }
                 default -> warn(out, pkg.node, "Test action without Test: " + event.action());
             }
             return List.copyOf(out);
@@ -191,6 +220,18 @@ public final class GoTestEvents {
         if (finished) return List.of();
         finished = true;
         List<Emission> out = new ArrayList<>();
+        if (terminationRequested) {
+            for (PackageState pkg : packages.values()) {
+                if (pkg.node.closed) continue;
+                if (pkg.deferredTerminal != null) finishPackage(pkg, pkg.deferredTerminal, out);
+                else {
+                    for (Node test : pkg.tests.values()) if (!test.closed) interruptTest(pkg, test, out);
+                    interruptSuite(pkg.node, out);
+                }
+            }
+            log(out, Kind.PROCESS_OUTPUT, null, "Run terminated after a local IDE termination request; process exit code " + exitCode + "\n");
+            return List.copyOf(out);
+        }
         boolean openPackage = false;
         for (PackageState pkg : packages.values()) {
             if (pkg.node.closed) continue;
@@ -212,6 +253,18 @@ public final class GoTestEvents {
         return List.copyOf(out);
     }
 
+    /** Structured requests must be observed; a package pass alone is not a selected test's result. */
+    public List<Emission> selectedTestsNotObserved(List<String> names) {
+        if (finished || names == null || names.isEmpty()) return List.of();
+        List<Emission> out = new ArrayList<>();
+        if (terminationRequested) {
+            log(out, Kind.PROCESS_OUTPUT, null, "Run terminated before requested Go test names were observed: " + String.join(", ", names) + "\n");
+            return List.copyOf(out);
+        }
+        infrastructureFailure(null, "selection", "Requested Go test names were not observed: " + String.join(", ", names), out);
+        return List.copyOf(out);
+    }
+
     private PackageState startPackage(String name, boolean inferred, List<Emission> out) {
         int attempt = packageAttempts.merge(name, 1, Integer::sum);
         Node n = new Node(name, name, "pkg:" + encode(name) + ":" + attempt, "0", attempt, inferred);
@@ -227,7 +280,11 @@ public final class GoTestEvents {
         if (e.action().equals("run")) {
             if (n != null && !n.closed) {
                 if (n.explicitRun) warn(out, n, "Duplicate run for active test");
-                else { n.explicitRun = true; warn(out, n, "Run arrived after output/result initialization"); }
+                else {
+                    n.explicitRun = true;
+                    locations.locationHint(n.packageName, n.name, n.id, false);
+                    warn(out, n, "Run arrived after output/result initialization");
+                }
             } else {
                 n = startTest(pkg, e.test(), false, out);
                 n.explicitRun = true;
@@ -273,8 +330,12 @@ public final class GoTestEvents {
         Node n = new Node(pkg.node.packageName, name,
                 pkg.node.id + ":test:" + encode(name) + ":" + attempt, parentId, attempt, inferred);
         pkg.tests.put(name, n);
-        out.add(emit(Kind.TEST_STARTED, n, n.status, "", null,
-                tc("testStarted", n, "name", testName(n), "captureStandardOutput", "false")));
+        String location = locations.locationHint(n.packageName, n.name, n.id, inferred);
+        String started = location == null || location.isBlank()
+                ? tc("testStarted", n, "name", testName(n), "captureStandardOutput", "false")
+                : tc("testStarted", n, "name", testName(n), "captureStandardOutput", "false",
+                     "locationHint", location, "metainfo", name.contains("/") ? "Containing test declaration" : "Test declaration");
+        out.add(emit(Kind.TEST_STARTED, n, n.status, "", null, started));
         return n;
     }
 
@@ -296,13 +357,7 @@ public final class GoTestEvents {
 
     private void finishTest(PackageState pkg, Node n, Status status, Long duration, String reason, List<Emission> out) {
         if (n.closed) return;
-        if (!n.output.isEmpty()) {
-            String output = n.output.toString();
-            out.add(emit(Kind.OUTPUT_ATTACHMENT, n, n.status, output, null,
-                    tc("testStdOut", n, "name", testName(n), "out", output)));
-            bufferedOutputChars -= n.output.length();
-            n.output.setLength(0);
-        }
+        flushOutput(n, out);
         n.status = status;
         if (status == Status.FAILED || status == Status.INCOMPLETE) {
             observedFailure = true;
@@ -320,6 +375,30 @@ public final class GoTestEvents {
         out.add(emit(Kind.TEST_FINISHED, n, status, reason, duration, message));
     }
 
+    private void flushOutput(Node n, List<Emission> out) {
+        if (!n.output.isEmpty()) {
+            String output = n.output.toString();
+            out.add(emit(Kind.OUTPUT_ATTACHMENT, n, n.status, output, null,
+                    tc("testStdOut", n, "name", testName(n), "out", output)));
+            bufferedOutputChars -= n.output.length();
+            n.output.setLength(0);
+        }
+    }
+
+    private void interruptTest(PackageState pkg, Node n, List<Emission> out) {
+        if (n.closed) return;
+        flushOutput(n, out);
+        n.closed = true; n.status = Status.INTERRUPTED; pkg.interrupted = true;
+        // Keep the SM node unfinished: its owning console's finish hook supplies
+        // the public platform's terminated state, never a fabricated pass/skip/fail.
+        out.add(emit(Kind.TEST_INTERRUPTED, n, n.status, "Run terminated before this test's terminal event", null, ""));
+    }
+
+    private void interruptSuite(Node n, List<Emission> out) {
+        n.closed = true; n.status = Status.INTERRUPTED;
+        out.add(emit(Kind.SUITE_INTERRUPTED, n, n.status, "Run terminated before this package completed", null, ""));
+    }
+
     private void finishPackage(PackageState pkg, Event e, List<Emission> out) {
         // Close descendants before their still-open benchmark parents. Go's
         // JSON benchmark protocol has no unconditional per-benchmark pass/bench.
@@ -332,7 +411,8 @@ public final class GoTestEvents {
             if (e.action().equals("pass") && n.explicitRun && isBenchmark(n.name)) {
                 finishTest(pkg, n, Status.BENCHMARK_COMPLETED, null,
                         "Benchmark completed with package pass; no individual terminal event was emitted", out);
-            } else {
+            } else if (terminationRequested) interruptTest(pkg, n, out);
+            else {
                 finishTest(pkg, n, Status.INCOMPLETE, null,
                         "Package result arrived before this test's terminal event", out);
             }
@@ -343,6 +423,12 @@ public final class GoTestEvents {
             default -> Status.PASSED;
         };
         if (result == Status.FAILED) {
+            if (terminationRequested && e.failedBuild().isEmpty() && !pkg.failed) {
+                // The real package result remains in the process log. It is not
+                // evidence of a second assertion failure after local termination.
+                interruptSuite(pkg.node, out);
+                return;
+            }
             observedFailure = true;
             if (!pkg.failed && !pkg.incomplete) {
                 String reason = e.failedBuild().isEmpty() ? "Go package failed outside a reported test"
@@ -358,7 +444,8 @@ public final class GoTestEvents {
             warn(out, pkg.node, "Package " + e.action() + " conflicts with failed/incomplete child results");
             result = pkg.failed ? Status.FAILED : Status.INCOMPLETE;
         }
-        closeSuite(pkg.node, result, duration(e, pkg.node, out), out);
+        if (pkg.interrupted) interruptSuite(pkg.node, out);
+        else closeSuite(pkg.node, result, duration(e, pkg.node, out), out);
     }
 
     /** Go's isTest name rule applies to the top-level function, not a subtest segment. */

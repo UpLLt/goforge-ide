@@ -53,12 +53,14 @@ public final class GoplsClientFeatures extends LSPClientFeatures {
                 }
                 var navigation = new GoplsNavigationEndpoint(new dev.goforge.refactor.GoSignatureEntryEndpoint(new dev.goforge.refactor.GoDocumentVersionEndpoint(
                         creations, sentVersions)));
+                org.eclipse.lsp4j.jsonrpc.Endpoint formatting = getServerWrapper() == null ? navigation
+                        : new GoFormattingCaretIndentEndpoint(navigation, getProject(), GoplsClientFeatures.this, sentVersions);
                 // Preserve LSP4J's default classloader selection for the usual
                 // single-interface launcher (its explicit classLoader is null).
                 if (localServices.size() == 1 && remoteInterfaces.size() == 1) {
-                    return ServiceEndpoints.toServiceObject(navigation, remoteInterfaces.iterator().next());
+                    return ServiceEndpoints.toServiceObject(formatting, remoteInterfaces.iterator().next());
                 }
-                return (S) ServiceEndpoints.toServiceObject(navigation,
+                return (S) ServiceEndpoints.toServiceObject(formatting,
                         new ArrayList<Class<?>>(remoteInterfaces), classLoader);
             }
         };

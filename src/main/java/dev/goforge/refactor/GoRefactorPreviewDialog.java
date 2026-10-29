@@ -21,7 +21,9 @@ final class GoRefactorPreviewDialog extends DialogWrapper {
     @Override protected JComponent createCenterPanel() {
         var panel=new JPanel(new BorderLayout(0,8));
         var top=new JPanel(new BorderLayout(8,4));
-        top.add(new JLabel("Review every affected file. Apply uses one Undo command; existing unsaved buffers remain unsaved."),BorderLayout.NORTH);
+        top.add(new JLabel(title.startsWith("Add parameter")
+                ? "All verified direct calls in the captured project are included. Apply uses one Undo command; dirty buffers remain unsaved."
+                : "Review every affected file. Apply uses one Undo command; existing unsaved buffers remain unsaved."),BorderLayout.NORTH);
         var files=new JComboBox<String>();
         for(var item:plan.files())files.addItem(snapshot.displayName(item.uri())+(item.created()?" [new]":"")+" ("+item.edit().changes().size()+" edits)");
         files.getAccessibleContext().setAccessibleName("Refactoring changed files");top.add(files,BorderLayout.CENTER);panel.add(top,BorderLayout.NORTH);

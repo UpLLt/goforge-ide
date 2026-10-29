@@ -32,6 +32,8 @@ public final class DelveDebugAdapterDescriptor extends DefaultDebugAdapterDescri
     }
 
     @Override public ProcessHandler startServer() throws ExecutionException {
+        com.intellij.openapi.progress.ProgressManager.checkCanceled();
+        GoSelectedTestDebugGuard.validate(environment);
         try {
             var settings = GoForgeSettings.getInstance();
             var command = new GeneralCommandLine().withCharset(StandardCharsets.UTF_8);
@@ -53,8 +55,15 @@ public final class DelveDebugAdapterDescriptor extends DefaultDebugAdapterDescri
             if (options instanceof WorkingDirectoryConfigurable working && working.getWorkingDirectory() != null
                     && !working.getWorkingDirectory().isBlank()) command.withWorkDirectory(working.getWorkingDirectory());
             var handler = startServer(command);
-            handler.setShouldDestroyProcessRecursively(true);
-            return handler;
+            try {
+                handler.setShouldDestroyProcessRecursively(true);
+                com.intellij.openapi.progress.ProgressManager.checkCanceled();
+                if (environment.getProject().isDisposed()) throw new ExecutionException("The debug project was closed.");
+                return handler;
+            } catch (ExecutionException | RuntimeException | Error failure) {
+                handler.destroyProcess();
+                throw failure;
+            }
         } catch (IllegalArgumentException | IllegalStateException e) {
             throw new ExecutionException(e.getMessage(), e);
         }

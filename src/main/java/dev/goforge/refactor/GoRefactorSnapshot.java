@@ -17,6 +17,15 @@ import java.util.*;
 
 /** A bounded project snapshot taken before requesting code actions, including unsaved buffers. */
 final class GoRefactorSnapshot {
+    // A final write-boundary check must also see files not yet refreshed into VFS.
+    // Bound direct directory listings independently of the Go source/text limits.
+    private static final int MAX_INVENTORY_DIRECTORIES=1024, MAX_INVENTORY_CHILDREN=16384;
+    private enum ChildKind { DIRECTORY, FILE, SYMLINK, OTHER }
+    private record DirectoryEntry(VirtualFile file,String path,Path realPath,Object key,Map<String,ChildKind> children) { }
+    private static final class InventoryBudget {
+        private int children;
+        void next(){if(++children>MAX_INVENTORY_CHILDREN)throw new IllegalStateException("Project exceeds the bounded refactoring directory inventory. Open a smaller project.");}
+    }
     record DiskIdentity(Object key, long size, java.nio.file.attribute.FileTime modified) {
         static DiskIdentity read(Path path) throws IOException {
             var value = Files.readAttributes(path, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
@@ -32,13 +41,15 @@ final class GoRefactorSnapshot {
     private final Path realRoot;
     private final long rootsVersion;
     private final List<Entry> entries;
+    private final List<DirectoryEntry> directories;
     private final Map<Path, Entry> byPath;
     record NewFile(String uri,Path path,VirtualFile parent,Path realParent,Object parentKey,String name){}
     private final Map<Path,NewFile> newFiles=new HashMap<>();
 
-    private GoRefactorSnapshot(Project project, VirtualFile directory, Path realRoot, long rootsVersion, List<Entry> entries) {
+    private GoRefactorSnapshot(Project project, VirtualFile directory, Path realRoot, long rootsVersion, List<Entry> entries,List<DirectoryEntry> directories) {
         this.project=project;this.directory=directory;this.directoryPath=directory.getPath();this.realRoot=realRoot;
         this.rootsVersion=rootsVersion;this.entries=List.copyOf(entries);this.byPath=new HashMap<>();
+        this.directories=List.copyOf(directories);
         for(var entry:entries) byPath.put(entry.file().toNioPath().toAbsolutePath().normalize(),entry);
     }
     static GoRefactorSnapshot capture(Project project, ProgressIndicator indicator) throws IOException {
@@ -53,13 +64,31 @@ final class GoRefactorSnapshot {
         Path realRoot=directory.toNioPath().toRealPath();
         return ReadAction.compute(()->{
             long rootsVersion=ProjectRootModificationTracker.getInstance(project).getModificationCount();
-            var result=new ArrayList<Entry>();var pending=new ArrayDeque<VirtualFile>();pending.add(directory);
+            var result=new ArrayList<Entry>();var directories=new ArrayList<DirectoryEntry>();var inventoryBudget=new InventoryBudget();
+            var pending=new ArrayDeque<VirtualFile>();pending.add(directory);
             long characters=0;int visited=0;var realPaths=new HashSet<Path>();var diskKeys=new HashSet<Object>();var index=ProjectFileIndex.getInstance(project);
             while(!pending.isEmpty()){
                 indicator.checkCanceled();var file=pending.removeFirst();
                 if(++visited>100000)throw new IllegalStateException("Project exceeds the bounded refactoring snapshot. Open a smaller project.");
                 if(file.is(VFileProperty.SYMLINK)||index.isExcluded(file))continue;
-                if(file.isDirectory()){Collections.addAll(pending,file.getChildren());continue;}
+                if(file.isDirectory()){
+                    if(directories.size()>=MAX_INVENTORY_DIRECTORIES)throw new IllegalStateException("Project exceeds the 1,024-directory refactoring inventory limit. Open a smaller project.");
+                    try{
+                        Path path=file.toNioPath(),real=path.toRealPath();var attributes=directoryAttributes(path);
+                        if(!real.startsWith(realRoot))throw new IllegalStateException("A refactoring directory resolves outside the project.");
+                        var children=directoryChildren(path,inventoryBudget);var virtualChildren=file.getChildren();
+                        var known=new HashMap<String,VirtualFile>();for(var child:virtualChildren)known.put(child.getName(),child);
+                        // capture(directory,...) callers promise a refreshed root. Refuse an
+                        // already-unseen physical source/parent instead of blessing an incomplete baseline.
+                        for(var child:children.entrySet())if(child.getValue()==ChildKind.DIRECTORY
+                                ||child.getValue()==ChildKind.FILE&&child.getKey().endsWith(".go")){
+                            var virtual=known.get(child.getKey());
+                            if(virtual==null||virtual.isDirectory()!=(child.getValue()==ChildKind.DIRECTORY))throw inventoryChanged();
+                        }
+                        directories.add(new DirectoryEntry(file,file.getPath(),real,attributes.fileKey(),children));
+                        Collections.addAll(pending,virtualChildren);continue;
+                    }catch(IOException failure){throw new IllegalStateException("Cannot capture a stable project directory. Refresh and request the refactoring again.",failure);}
+                }
                 if(!"go".equals(file.getExtension())||!file.isInLocalFileSystem())continue;
                 if(result.size()>=GoRefactorWorkspaceEdit.MAX_FILES)throw new IllegalStateException("Project exceeds the 2,048 Go-file snapshot limit.");
                 try {
@@ -75,8 +104,43 @@ final class GoRefactorSnapshot {
                     result.add(new Entry(file,document,file.getPath(),real,disk,text,document.getModificationStamp(),file.getModificationStamp(),manager.isDocumentUnsaved(document)));
                 }catch(IOException failure){throw new IllegalStateException("Cannot capture a stable Go source: "+file.getName(),failure);}
             }
-            return new GoRefactorSnapshot(project,directory,realRoot,rootsVersion,result);
+            var snapshot=new GoRefactorSnapshot(project,directory,realRoot,rootsVersion,result,directories);
+            snapshot.requireInventoryCurrent();
+            return snapshot;
         });
+    }
+    private static BasicFileAttributes directoryAttributes(Path path)throws IOException{
+        var value=Files.readAttributes(path,BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS);
+        if(!value.isDirectory())throw new IOException("Refactoring source parent is no longer a physical directory.");
+        return value;
+    }
+    private static Map<String,ChildKind> directoryChildren(Path path,InventoryBudget budget)throws IOException{
+        var children=new HashMap<String,ChildKind>();
+        try(var stream=Files.newDirectoryStream(path)){
+            for(var child:stream){
+                com.intellij.openapi.progress.ProgressManager.checkCanceled();
+                budget.next();var attributes=Files.readAttributes(child,BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS);
+                var kind=attributes.isSymbolicLink()?ChildKind.SYMLINK:attributes.isDirectory()?ChildKind.DIRECTORY:
+                        attributes.isRegularFile()?ChildKind.FILE:ChildKind.OTHER;
+                children.put(child.getFileName().toString(),kind);
+            }
+        }
+        return Map.copyOf(children);
+    }
+    private static IllegalStateException inventoryChanged(){
+        return new IllegalStateException("The project file inventory changed after the request. Refresh and request a fresh refactoring preview; no edits were applied.");
+    }
+    /** Fixed captured parents only: no VFS refresh, source reads or discovery walk in the write command. */
+    private void requireInventoryCurrent(){
+        var budget=new InventoryBudget();
+        for(var captured:directories){
+            try{
+                var file=captured.file();Path path=file.toNioPath();
+                if(!file.isValid()||!captured.path().equals(file.getPath())||!path.toRealPath().equals(captured.realPath())
+                        ||!Objects.equals(directoryAttributes(path).fileKey(),captured.key())
+                        ||!directoryChildren(path,budget).equals(captured.children()))throw inventoryChanged();
+            }catch(IOException|DirectoryIteratorException failure){throw new IllegalStateException("The project file inventory is no longer available. Request a fresh refactoring preview; no edits were applied.",failure);}
+        }
     }
     List<Entry> entries(){return entries;}
     Entry entry(String uri){var entry=byPath.get(GoRefactorWorkspaceEdit.uriPath(uri));if(entry==null)throw new IllegalArgumentException("The edit target is outside the project snapshot.");return entry;}
@@ -108,6 +172,7 @@ final class GoRefactorSnapshot {
         if(project.isDisposed()||!directory.isValid()||!directoryPath.equals(directory.getPath())
                 ||ProjectRootModificationTracker.getInstance(project).getModificationCount()!=rootsVersion)
             throw new IllegalStateException("The project roots changed. Request the refactoring again.");
+        requireInventoryCurrent();
         var manager=FileDocumentManager.getInstance();
         for(var entry:entries){
             if(!entry.file().isValid()||!entry.path().equals(entry.file().getPath())||entry.file().getModificationStamp()!=entry.fileStamp()
@@ -143,6 +208,7 @@ final class GoRefactorSnapshot {
     /** Run on a worker before showing/applying the preview; final buffer checks still run in the write command. */
     void requireDiskCurrent() throws IOException {
         if(!directory.toNioPath().toRealPath().equals(realRoot))throw new IllegalStateException("The project directory moved.");
+        requireInventoryCurrent();
         for(var entry:entries) if(!entry.file().toNioPath().toRealPath().equals(entry.realPath())
                 ||!DiskIdentity.read(entry.file().toNioPath()).equals(entry.disk()))
             throw new IllegalStateException("A Go file changed on disk. Refresh the project and request the refactoring again.");

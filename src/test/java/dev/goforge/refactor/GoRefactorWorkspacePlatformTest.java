@@ -111,6 +111,53 @@ public final class GoRefactorWorkspacePlatformTest extends BasePlatformTestCase 
         }
         return GoRefactorWorkspaceEdit.prepare(sources,new WorkspaceEdit(edits));
     }
+    public void testAddParameterBatchPreservesDirtyCallerAndHasTwoUndoRedoCycles()throws Exception {
+        String api="package api\nfunc Join(first string, second string) string {return first+second}\n";
+        String app="package app\nimport \"example.test/api\"\nfunc Call() string {return api.Join(left(),right())}\n";
+        String external="package api_test\nimport \"example.test/api\"\nvar _=api.Join(\"c\",\"d\")\n";
+        var definition=source("api/join.go",api);var caller=source("app/call.go",app);var closed=source("api/join_test.go",external);
+        var editor=EditorFactory.getInstance().createEditor(caller,getProject(),PlainTextFileType.INSTANCE,false);
+        try {
+            WriteCommandAction.runWriteCommandAction(getProject(),()->caller.insertString(0,"// unsaved \u4e16\u754c\ud83d\ude42\n"));
+            String dirty=caller.getText();var snapshot=capture();var plan=addParameterPlan(snapshot);
+            assertEquals(api,definition.getText());assertEquals(external,closed.getText());assertEquals(app,Files.readString(directory.resolve("app/call.go")));
+            GoRefactorApply.apply(getProject(),snapshot,plan,"Add parameter to verified project calls");
+            var undo=UndoManager.getInstance(getProject());var textEditor=TextEditorProvider.getInstance().getTextEditor(editor);
+            for(int cycle=0;cycle<2;cycle++) {
+                assertTrue(definition.getText().contains("first string, extra int, second string"));
+                assertTrue(caller.getText().contains("api.Join(left(),7, right())"));
+                assertTrue(closed.getText().contains("api.Join(\"c\",7, \"d\")"));
+                assertEquals(app,Files.readString(directory.resolve("app/call.go")));assertTrue(manager().isDocumentUnsaved(caller));
+                assertEquals(definition.getText(),Files.readString(directory.resolve("api/join.go")));assertEquals(closed.getText(),Files.readString(directory.resolve("api/join_test.go")));
+                assertTrue(undo.isUndoAvailable(textEditor));undo.undo(textEditor);
+                assertEquals(api,definition.getText());assertEquals(dirty,caller.getText());assertEquals(external,closed.getText());
+                assertEquals(api,Files.readString(directory.resolve("api/join.go")));assertEquals(external,Files.readString(directory.resolve("api/join_test.go")));
+                assertTrue(undo.isRedoAvailable(textEditor));undo.redo(textEditor);
+            }
+        }finally{EditorFactory.getInstance().releaseEditor(editor);}
+    }
+    public void testAddParameterStaleCallerRejectsWholeBatch()throws Exception {
+        String api="package api\nfunc Join(first string, second string) string {return first+second}\n";
+        var definition=source("api/join.go",api);var caller=source("app/call.go","package app\nfunc Call(){api.Join(left(),right())}\n");
+        var snapshot=capture();var plan=addParameterPlan(snapshot);
+        WriteCommandAction.runWriteCommandAction(getProject(),()->caller.insertString(0,"// later user edit\n"));String changed=caller.getText();
+        assertThrows(IllegalStateException.class,()->GoRefactorApply.apply(getProject(),snapshot,plan,"Add parameter rejected"));
+        assertEquals(api,definition.getText());assertEquals(api,Files.readString(directory.resolve("api/join.go")));assertEquals(changed,caller.getText());
+    }
+    /** Representative planner insertions; the separate real-Go probe exercises AST generation. */
+    private GoRefactorWorkspaceEdit addParameterPlan(GoRefactorSnapshot snapshot) {
+        var sources=new ArrayList<GoRefactorWorkspaceEdit.Source>();var edits=new ArrayList<org.eclipse.lsp4j.jsonrpc.messages.Either<TextDocumentEdit,ResourceOperation>>();
+        for(var entry:snapshot.entries()) {
+            String uri=entry.file().toNioPath().toUri().toString(),text=entry.text();int version=entry.unsaved()?11:0;
+            sources.add(new GoRefactorWorkspaceEdit.Source(uri,text,version));
+            String token=text.contains("func Join")?"second string":text.contains("right()")?"right()":"\"d\"";
+            int at=text.indexOf(token);assertTrue(at>=0);Position point=GoRefactorEdit.position(text,at);
+            String insert=text.contains("func Join")?"extra int, ":"7, ";
+            edits.add(org.eclipse.lsp4j.jsonrpc.messages.Either.forLeft(new TextDocumentEdit(new VersionedTextDocumentIdentifier(uri,version),List.of(new TextEdit(new Range(point,point),insert)))));
+        }
+        return GoRefactorWorkspaceEdit.prepare(sources,new WorkspaceEdit(edits));
+    }
+
     public void testSecondReadOnlyDocumentRejectsWholeBatch()throws Exception{
         var first=source("a.go","package demo\nvar Before = 1\n");var second=source("b.go",first.getText());var snapshot=capture();var plan=plan(snapshot);
         second.setReadOnly(true);
@@ -123,6 +170,85 @@ public final class GoRefactorWorkspacePlatformTest extends BasePlatformTestCase 
         WriteCommandAction.runWriteCommandAction(getProject(),()->second.setText("package demo\n// user's new contents\n"));
         assertThrows(IllegalStateException.class,()->GoRefactorApply.apply(getProject(),snapshot,plan,"Rejected"));
         assertTrue(first.getText().contains("Before"));assertTrue(second.getText().contains("user's new"));
+    }
+    public void testNewRefreshedCallerAfterPreviewRejectsWholeBatchBeforeAnyWrite()throws Exception{
+        String original="package demo\nvar Before = 1\n";
+        var first=source("a.go",original);var second=source("b.go",original);
+        var snapshot=capture();var plan=plan(snapshot);snapshot.requireDiskCurrent();
+        String caller="package demo\nfunc Later(){_ = Before}\n";source("later.go",caller);
+        assertThrows(IllegalStateException.class,()->GoRefactorApply.apply(getProject(),snapshot,plan,"Rejected new caller"));
+        assertEquals(original,first.getText());assertEquals(original,second.getText());
+        assertEquals(original,Files.readString(directory.resolve("a.go")));assertEquals(original,Files.readString(directory.resolve("b.go")));
+        assertEquals(caller,Files.readString(directory.resolve("later.go")));
+    }
+    public void testQueuedApplySeesUnrefreshedExternalCallerEvenWithRestoredDirectoryTimestamp()throws Exception{
+        String original="package demo\nvar Before = 1\n";var document=source("a.go",original);
+        var snapshot=capture();Path target=directory.resolve("extracted.go");var plan=createPlan(snapshot,target);snapshot.prepareTargets(plan);
+        snapshot.requireDiskCurrent(); // Worker completed before a queued UI callback publishes the write.
+        var directoryTime=Files.getLastModifiedTime(directory);
+        var failure=new java.util.concurrent.atomic.AtomicReference<Throwable>();var completed=new java.util.concurrent.atomic.AtomicBoolean();
+        String caller="package demo\nfunc Later(){_ = Before}\n";
+        com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater(()->{
+            try{
+                Files.writeString(directory.resolve("unrefreshed.go"),caller);
+                Files.setLastModifiedTime(directory,directoryTime); // Timestamp-only guards must not pass this.
+                GoRefactorApply.apply(getProject(),snapshot,plan,"Rejected queued new caller");
+            }catch(Throwable error){failure.set(error);}finally{completed.set(true);}
+        },com.intellij.openapi.application.ModalityState.current());
+        com.intellij.testFramework.PlatformTestUtil.waitWithEventsDispatching("Queued refactoring boundary",completed::get,5);
+        assertInstanceOf(failure.get(),IllegalStateException.class);
+        assertTrue(failure.get().getMessage(),failure.get().getMessage().contains("inventory"));
+        assertEquals(original,document.getText());assertEquals(original,Files.readString(directory.resolve("a.go")));
+        assertEquals(caller,Files.readString(directory.resolve("unrefreshed.go")));assertFalse(Files.exists(target));
+    }
+    public void testExternalFileBecomingSourceDirectoryWithSameNameRejectsPreview()throws Exception{
+        String original="package demo\nvar Before = 1\n";var document=source("a.go",original);
+        Path parent=directory.resolve("notes");Files.writeString(parent,"ordinary metadata");root.refresh(false,true);
+        var snapshot=capture();var plan=plan(snapshot);snapshot.requireDiskCurrent();
+        Files.delete(parent);Files.createDirectory(parent);Files.writeString(parent.resolve("caller.go"),"package nested\nfunc Later(){}\n");
+        assertThrows(IllegalStateException.class,()->GoRefactorApply.apply(getProject(),snapshot,plan,"Rejected new directory"));
+        assertEquals(original,document.getText());assertEquals(original,Files.readString(directory.resolve("a.go")));
+        assertTrue(Files.exists(parent.resolve("caller.go")));
+    }
+    public void testDeletedUntouchedSourceRejectsBeforeEditingOtherFiles()throws Exception{
+        String original="package demo\nvar Before = 1\n";var document=source("a.go",original);source("untouched.go",original);
+        var snapshot=capture();var plan=onlyFilePlan(snapshot,document);snapshot.requireDiskCurrent();
+        Files.delete(directory.resolve("untouched.go"));
+        try{
+            assertThrows(IllegalStateException.class,()->GoRefactorApply.apply(getProject(),snapshot,plan,"Rejected removed caller"));
+            assertEquals(original,document.getText());assertEquals(original,Files.readString(directory.resolve("a.go")));
+        }finally{Files.writeString(directory.resolve("untouched.go"),original);}
+    }
+    public void testMovedUntouchedSourceRejectsBeforeEditingOtherFiles()throws Exception{
+        String original="package demo\nvar Before = 1\n";var document=source("a.go",original);source("untouched.go",original);
+        Path parent=Files.createDirectory(directory.resolve("existing"));root.refresh(false,true);
+        var snapshot=capture();var plan=onlyFilePlan(snapshot,document);snapshot.requireDiskCurrent();
+        Files.move(directory.resolve("untouched.go"),parent.resolve("moved.go"));
+        try{
+            assertThrows(IllegalStateException.class,()->GoRefactorApply.apply(getProject(),snapshot,plan,"Rejected moved caller"));
+            assertEquals(original,document.getText());assertEquals(original,Files.readString(directory.resolve("a.go")));
+            assertEquals(original,Files.readString(parent.resolve("moved.go")));
+        }finally{Files.move(parent.resolve("moved.go"),directory.resolve("untouched.go"));}
+    }
+    public void testExcludedSubtreeAndExistingMetadataContentChangesDoNotInvalidateInventory()throws Exception{
+        String original="package demo\nvar Before = 1\n";var document=source("a.go",original);
+        Path excluded=Files.createDirectory(directory.resolve("excluded"));Path metadata=directory.resolve("workspace.xml");Files.writeString(metadata,"before");root.refresh(false,true);
+        var excludedFile=LocalFileSystem.getInstance().findFileByNioFile(excluded);assertNotNull(excludedFile);
+        WriteAction.run(()->PsiTestUtil.addExcludedRoot(getModule(),excludedFile));
+        var snapshot=capture();var plan=plan(snapshot);snapshot.requireDiskCurrent();
+        Files.writeString(excluded.resolve("ignored.go"),"package ignored\nfunc New(){}\n");Files.writeString(metadata,"new IDE state");
+        GoRefactorApply.apply(getProject(),snapshot,plan,"Apply with unchanged source inventory");
+        assertEquals(original.replace("Before","After"),document.getText());assertEquals("new IDE state",Files.readString(metadata));
+    }
+    private GoRefactorWorkspaceEdit onlyFilePlan(GoRefactorSnapshot snapshot,Document target){
+        var sources=new ArrayList<GoRefactorWorkspaceEdit.Source>();String uri=null;
+        for(var entry:snapshot.entries()){
+            String current=entry.file().toNioPath().toUri().toString();sources.add(new GoRefactorWorkspaceEdit.Source(current,entry.text(),0));
+            if(entry.document()==target)uri=current;
+        }
+        assertNotNull(uri);int start=target.getText().indexOf("Before");
+        return GoRefactorWorkspaceEdit.prepare(sources,new WorkspaceEdit(Map.of(uri,List.of(new TextEdit(
+                new Range(GoRefactorEdit.position(target.getText(),start),GoRefactorEdit.position(target.getText(),start+6)),"After")))));
     }
     public void testExternalDiskChangeAndMovedPathRejectSnapshot()throws Exception{
         var source=source("a.go","package demo\nvar Before = 1\n");var snapshot=capture();

@@ -36,7 +36,9 @@ public final class GoDebugConfigurationsTest extends BasePlatformTestCase {
     }
 
     public void testApplicationCreatesPackageAndTestConfigurationsWithEscapedAbsolutePaths() throws Exception {
-        Path directory = Files.createDirectory(tempDirectory().resolve("Go project \"quoted\" 世界")).toRealPath();
+        // A quote is a legal POSIX filename, but Windows rejects it before configuration creation.
+        String name = dev.goforge.tools.HostTools.isWindows() ? "Go project quoted 世界" : "Go project \"quoted\" 世界";
+        Path directory = Files.createDirectory(tempDirectory().resolve(name)).toRealPath();
         var created = GoDebugConfigurations.addForProject(getProject(), directory, true);
         assertEquals(2, created.size());
         assertConfiguration(created.get(0), directory, false);
@@ -94,6 +96,9 @@ public final class GoDebugConfigurationsTest extends BasePlatformTestCase {
         assertEquals(directory.toString(), configuration.getWorkingDirectory());
         assertEquals(tests ? "goforge_tests" : "goforge_package", configuration.getLaunchConfigurationId());
         var launch = JsonParser.parseString(configuration.getLaunchConfiguration()).getAsJsonObject();
+        if (dev.goforge.tools.HostTools.isWindows())
+            assertTrue("Windows path separators must be escaped in JSON",
+                    configuration.getLaunchConfiguration().contains(directory.toString().replace("\\", "\\\\")));
         assertEquals("go", launch.get("type").getAsString());
         assertEquals("launch", launch.get("request").getAsString());
         assertEquals(tests ? "test" : "debug", launch.get("mode").getAsString());

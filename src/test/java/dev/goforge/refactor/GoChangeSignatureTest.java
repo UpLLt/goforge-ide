@@ -26,6 +26,16 @@ public final class GoChangeSignatureTest {
         var value=prepared().request(" func(b int, a string) string ");assertEquals(URI,value.getTextDocument().getUri());assertEquals(new Position(1,0),value.getPosition());assertEquals("func(b int, a string) string",value.getNewName());
         assertThrows(IllegalArgumentException.class,()->prepared().request("Format"));assertThrows(IllegalArgumentException.class,()->prepared().request(prepared().placeholder()));
     }
+    @Test public void genericDeclarationOffersAddParameterWithoutEnablingSignatureRewrite(){
+        String source="package api\nfunc Combine[A ~string, B ~string](left A, right B) string {return string(left)+string(right)}\n";
+        var response=new PrepareRenameResult(new Range(new Position(1,0),new Position(1,4)),"func[A ~string, B ~string](left A, right B) string");
+        assertTrue(GoChangeSignature.preparedDeclaration(source,new Position(1,2),response));
+        assertNull(GoChangeSignature.prepared(URI,source,new Position(1,2),response));
+        assertFalse(GoChangeSignature.preparedDeclaration(source,new Position(1,7),response));
+        assertFalse(GoChangeSignature.preparedDeclaration(source,new Position(1,2),new PrepareRenameResult(response.getRange(),"functional")));
+        assertFalse(GoChangeSignature.preparedDeclaration(source,new Position(1,2),new PrepareRenameResult(new Range(new Position(1,5),new Position(1,12)),response.getPlaceholder())));
+        assertFalse(GoChangeSignature.preparedDeclaration(source,new Position(1,2),null));
+    }
     @Test public void oldAndNewSignatureActionsAllRequireTheSameGuard(){
         for(String kind:List.of("refactor.rewrite.moveParamLeft","refactor.rewrite.moveParamRight","refactor.rewrite.removeUnusedParam","goforge.changeSignature"))assertTrue(GoSignatureSafety.required(kind));
         assertFalse(GoSignatureSafety.required("refactor.extract.toNewFile"));assertFalse(GoSignatureSafety.required(null));

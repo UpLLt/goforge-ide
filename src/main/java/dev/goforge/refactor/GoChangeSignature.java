@@ -18,11 +18,16 @@ public record GoChangeSignature(String uri,Range keyword,String placeholder) {
         while(right<source.length() && Character.isJavaIdentifierPart(source.codePointAt(right)))right+=Character.charCount(source.codePointAt(right));
         return source.substring(left,right).equals("func") && end<=right;
     }
-    public static GoChangeSignature prepared(String uri,String source,Position selection,PrepareRenameResult prepared) {
-        if(prepared==null || prepared.getRange()==null || prepared.getPlaceholder()==null)return null;
+    /** The custom add-parameter planner also accepts generic declarations, independently of gopls signature rewriting. */
+    public static boolean preparedDeclaration(String source,Position selection,PrepareRenameResult prepared) {
+        if(prepared==null || prepared.getRange()==null || prepared.getPlaceholder()==null)return false;
+        if(!prepared.getPlaceholder().startsWith("func(") && !prepared.getPlaceholder().startsWith("func["))return false;
         int start=GoRefactorEdit.offset(source,prepared.getRange().getStart()),end=GoRefactorEdit.offset(source,prepared.getRange().getEnd());
         int at=GoRefactorEdit.offset(source,selection);
-        if(!source.substring(start,end).equals("func") || at<start || at>end || !prepared.getPlaceholder().startsWith("func("))return null;
+        return start<=end && source.substring(start,end).equals("func") && at>=start && at<=end;
+    }
+    public static GoChangeSignature prepared(String uri,String source,Position selection,PrepareRenameResult prepared) {
+        if(!preparedDeclaration(source,selection,prepared) || !prepared.getPlaceholder().startsWith("func("))return null;
         return new GoChangeSignature(uri,prepared.getRange(),prepared.getPlaceholder());
     }
     public RenameParams request(String value) {

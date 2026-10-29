@@ -18,10 +18,10 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
 
-/** Edit-only gopls refactorings with a stable preview and one undoable write command. */
+/** Previewed Go refactorings with a stable snapshot and one undoable write command. */
 public final class GoRefactorAction extends AnAction {
-    private record Choice(CodeAction action,GoChangeSignature signature) {
-        Choice(CodeAction action){this(action,null);}
+    private record Choice(CodeAction action,GoChangeSignature signature,boolean addParameter) {
+        Choice(CodeAction action){this(action,null,false);}
         @Override public String toString() { return action.getTitle(); }
     }
     private record Query(LanguageServerWrapper wrapper, LanguageServer server, GoRefactorSnapshot snapshot, List<GoRefactorWorkspaceEdit.Source> sources, List<Choice> choices,Position selection) { }
@@ -98,7 +98,12 @@ public final class GoRefactorAction extends AnAction {
                     if(GoChangeSignature.candidate(source,start,end)){
                         var prepared=await(server.getTextDocumentService().prepareRename(new GoChangeSignature.PrepareRequest(new TextDocumentIdentifier(uri),range.getStart())),indicator,project,true);
                         var signature=prepared!=null&&prepared.isSecond()?GoChangeSignature.prepared(uri,source,range.getStart(),prepared.getSecond()):null;
-                        if(signature!=null){var custom=new CodeAction("Change signature across files…");custom.setKind("goforge.changeSignature");choices.add(0,new Choice(custom,signature));}
+                        if(prepared!=null&&prepared.isSecond()&&GoChangeSignature.preparedDeclaration(source,range.getStart(),prepared.getSecond())){
+                            var add=new CodeAction("Add parameter to verified project calls…");add.setKind("goforge.addParameter");choices.add(0,new Choice(add,null,true));
+                        }
+                        if(signature!=null){
+                            var custom=new CodeAction("Change signature across files…");custom.setKind("goforge.changeSignature");choices.add(0,new Choice(custom,signature,false));
+                        }
                     }
                     ReadAction.run(snapshot::requireCurrent);
                     result = new Query(wrapper,server,snapshot,List.copyOf(sources),List.copyOf(choices),range.getStart());
@@ -113,20 +118,23 @@ public final class GoRefactorAction extends AnAction {
                         "No previewable refactoring is available at this selection. Select an expression or statements, place the caret on a call to inline, or on a declaration's func keyword to change its signature.", "Go Refactor"); return; }
                 JBPopupFactory.getInstance().createPopupChooserBuilder(result.choices()).setTitle("Go Refactor")
                         .setItemChosenCallback(choice -> {
-                            String signature=null;
-                            if(choice.signature()!=null){
+                            String signature=null;GoAddParameter.Spec parameter=null;
+                            if(choice.addParameter()){
+                                var dialog=new GoAddParameterDialog(project);if(!dialog.showAndGet())return;
+                                parameter=dialog.specification();
+                            }else if(choice.signature()!=null){
                                 signature=Messages.showInputDialog(project,"Reorder existing parameters or remove unused ones. Keep parameter names/types and results.\nAll affected callers will be previewed. Calls with nontrivial argument evaluation are refused.","Change Go Signature",null,choice.signature().placeholder(),null);
                                 if(signature==null)return;
                                 try{choice.signature().request(signature);}catch(IllegalArgumentException error){fail(project,error.getMessage());return;}
                             }
-                            preview(project,file,document,stamp,source,result,choice.action(),choice.signature(),signature);
+                            preview(project,file,document,stamp,source,result,choice.action(),choice.signature(),signature,parameter);
                         })
                         .createPopup().showInBestPositionFor(editor);
             }
             @Override public void onThrowable(@NotNull Throwable error) { if (!project.isDisposed()) fail(project, detail(error)); }
         }.queue();
     }
-    private static void preview(Project project, VirtualFile file, Document document, long stamp, String source, Query query, CodeAction action,GoChangeSignature signature,String requestedSignature) {
+    private static void preview(Project project, VirtualFile file, Document document, long stamp, String source, Query query, CodeAction action,GoChangeSignature signature,String requestedSignature,GoAddParameter.Spec parameter) {
         new Task.Backgroundable(project, "Preview " + action.getTitle(), true) {
             GoRefactorWorkspaceEdit result;
             @Override public void run(@NotNull ProgressIndicator indicator) {
@@ -135,7 +143,15 @@ public final class GoRefactorAction extends AnAction {
                     if (query.wrapper().isDisposed() || !query.wrapper().isActive() || query.wrapper().getLanguageServer() != query.server())
                         throw new IllegalStateException("The Go language server restarted. Request the refactoring again.");
                     WorkspaceEdit workspace;
-                    if(signature!=null){
+                    if(parameter!=null){
+                        var settings=dev.goforge.settings.GoForgeSettings.getInstance();
+                        var command=new com.intellij.execution.configurations.GeneralCommandLine();
+                        Map<String,String> environment=new HashMap<>(command.getEffectiveEnvironment());
+                        String go=dev.goforge.tools.GoToolResolver.resolve(settings.goPath,"go",project.getBasePath(),environment);
+                        workspace=GoAddParameter.plan(go,environment,query.sources(),query.wrapper().toUriString(file),query.selection(),parameter,
+                                target->await(query.server().getTextDocumentService().references(new ReferenceParams(new TextDocumentIdentifier(target.getUri()),target.getRange().getStart(),new ReferenceContext(false))),indicator,project,true),
+                                ()->indicator.isCanceled()||project.isDisposed());
+                    }else if(signature!=null){
                         workspace=await(query.server().getTextDocumentService().rename(signature.request(requestedSignature)),indicator,project,true);
                     }else if(isExtractToNewFile(action)){
                         if(dev.goforge.remote.GoRemoteAnalysisService.getInstance(project).active()!=null)

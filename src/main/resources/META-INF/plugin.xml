@@ -15,6 +15,17 @@
     <fileType name="GoForge Go" implementationClass="dev.goforge.language.GoFileType"
               fieldName="INSTANCE" language="GoForgeGo" extensions="go"/>
     <lang.parserDefinition language="GoForgeGo" implementationClass="dev.goforge.language.GoParserDefinition"/>
+    <lang.commenter language="GoForgeGo" implementationClass="dev.goforge.language.GoCommenter"/>
+    <lang.syntaxHighlighterFactory language="GoForgeGo" implementationClass="dev.goforge.language.GoSyntaxHighlighterFactory"/>
+    <lang.braceMatcher language="GoForgeGo" implementationClass="dev.goforge.language.GoBraceMatcher"/>
+    <lineIndentProvider implementation="dev.goforge.language.GoLineIndentProvider"/>
+    <langCodeStyleSettingsProvider implementation="dev.goforge.language.GoCodeStyleSettingsProvider"/>
+    <formatOnSaveOptions.defaultsProvider implementation="dev.goforge.language.GoFormatOnSaveDefaultsProvider"/>
+    <actionOnSave implementation="dev.goforge.language.GoFormatOnSaveAction"/>
+    <lang.formatter.restriction implementation="dev.goforge.language.GoSaveFormattingRestriction"/>
+    <postStartupActivity implementation="dev.goforge.lsp.GoFormattingCaretIndentContext$Startup"/>
+    <enterBetweenBracesDelegate language="GoForgeGo" implementationClass="dev.goforge.language.GoEnterBetweenBracesDelegate"/>
+    <enterHandlerDelegate implementation="dev.goforge.language.GoRawStringEnterHandler" order="first"/>
     <completion.contributor language="GoForgeGo" implementationClass="dev.goforge.debug.GoDebugCompletionContributor" order="first"/>
     <!-- Retain the LSP4IJ services previously supplied by its TEXT registrations. -->
     <lang.fileViewProviderFactory language="GoForgeGo"
@@ -38,6 +49,7 @@
     <projectConfigurable id="dev.goforge.project.settings" displayName="Go Project"
                          instance="dev.goforge.settings.GoProjectConfigurable"/>
     <configurationType implementation="dev.goforge.run.GoRunConfigurationType"/>
+    <programRunner implementation="dev.goforge.run.GoTestProgramRunner" order="first"/>
     <runConfigurationProducer implementation="dev.goforge.run.GoRunConfigurationProducer"/>
     <toolWindow id="Go Coverage" anchor="bottom" factoryClass="dev.goforge.coverage.GoCoverageToolWindowFactory"/>
     <toolWindow id="HTTP Client" anchor="bottom" factoryClass="dev.goforge.http.HttpClientToolWindowFactory"/>
@@ -64,6 +76,11 @@
     <fileNamePatternMapping patterns="go.mod" serverId="goforge.gopls" languageId="go.mod"/>
     <fileNamePatternMapping patterns="go.work" serverId="goforge.gopls" languageId="go.work"/>
   </extensions>
+
+  <projectListeners>
+    <listener class="dev.goforge.lsp.GoFormattingCaretIndentContext$SelectionListener"
+              topic="com.intellij.openapi.fileEditor.FileEditorManagerListener"/>
+  </projectListeners>
 
   <actions>
     <action id="GoForge.Refactor" class="dev.goforge.refactor.GoRefactorAction" text="Go Refactor…"
