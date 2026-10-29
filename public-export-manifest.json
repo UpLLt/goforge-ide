@@ -18,13 +18,13 @@
     },
     {
       "path": "README.md",
-      "sha256": "ef65ecdf7616af2b7b9f80d04795850bbba64fa25e02af686070e3afe93c9197",
-      "size": 9895
+      "sha256": "e4570ac6b21f957b292393b44e3d6ecf78e084731083ff45270ff661ea7d63b9",
+      "size": 10131
     },
     {
       "path": "README.zh-CN.md",
-      "sha256": "2ffc90d0117a607459ac4fb148b1ed5b0fac99ce30ecb811692bf700284a5992",
-      "size": 8839
+      "sha256": "2292f84720375fca8fb79a271ff3a6a3870b3e9c16143cc517a3d27d8cb5fa21",
+      "size": 9222
     },
     {
       "path": "THIRD-PARTY-NOTICES.md",
@@ -38,13 +38,13 @@
     },
     {
       "path": "docs/INSTALL.md",
-      "sha256": "0a1661ab628d190daa9ad2b62bca039dfb181585e6de0f2ddf794817a61a2a35",
-      "size": 28083
+      "sha256": "e3b190d418ceb471724f7e7ef66e9bd8f228bcb5398bad3c34934f94df1d4b05",
+      "size": 30887
     },
     {
       "path": "docs/KNOWN-LIMITATIONS.md",
-      "sha256": "f30732500316952f161a5cb33cf5173afa38f6218ef0ec7f6103df7bbf0a0f6f",
-      "size": 28851
+      "sha256": "5a8006795ebdf90028198938a7b2e25d6ed201b4840bf98b459896bcb7d269d9",
+      "size": 24129
     },
     {
       "path": "docs/PUBLIC-RELEASE.md",
@@ -892,14 +892,19 @@
       "size": 4150
     },
     {
+      "path": "src/main/java/dev/goforge/refactor/GoRefactorFileIdentity.java",
+      "sha256": "e64e3ef2a52e65ec8fc6484944603697e8ba9fc44ddd860d1a582bca034c3a67",
+      "size": 6431
+    },
+    {
       "path": "src/main/java/dev/goforge/refactor/GoRefactorPreviewDialog.java",
       "sha256": "e5434adcb680a9e1cf98e88048248537c9dc2346568620ed61e89e0b3ec0661a",
       "size": 2654
     },
     {
       "path": "src/main/java/dev/goforge/refactor/GoRefactorSnapshot.java",
-      "sha256": "f37a5bbe190df9f981a77c0e5575bec34ccd3b97b0816c5ebde6dbecb7e5420f",
-      "size": 17156
+      "sha256": "c6370ececaafe6dc5084a54c4a4b477d95a8b23b4df68946ee72c8c039667f22",
+      "size": 20321
     },
     {
       "path": "src/main/java/dev/goforge/refactor/GoRefactorWorkspaceEdit.java",
@@ -1443,8 +1448,8 @@
     },
     {
       "path": "src/test/java/dev/goforge/language/GoFormatOnSaveTest.java",
-      "sha256": "f8effbfce8349f17dd6b7e15882e0786dd0707ac0ab4078d1bedd3b0a9ff3da1",
-      "size": 27450
+      "sha256": "25923083ea98a5963b81d53831e0b8a71c59c1e8d55680e4441b6c3896017e05",
+      "size": 28922
     },
     {
       "path": "src/test/java/dev/goforge/language/GoLanguageIntegrationTest.java",
@@ -1573,8 +1578,8 @@
     },
     {
       "path": "src/test/java/dev/goforge/refactor/GoRefactorCommandCaptureTest.java",
-      "sha256": "89bf05ceeecc57d7bfbfe7be4782fc24e992a8732eda70f059f80ac58507ee60",
-      "size": 15735
+      "sha256": "b999db23deaabcc6537557b9c302a84ab259bb5d875994889199b955e2b89463",
+      "size": 16948
     },
     {
       "path": "src/test/java/dev/goforge/refactor/GoRefactorEditTest.java",
@@ -1585,6 +1590,11 @@
       "path": "src/test/java/dev/goforge/refactor/GoRefactorFileCreationEndpointTest.java",
       "sha256": "22e6059f2b968a014f56b6093e793611826430137134c306adf81eaf48bbb51f",
       "size": 2095
+    },
+    {
+      "path": "src/test/java/dev/goforge/refactor/GoRefactorFileIdentityTest.java",
+      "sha256": "267c9988b9c9a8efa6aaeeba279ff65e380b5521add3b40bd310d90fe5b05f5a",
+      "size": 11837
     },
     {
       "path": "src/test/java/dev/goforge/refactor/GoRefactorPlatformTest.java",
@@ -1603,8 +1613,8 @@
     },
     {
       "path": "src/test/java/dev/goforge/refactor/GoRefactorWorkspacePlatformTest.java",
-      "sha256": "f85cdbdd38792410fddf11d6542ae882d3de17937fc24ec70211c22553a9261b",
-      "size": 47142
+      "sha256": "b4e53e11c9561c8cf076a95938fc320b550dc77b9a289c352996bd71187dddcd",
+      "size": 56584
     },
     {
       "path": "src/test/java/dev/goforge/refactor/GoSignatureEntryEndpointTest.java",
@@ -1678,8 +1688,8 @@
     },
     {
       "path": "src/test/java/dev/goforge/remote/GoRemoteProcessTest.java",
-      "sha256": "f8d30058aa770f6907f232b82cbbee5b35477f820558105148339e7d2f57f1a7",
-      "size": 4759
+      "sha256": "21c4696c8e33b0925e3a07fe1c94c2431b4cb353625029f1b461378c0c9bb347",
+      "size": 7540
     },
     {
       "path": "src/test/java/dev/goforge/remote/GoRemoteProfileTest.java",
@@ -1723,8 +1733,8 @@
     },
     {
       "path": "src/test/java/dev/goforge/testing/GoTestConsolePlatformTest.java",
-      "sha256": "e74f7b3e1d68ecbcf41d930eedba11198094e3055572f78d03e32c1bf2c68637",
-      "size": 30767
+      "sha256": "61f813b7f416fe7530b2ed43283002c776cd7d73bcc8df01f2b7b5db2e465367",
+      "size": 31296
     },
     {
       "path": "src/test/java/dev/goforge/testing/GoTestEventsTest.java",
@@ -1733,8 +1743,8 @@
     },
     {
       "path": "src/test/java/dev/goforge/testing/GoTestRerunArgumentsTest.java",
-      "sha256": "cf81f5ebb35868e24216f35bbb07b8167ec1ccba6fbb3daa711bcd3e93175f3e",
-      "size": 5174
+      "sha256": "6be7bbf5caf2bb03c8d61dcd6dd63900e1fd12a3c029b87281e1991c63c950ae",
+      "size": 5336
     },
     {
       "path": "src/test/java/dev/goforge/testing/GoTestSelectorTest.java",

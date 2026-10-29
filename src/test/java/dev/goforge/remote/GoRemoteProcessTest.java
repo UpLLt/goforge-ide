@@ -10,10 +10,23 @@ import static org.junit.Assert.*;
 public class GoRemoteProcessTest {
     private static Path directory() { return Path.of(System.getProperty("java.io.tmpdir")); }
     private static List<String> child(String mode, String... arguments) throws Exception {
-        String executable=System.getProperty("os.name").startsWith("Windows")?"java.exe":"java";
-        var command=new ArrayList<>(List.of(Path.of(System.getProperty("java.home"),"bin",executable).toString(),
-                "-cp",com.intellij.util.PathUtil.getJarPathForClass(Child.class),
-                Child.class.getName(),mode));
+        boolean windows=System.getProperty("os.name").startsWith("Windows");
+        String executable=windows?"java.exe":"java";
+        var command=new ArrayList<>(List.of(Path.of(System.getProperty("java.home"),"bin",executable).toString()));
+        String classpath=com.intellij.util.PathUtil.getJarPathForClass(Child.class);
+        if(windows&&mode.equals("argument")) {
+            Path jnaJar=Path.of(com.intellij.util.PathUtil.getJarPathForClass(com.sun.jna.Native.class));
+            // IntelliJ's Windows distribution uses lib/jna/amd64, whereas JNA's
+            // Platform.ARCH reports x86-64. Follow the verified distribution layout.
+            String architecture=System.getProperty("os.arch");
+            if(architecture.equals("x86_64")||architecture.equals("x86-64")) architecture="amd64";
+            Path nativeDirectory=jnaJar.getParent().resolve("jna").resolve(architecture);
+            if(!java.nio.file.Files.isRegularFile(nativeDirectory.resolve("jnidispatch.dll")))
+                throw new IllegalStateException("Missing platform JNA fixture library: "+nativeDirectory);
+            command.add("-Djna.boot.library.path="+nativeDirectory);
+            classpath+=java.io.File.pathSeparator+jnaJar;
+        }
+        command.addAll(List.of("-cp",classpath,Child.class.getName(),mode));
         command.addAll(Arrays.asList(arguments));return command;
     }
     /** Real native child processes on every host; no local POSIX shell is required. */
@@ -25,8 +38,34 @@ public class GoRemoteProcessTest {
                 case "sleep" -> {System.out.println(ProcessHandle.current().pid());System.out.flush();Thread.sleep(30_000);}
                 case "blocked" -> {System.out.print("ready");System.out.flush();Thread.sleep(30_000);}
                 case "large" -> System.out.write(new byte[1_048_576]);
-                case "argument" -> System.out.write(args[1].getBytes(StandardCharsets.UTF_8));
+                case "argument" -> System.out.write((System.getProperty("os.name").startsWith("Windows")
+                        ? windowsNativeArgument() : args[1]).getBytes(StandardCharsets.UTF_8));
                 default -> throw new IllegalArgumentException(args[0]);
+            }
+        }
+        /** The Windows Java launcher narrows main() argv through CP_ACP. Read the
+         * actual Unicode native argv to test ProcessBuilder independently of that conversion. */
+        private static String windowsNativeArgument() {
+            var kernel=com.sun.jna.NativeLibrary.getInstance("kernel32");
+            var shell=com.sun.jna.NativeLibrary.getInstance("shell32");
+            var commandLine=kernel.getFunction("GetCommandLineW",com.sun.jna.Function.ALT_CONVENTION)
+                    .invokePointer(new Object[0]);
+            var count=new com.sun.jna.ptr.IntByReference();
+            var argv=shell.getFunction("CommandLineToArgvW",com.sun.jna.Function.ALT_CONVENTION)
+                    .invokePointer(new Object[]{commandLine,count});
+            if(argv==null) throw new IllegalStateException("CommandLineToArgvW failed: "+com.sun.jna.Native.getLastError());
+            try {
+                var pointers=argv.getPointerArray(0,count.getValue());
+                for(int i=0;i<pointers.length;i++) {
+                    if(Child.class.getName().equals(pointers[i].getWideString(0))) {
+                        if(pointers.length!=i+3||!"argument".equals(pointers[i+1].getWideString(0)))
+                            throw new IllegalStateException("Native child argument boundaries changed");
+                        return pointers[i+2].getWideString(0);
+                    }
+                }
+                throw new IllegalStateException("Missing child class in native command line");
+            } finally {
+                kernel.getFunction("LocalFree",com.sun.jna.Function.ALT_CONVENTION).invokePointer(new Object[]{argv});
             }
         }
     }
@@ -35,7 +74,7 @@ public class GoRemoteProcessTest {
         assertEquals(Integer.valueOf(7),r.exitCode());assertEquals("output",r.stdout());assertEquals("problem",r.stderr());assertFalse(r.success());assertTrue(r.localProcessesStopped());
     }
     @Test public void inputIsDeliveredAsDataAndClosedForRemoteFileHelpers() throws Exception {
-        String data="value; $(echo never execute)\n";
+        String data="源代码 value; $(echo never execute)\n";
         var r=GoRemoteProcess.run(child("input"),directory(),Map.of(),data.getBytes(StandardCharsets.UTF_8),false,() -> false,Duration.ofSeconds(5),x -> {});
         assertTrue(r.success());assertEquals(data,r.stdout());
     }

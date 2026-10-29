@@ -86,11 +86,17 @@ public class GoRefactorCommandCaptureTest {
                 long until = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
                 while (!Files.exists(fixture.phase) && System.nanoTime() < until) Thread.sleep(10);
                 assertTrue("Private fake server never reached the blocked-read phase", Files.exists(fixture.phase));
+                var child = ProcessHandle.of(Long.parseLong(Files.readString(fixture.pid))).orElseThrow();
+                var processExit = child.onExit();
                 Thread.sleep(100); cancel.set(true);
                 var failure = assertThrows(ExecutionException.class, () -> future.get(4, TimeUnit.SECONDS));
                 assertTrue(failure.getCause().toString(), failure.getCause() instanceof CancellationException);
+                assertEquals("The recorded child must reach its OS exit completion", child.pid(), processExit.get(4, TimeUnit.SECONDS).pid());
                 fixture.assertStopped(); fixture.assertUnchanged();
-            } finally { cancel.set(true); worker.shutdownNow(); }
+            } finally {
+                cancel.set(true); worker.shutdownNow();
+                assertTrue("Capture test worker did not terminate", worker.awaitTermination(4, TimeUnit.SECONDS));
+            }
         }
     }
 
@@ -124,8 +130,20 @@ public class GoRefactorCommandCaptureTest {
             long id = Long.parseLong(Files.readString(pid)); assertFalse("Capture process remains alive: " + id, ProcessHandle.of(id).map(ProcessHandle::isAlive).orElse(false));
         }
         @Override public void close() throws IOException {
-            if (Files.exists(pid)) ProcessHandle.of(Long.parseLong(Files.readString(pid))).filter(ProcessHandle::isAlive).ifPresent(ProcessHandle::destroyForcibly);
-            try (var paths = Files.walk(root)) { for (var path : paths.sorted(Comparator.reverseOrder()).toList()) Files.deleteIfExists(path); }
+            if (Files.exists(pid)) {
+                var child = ProcessHandle.of(Long.parseLong(Files.readString(pid)));
+                if (child.isPresent() && child.get().isAlive()) {
+                    child.get().destroyForcibly();
+                    try { child.get().onExit().get(4, TimeUnit.SECONDS); }
+                    catch (InterruptedException failure) { Thread.currentThread().interrupt(); throw new IOException("Interrupted waiting for capture fixture process", failure); }
+                    catch (ExecutionException | TimeoutException failure) { throw new IOException("Capture fixture process did not terminate", failure); }
+                }
+            }
+            // Keep traversal lifetime separate from deletion. Exhaustion normally
+            // closes directory handles already; this is not a retry for failed deletion.
+            List<Path> deletionOrder;
+            try (var paths = Files.walk(root)) { deletionOrder = paths.sorted(Comparator.reverseOrder()).toList(); }
+            for (var path : deletionOrder) Files.deleteIfExists(path);
         }
     }
 

@@ -131,6 +131,25 @@ public final class GoFormatOnSaveTest extends BasePlatformTestCase {
         assertEquals("package p\nvar value=2", server.lastInput);
     }
 
+    public void testExplicitCrLfFileKeepsCrLfWhenFormattingIsDisabled() throws Exception {
+        var file=file("crlf.go","package p\r\nvar value = 0");startServer(file);
+        FormatOnSaveOptions.getInstance(getProject()).setRunOnSaveEnabled(false);
+        String input="package p\nvar value=2";change(file,input);save(file);
+        assertEquals(0,server.requests.get());assertEquals(input,file.document.getText());
+        assertEquals("package p\r\nvar value=2",Files.readString(file.path));
+        assertEquals("\r\n",file.file.getDetectedLineSeparator());
+    }
+
+    public void testFormattingUsesNormalizedLspTextAndPreservesExplicitCrLfOnDisk() throws Exception {
+        var file=file("crlf.go","package p\r\nvar value = 0");startServer(file);
+        server.formatted="package p\n\nvar value = 2\n";
+        String input="package p\nvar value=2";change(file,input);save(file);
+        assertEquals(1,server.requests.get());assertEquals(input,server.lastInput);
+        assertEquals(server.formatted,file.document.getText());
+        assertEquals("package p\r\n\r\nvar value = 2\r\n",Files.readString(file.path));
+        assertEquals("\r\n",file.file.getDetectedLineSeparator());
+    }
+
     public void testExplicitDisabledSavePreservesUnformattedTextWithoutRequest() throws Exception {
         var file = file("main.go", "package p\nvar value = 0");startServer(file);
         FormatOnSaveOptions.getInstance(getProject()).setRunOnSaveEnabled(false);
@@ -286,6 +305,9 @@ public final class GoFormatOnSaveTest extends BasePlatformTestCase {
         Path path = directory.resolve(name);Files.writeString(path, text);
         VirtualFile file = LocalFileSystem.getInstance().refreshAndFindFileByNioFile(path);assertNotNull(file);
         Document document = manager().getDocument(file);assertNotNull(document);
+        // A one-line fixture has no separator to detect. Declare its byte contract explicitly
+        // instead of inheriting the host default (CRLF on Windows); disk assertions stay exact.
+        file.setDetectedLineSeparator(text.contains("\r\n") ? "\r\n" : "\n");
         Editor editor = EditorFactory.getInstance().createEditor(document, getProject(), file.getFileType(), false);editors.add(editor);
         PsiFile psi = PsiManager.getInstance(getProject()).findFile(file);assertNotNull(psi);
         return new Source(path, file, document, editor, psi);

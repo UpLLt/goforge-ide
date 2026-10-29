@@ -58,7 +58,9 @@ public final class GoTestRerunArgumentsTest {
         var fields = List.of("-tags=中文", "-modfile=/a b/name's.mod", "-pkgdir=/a b/has\"quote", "-pgo=C:\\work\\profile.pprof");
         assertEquals(fields, GoTestSelector.splitGoFlags(GoTestRerunArguments.joinGoFlags(fields)));
         assertThrows(IllegalArgumentException.class, () -> GoTestRerunArguments.joinGoFlags(List.of("-modfile=a'\".mod")));
-        var bothQuotes = new GoTestRerunArguments.Context(original.resolve("a'\"b"), "-modfile=dev.mod");
+        // Both quotes are valid argument data on every host; they are not a legal
+        // Windows filename. Exercise the GOFLAGS join refusal after path rebasing.
+        var bothQuotes = new GoTestRerunArguments.Context(original, "-modfile=dev.mod -tags=a'\"b");
         assertThrows(IllegalArgumentException.class, () -> GoTestRerunArguments.rebase(bothQuotes, target, List.of()));
     }
 

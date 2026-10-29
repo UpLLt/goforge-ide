@@ -325,6 +325,114 @@ public final class GoRefactorWorkspacePlatformTest extends BasePlatformTestCase 
         assertThrows(IllegalStateException.class,this::capture);
     }
 
+    public void testHardlinkAliasesWithMissingFileKeysAreRejected()throws Exception {
+        Path original=directory.resolve("original.go"),alias=directory.resolve("alias.go");
+        Files.writeString(original,"package demo\n");Files.createLink(alias,original);
+        var actual=GoRefactorSnapshot.DiskIdentity.read(original);
+        var identity=new GoRefactorSnapshot.DiskIdentity(new Object(),actual.size(),actual.modified());
+        var missing=new GoRefactorSnapshot.DiskIdentity(null,identity.size(),identity.modified());
+        for(boolean firstMissing:new boolean[]{false,true}) {
+            var aliases=new GoRefactorSnapshot.SourceAliases();
+            aliases.add(original,firstMissing?missing:identity);
+            assertThrows(IllegalStateException.class,()->aliases.add(alias,firstMissing?identity:missing));
+        }
+        var aliases=new GoRefactorSnapshot.SourceAliases();aliases.add(original,missing);
+        assertThrows(IllegalStateException.class,()->aliases.add(alias,missing));
+    }
+    public void testSameSizeIndependentFilesWithMissingFileKeysRemainDistinct()throws Exception {
+        Path first=directory.resolve("first.go"),second=directory.resolve("second.go");
+        Files.writeString(first,"package demo\n");Files.writeString(second,"package demo\n");
+        var identity=GoRefactorSnapshot.DiskIdentity.read(first);
+        var missing=new GoRefactorSnapshot.DiskIdentity(null,identity.size(),identity.modified());
+        var aliases=new GoRefactorSnapshot.SourceAliases();aliases.add(first,missing);aliases.add(second,missing);
+        assertFalse(Files.isSameFile(first,second));
+    }
+
+    private GoRefactorSnapshot captureWithUnavailableFileKeys()throws Exception {
+        root.refresh(false,true);
+        return GoRefactorSnapshot.capture(getProject(),root,new EmptyProgressIndicator(),path->{
+            var disk=GoRefactorSnapshot.DiskIdentity.read(path);
+            return new GoRefactorSnapshot.DiskIdentity(null,disk.size(),disk.modified());
+        });
+    }
+    public void testLateHardlinkWithUnavailableKeysRefusesWorkerAndApplyBeforeWrites()throws Exception {
+        String original="package demo\nvar Before = 1\n";
+        var first=source("a.go",original);var second=source("b.go",original);
+        Path firstPath=directory.resolve("a.go"),secondPath=directory.resolve("b.go");
+        var commonTime=java.nio.file.attribute.FileTime.fromMillis(1_700_000_000_000L);
+        Files.setLastModifiedTime(firstPath,commonTime);Files.setLastModifiedTime(secondPath,commonTime);
+        var snapshot=captureWithUnavailableFileKeys();var edits=plan(snapshot);snapshot.requireDiskCurrent();
+        Files.delete(secondPath);Files.createLink(secondPath,firstPath);
+        // The replacement retains bytes, size and mtime, and VFS has not refreshed.
+        assertEquals(snapshot.entry(secondPath.toUri().toString()).disk().modified(),Files.getLastModifiedTime(secondPath));
+        var workerRefusal=org.junit.Assert.assertThrows(IllegalStateException.class,snapshot::requireDiskCurrent);
+        assertTrue(workerRefusal.getMessage(),workerRefusal.getMessage().contains("hard-link aliases"));
+        var applyRefusal=org.junit.Assert.assertThrows(IllegalStateException.class,()->GoRefactorApply.apply(getProject(),snapshot,edits,"Refuse late alias"));
+        assertTrue(applyRefusal.getMessage(),applyRefusal.getMessage().contains("hard-link aliases"));
+        for(var doc:List.of(first,second)){assertEquals(original,doc.getText());assertFalse(manager().isDocumentUnsaved(doc));}
+        assertEquals(original,Files.readString(firstPath));assertEquals(original,Files.readString(secondPath));
+    }
+    public void testUnaffectedSourceBecomingTargetAliasRefusesFinalApplyBeforeWrites()throws Exception {
+        String original="package demo\nvar Before = 1\n";
+        var affected=source("a.go",original);var untouched=source("b.go",original);
+        Path affectedPath=directory.resolve("a.go"),untouchedPath=directory.resolve("b.go");
+        var commonTime=java.nio.file.attribute.FileTime.fromMillis(1_700_000_000_000L);
+        Files.setLastModifiedTime(affectedPath,commonTime);Files.setLastModifiedTime(untouchedPath,commonTime);
+        var snapshot=captureWithUnavailableFileKeys();var edits=onlyFilePlan(snapshot,affected);
+        snapshot.requireDiskCurrent();snapshot.requireTargetDiskCurrent(edits);
+        Files.delete(untouchedPath);Files.createLink(untouchedPath,affectedPath);
+        // No worker rerun: model a replacement after the worker, before the write command.
+        var refusal=org.junit.Assert.assertThrows(IllegalStateException.class,()->GoRefactorApply.apply(getProject(),snapshot,edits,"Refuse unaffected alias"));
+        assertTrue(refusal.getMessage(),refusal.getMessage().contains("hard-link aliases"));
+        for(var doc:List.of(affected,untouched)){assertEquals(original,doc.getText());assertFalse(manager().isDocumentUnsaved(doc));}
+        assertEquals(original,Files.readString(affectedPath));assertEquals(original,Files.readString(untouchedPath));
+    }
+    public void testMissingKeyAliasQueriesAreBoundedAndDoNotWriteFiles()throws Exception {
+        String original="package demo\n";var paths=new ArrayList<Path>();var aliases=new GoRefactorSnapshot.SourceAliases();
+        var commonTime=java.nio.file.attribute.FileTime.fromMillis(1_700_000_000_000L);
+        var refusal=org.junit.Assert.assertThrows(IllegalStateException.class,()->{
+            for(int i=0;i<=GoRefactorSnapshot.SourceAliases.MAX_NATIVE_QUERIES;i++){
+                Path path=directory.resolve("source"+i+".go");Files.writeString(path,original);paths.add(path);
+                Files.setLastModifiedTime(path,commonTime);
+                var disk=GoRefactorSnapshot.DiskIdentity.read(path);
+                aliases.add(path,new GoRefactorSnapshot.DiskIdentity(null,disk.size(),disk.modified()));
+            }
+        });
+        assertTrue(refusal.getMessage(),refusal.getMessage().contains("bounded 256 native comparisons"));
+        for(var path:paths)assertEquals(original,Files.readString(path));
+    }
+    public void testManyPhysicalSourcesWithStableKeysNeedNoNativeAliasQueries()throws Exception {
+        String original="package demo\n";var aliases=new GoRefactorSnapshot.SourceAliases();var paths=new ArrayList<Path>();
+        for(int i=0;i<64;i++){
+            Path path=directory.resolve("different-time-"+i+".go");Files.writeString(path,original);paths.add(path);
+            Files.setLastModifiedTime(path,java.nio.file.attribute.FileTime.fromMillis(1_700_000_000_000L+i*2_000L));
+            var disk=GoRefactorSnapshot.DiskIdentity.read(path);
+            assertNotNull("Physical file identity is available on this host",disk.key());aliases.add(path,disk);
+        }
+        assertEquals("Stable keys need no pairwise native identity comparisons",0,aliases.nativeQueries());
+        for(var path:paths)assertEquals(original,Files.readString(path));
+    }
+    public void testKeylessHardlinksWithDivergentReportedMetadataStillRefuse()throws Exception {
+        Path first=directory.resolve("first.go"),alias=directory.resolve("alias.go");
+        Files.writeString(first,"package demo\n");Files.createLink(alias,first);
+        var aliases=new GoRefactorSnapshot.SourceAliases();
+        aliases.add(first,new GoRefactorSnapshot.DiskIdentity(null,1,java.nio.file.attribute.FileTime.fromMillis(1_000L)));
+        var refusal=org.junit.Assert.assertThrows(IllegalStateException.class,()->aliases.add(alias,
+                new GoRefactorSnapshot.DiskIdentity(null,2,java.nio.file.attribute.FileTime.fromMillis(2_000L))));
+        assertTrue(refusal.getMessage(),refusal.getMessage().contains("hard-link aliases"));
+        assertEquals("package demo\n",Files.readString(first));assertEquals("package demo\n",Files.readString(alias));
+    }
+    public void testMissingKeyAliasChecksHonorCancellationBeforeNativeQueries()throws Exception {
+        Path first=directory.resolve("first.go"),second=directory.resolve("second.go");
+        Files.writeString(first,"package demo\n");Files.writeString(second,"package demo\n");
+        var indicator=new EmptyProgressIndicator();var aliases=new GoRefactorSnapshot.SourceAliases(indicator::checkCanceled);
+        var disk=GoRefactorSnapshot.DiskIdentity.read(first);
+        var missing=new GoRefactorSnapshot.DiskIdentity(null,disk.size(),disk.modified());
+        aliases.add(first,missing);indicator.cancel();
+        assertThrows(com.intellij.openapi.progress.ProcessCanceledException.class,()->aliases.add(second,missing));
+        assertEquals("package demo\n",Files.readString(first));assertEquals("package demo\n",Files.readString(second));
+    }
+
     public void testCaseVariantCollisionAfterPreviewMatchesFilesystemAndDoesNotOverwrite()throws Exception{
         String original="package demo\nvar Before = 1\n";var document=source("a.go",original);var snapshot=capture();Path target=directory.resolve("new.go"),variant=directory.resolve("NEW.go");
         var plan=createPlan(snapshot,target);snapshot.prepareTargets(plan);Files.writeString(variant,"different owner");
@@ -395,10 +503,21 @@ public final class GoRefactorWorkspacePlatformTest extends BasePlatformTestCase 
     }
 
     public void testActualListenerStillTemplatesAnOrdinaryEmptyUserFile()throws Exception {
-        var listener=new CreationListenerFixture(true,false);
-        WriteCommandAction.runWriteCommandAction(getProject(),()->{try{root.createChildData(this,"user.go");}catch(Exception e){throw new RuntimeException(e);}});
-        drainEvents();assertEquals(1,listener.sentCreates.size());
-        assertEquals("package main\n",Files.readString(directory.resolve("user.go")));
+        assertOrdinaryFileTemplateUsesConfiguredLineSeparator("\n");
+    }
+    public void testActualListenerTemplatesOrdinaryEmptyUserFileWithConfiguredCrLf()throws Exception {
+        assertOrdinaryFileTemplateUsesConfiguredLineSeparator("\r\n");
+    }
+    private void assertOrdinaryFileTemplateUsesConfiguredLineSeparator(String separator)throws Exception {
+        var settings=com.intellij.application.options.CodeStyle.getSettings(getProject());
+        String previous=settings.LINE_SEPARATOR;settings.LINE_SEPARATOR=separator;
+        try {
+            var listener=new CreationListenerFixture(true,false);
+            WriteCommandAction.runWriteCommandAction(getProject(),()->{try{root.createChildData(this,"user.go");}catch(Exception e){throw new RuntimeException(e);}});
+            drainEvents();assertEquals(1,listener.sentCreates.size());
+            assertEquals("package main"+separator,Files.readString(directory.resolve("user.go")));
+            assertEquals("package main\n",manager().getDocument(root.findChild("user.go")).getText());
+        } finally {settings.LINE_SEPARATOR=previous;}
     }
 
     public void testQueuedGeneratedCreationThenUserRecreationKeepsTheirSeparateClassifications()throws Exception {

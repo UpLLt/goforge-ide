@@ -211,11 +211,17 @@ public final class GoTestConsolePlatformTest extends BasePlatformTestCase {
         }
     }
     public void testRebasedExplicitArgumentsUsePlatformQuotingForLiteralPaths() {
+        // Windows forbids double quotes in filenames; backslashes there separate
+        // path components. Keep path ownership and arbitrary argv quoting distinct.
+        String relative=dev.goforge.tools.HostTools.isWindows()
+                ? "中文 folder/a'b space.mod" : "中文 folder/a'b\"c\\literal.mod";
         var rewritten = GoTestRerunArguments.rebase(new GoTestRerunArguments.Context(directory.getParent(), ""), directory,
-                List.of("-modfile", "中文 folder/a'b\"c\\literal.mod", "-pkgdir=cache with space\\folder"));
+                List.of("-modfile", relative, "-pkgdir=cache with space\\folder"));
+        assertEquals("-modfile="+directory.getParent().resolve(relative),rewritten.arguments().getFirst());
         String encoded = ParametersListUtil.join(rewritten.arguments());
         assertEquals(rewritten.arguments(), ParametersListUtil.parse(encoded));
-        assertTrue(rewritten.arguments().getFirst().contains("a'b\"c\\literal.mod"));
+        var literalArguments=List.of("-custom=中文 a'b\"c\\literal", "C:\\space folder\\trailing\\", "");
+        assertEquals(literalArguments,ParametersListUtil.parse(ParametersListUtil.join(literalArguments)));
     }
     public void testMountedFailedRestartUsesRealFailedProxiesAndDistinctTopLevelNames() throws Exception {
         var session = session(null, new AtomicReference<>());

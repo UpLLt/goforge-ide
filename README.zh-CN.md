@@ -17,8 +17,8 @@ GoForge 使用原创代码、公开的 IntelliJ Community 平台、LSP4IJ、gopl
 
 | 平台 | 包与验证情况 |
 | --- | --- |
-| macOS / Apple Silicon | macOS 13.5+；a252 包已准备并冻结，压缩包读回、ad-hoc 签名、无界面探针及迁移路径检查通过；本轮泛型预览/Apply/Save/Undo/Redo 及旧预览拒绝的限定原生检查通过。此前 319d Stop/输出与 311e 指定调试/新增参数检查保留各自历史范围。本地 ad-hoc 签名，尚无 Apple Developer ID 公证。 |
-| Windows x64 | a252 便携包已在 macOS 跨平台组装并冻结，全量解压及文件读回通过；Windows CI 已恢复运行，但第 2、3 次运行均在安装包验收前失败；原生启动与界面仍待验证。见 [Windows 安装](docs/INSTALL.md#windows-x64)。 |
+| macOS / Apple Silicon | macOS 13.5+；冻结基线 5259 的压缩包检查及两组限定标量类型原生工作流通过，含预览/Apply/Save/Undo/Redo。本地 ad-hoc 签名，尚无 Apple Developer ID 公证。验证范围见下文。 |
+| Windows x64 | 较早的冻结 a252 便携包仅通过 macOS 跨平台组装与静态读回。实际 Windows 第 4 次 CI 为 644 通过 / 14 失败 / 1 跳过，打包跳过；318d 修复构建已通过 macOS 自动化检查，Windows 第 5 次 CI 待完成，原生启动/界面仍未验证。见 [Windows 安装](docs/INSTALL.md#windows-x64)。 |
 | Linux / 其他架构 | 暂无已验证的独立发行包。 |
 
 已准备的内部平台包均内置运行时、Go SDK、gopls、Delve、Node、Dev Containers CLI 和 JDBC 驱动。Docker、kubectl、Git、OpenSSH、Cgo 的 C 编译器及 macOS 调试前置工具使用系统安装。包校验值及“已准备”与“已公开发布”的区别见[安装指南](docs/INSTALL.md#prepared-package-identities)。
@@ -60,14 +60,15 @@ GRADLE_USER_HOME="$PWD/.gradle-user-home" ./gradlew \
 
 ## 验证范围
 
-当前源码版本 **5259** 已通过 **659/659 项 macOS 主机 JUnit 测试**（389 component + 270 platform，94 份报告，零失败/错误/跳过），插件构建和结构校验通过。插件 **14,931,387 字节**，SHA-256：`52598058b70ba2329bb1447be52d6874596fabf02eeb3b76ecaf30fe6c7fb354`，324 项构建输入冻结。新增限定标量参数/返回值类型修改及审阅多模块远程分析，并修复 Windows CI 准备问题。20 项真实重构协议、31 个 helper 子案例、3 项独立编译配置回归及 18 项多模块 SSH/gopls 检查单独通过，不计入 JUnit 总数。新应用原生验收和 Windows CI 仍待完成。
+当前冻结的 **318d 修复源码构建**在 macOS 主机通过 **678/678 项 JUnit 测试**（397 component + 281 platform，95 份 XML 报告，零失败/错误/跳过），插件构建及结构检查通过，326 项构建输入冻结。插件 **14,941,918 字节**，SHA-256：`318d7205541d0fd00b51f74c13ec7ecc22297a3dd19d6da0e1da7f342918fb93`。**Windows 第 5 次 CI 仍待完成。** 这项 macOS 自动化结果不代表 Windows 专属修复已在 Windows 验证，也不代表新应用原生验收；最近已验证的 macOS 应用包及原生记录仍为 5259。
 
+**2026-10-29 冻结基线 5259** 在 macOS 主机通过 **659/659 项 JUnit 测试**（389 component + 270 platform，94 份报告，零失败/错误/跳过），插件构建和结构校验通过。插件 **14,931,387 字节**，SHA-256：`52598058b70ba2329bb1447be52d6874596fabf02eeb3b76ecaf30fe6c7fb354`，当时冻结 324 项构建输入。另有 20 项标量重构协议、31 个 helper 子案例、3 项编译配置回归及 18 项多模块 SSH/gopls 检查通过，不累加到 JUnit 总数。
 
-最近一次冻结安装包仍为 **a252**，在 macOS 通过 **633/633 项 JUnit 测试**（366 component + 267 platform，零失败、错误或跳过）。插件 SHA-256：`a252ce31c51d9b427745256245bb1f852cbdf8f1a8bebe4c68d30a4098360aac`，**14,884,065 字节**。两平台包的静态压缩包读回通过，原校验值保留于[安装指南](docs/INSTALL.md#prepared-package-identities)。新源码的统一构建已通过，安装包验收仍待完成，见上方记录。
+**5259 macOS 包**已冻结：**751,543,468 字节**，SHA-256：`c2c27d6b42cc98deaa95f8138b06cddd2cb7beac1042ccf5a3d85d08c4d87ecb`。两组限定原生检查通过：标量参数类型修改、泛型单返回值类型修改，均覆盖预览、Apply、显式保存、Undo/Redo，以及稳定状态下的保存字节和包内 Go 测试检查。4 个夹具文件全部恢复；正常退出无所属进程，保留 0 条错误、2 条警告，退出后验签通过。参数修改以稳定状态的 Redo/测试回执为准。这些是候选应用检查，不是 GoLand 对照；远程分析原生验收与 Windows 桌面验收仍未完成。
 
-**a252 的 macOS 限定原生检查**通过泛型三文件预览、Apply、显式保存、全局 Undo/Redo，以及新增调用文件后拒绝旧预览。保存后的包内 Go 测试通过，5 个夹具文件最终逐字节恢复。正常退出无所属进程，保留 0 条新增错误、6 条警告，严格/深度验签通过。这是候选应用的限定检查；自动保存时序未证明，指定调试和 Stop 未在 a252 重测。更早的通过与失败保留各自构建身份，见[已知差距中的验证记录](docs/KNOWN-LIMITATIONS.md#verification-scope--验证范围)。
+**Windows 第 4 次 CI 已实际运行产品/平台测试：** 源码提交为 `9036d0a76e15882603d45d05ce0fc295bad2c861`，经审阅的源码 ZIP SHA-256 为 `17a2e91af959fb525fdf381ead90e6560455f4ae2a0117cc41b9c8b0558c3198`。659 项报告中，**644 项通过、14 项失败、1 项跳过**。打包步骤跳过，该轮未产出通过验收的 Windows 包。冻结 318d 修复构建已通过 macOS 自动化检查，Windows 第 5 次 CI 仍待完成。已有冻结 Windows 包仍是较早的 **a252** macOS 跨平台组装，仅有静态读回验证，原生启动/界面尚未通过。 详见 [CI 历史](docs/KNOWN-LIMITATIONS.md#private-validation-and-publication--私有验证与发布)。
 
-私有 Windows CI 已恢复运行。a252 源码已导入 `UpLLt/goforge-ide`，提交为 `57fd69c145cbbe3780d256b7a03fec793af17691`。第 2 次运行使用旧 449 测试快照，在沙箱准备阶段失败；第 3 次使用 a252 快照，在准备脚本的路径夹具测试中失败。ZIP 元数据与路径夹具修复已通过本机相关回归，**Windows 产品测试、原生启动和界面验收尚未通过**。详见 [CI 记录](docs/KNOWN-LIMITATIONS.md#private-validation-and-publication--私有验证与发布)。
+此前 a252 泛型重构、319d Stop/输出及 311e 指定调试/新增参数结果保留各自范围，见[已知差距的验证记录](docs/KNOWN-LIMITATIONS.md#verification-scope--验证范围)；历史安装包哈希仍保留于[安装指南](docs/INSTALL.md#prepared-package-identities)。
 
 完整验收台账保持 **0/101**，计数的是已完成整项验收，并非已实现功能或总体百分比。仓库仍为私有，没有公开 Release，保持 `publish=false`，完整对齐后才公开发布。
 
