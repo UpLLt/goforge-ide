@@ -104,7 +104,7 @@ for path,digest in expected.items():
     if read_owned(path)[0]!=digest:raise ValueError('Remote snapshot changed before analysis started')
 env=dict(os.environ);env.update({'GOWORK':'off','GOENV':'off','GOFLAGS':'-mod=readonly','GOPACKAGESDRIVER':'off','GOTOOLCHAIN':'local','GOPROXY':'off','GOSUMDB':'off'})
 if go.startswith('/'):env['PATH']=os.path.dirname(go)+os.pathsep+env.get('PATH','')
-"""+GoRemoteStdlibScript.SOURCE+"""
+"""+GoRemoteStdlibScript.SOURCE+GoRemoteModuleScript.SOURCE+"""
 private_files=[]
 def cleanup_private():
     for leaf in private_files:
@@ -144,6 +144,12 @@ def input_loop():
                 try:sdkqueue.put_nowait(request)
                 except queue.Full:send({'jsonrpc':'2.0','method':'goforge/stdlibSource','params':{'id':request['id'],'error':'Remote source read queue is full'}})
                 continue
+            if packet.get('method')=='goforge/readModuleSource':
+                request=packet['params']
+                if set(request)!=set(('id','token','path')) or not all(isinstance(request[k],str) for k in request):raise ValueError('Invalid module read request')
+                try:modulequeue.put_nowait(request)
+                except queue.Full:send({'jsonrpc':'2.0','method':'goforge/moduleSource','params':{'id':request['id'],'error':'Remote dependency source read queue is full'}})
+                continue
             if packet.get('method')=='goforge/snapshotSync':
                 sync(packet['params']['files']);packet=packet['params']['message']
             if str(packet.get('method','')).startswith('goforge/'):raise ValueError('Reserved bridge method')
@@ -164,9 +170,20 @@ def drain_errors():
     # Never forward arbitrary server stderr (which can contain source text or environment values).
     while child.stderr.read(4096):pass
 threading.Thread(target=input_loop,daemon=True).start();threading.Thread(target=output_loop,daemon=True).start();threading.Thread(target=drain_errors,daemon=True).start()
-threading.Thread(target=sdk_worker,daemon=True).start()
-send({'jsonrpc':'2.0','method':'goforge/bridgeReady','params':{'pid':child.pid,'stdlib':sdkinfo}})
 try:
+    threading.Thread(target=sdk_worker,daemon=True).start()
+    send({'jsonrpc':'2.0','method':'goforge/bridgeReady','params':{'pid':child.pid,'stdlib':sdkinfo}})
+    # SDK/project readiness never waits for optional dependency discovery.
+    # The input pump is already listening: Stop/EOF cancels optional graph discovery
+    # and its owned Go process instead of orphaning a startup subprocess.
+    try:module_initialize()
+    except Exception as error:
+        moduleinfo={'error':'Remote cached dependency source capability is unavailable: '+str(error)}
+        module_records.clear();module_verified.clear()
+        if modulefd is not None:os.close(modulefd);modulefd=None
+    if not stopping.is_set():
+        threading.Thread(target=module_worker,daemon=True).start()
+        send({'jsonrpc':'2.0','method':'goforge/moduleCatalog','params':moduleinfo})
     while child.poll() is None and not stopping.wait(.05):pass
 finally:
     try:os.killpg(child.pid,signal.SIGTERM)
@@ -177,5 +194,6 @@ finally:
     except ProcessLookupError:pass
     child.wait();cleanup_private();os.close(rootfd)
     if sdkfd is not None:os.close(sdkfd)
+    if modulefd is not None:os.close(modulefd)
 """;
 }

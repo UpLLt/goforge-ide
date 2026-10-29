@@ -19,13 +19,13 @@ final class GoRemoteStdlibNavigation implements AutoCloseable {
     private final ScheduledExecutorService timer;
     private long sequence;
     private boolean closed;
-    private record Target(JsonObject location,String uriKey,String relative,boolean link){}
-    private record Read(Pending pending,String relative){}
+    private record Target(JsonObject location,String uriKey,GoRemoteStdlibSources.Target source,boolean link){}
+    private record Read(Pending pending,GoRemoteStdlibSources.Target source){}
     private static final class Pending {
         final String wire,origin;final JsonElement original;final long deadline;
         JsonObject response;final List<Target> targets=new ArrayList<>();
         final Map<String,GoRemoteStdlibSources.Source> completed=new HashMap<>();
-        final Set<String> paths=new LinkedHashSet<>();int bytes;
+        final Map<String,GoRemoteStdlibSources.Target> paths=new LinkedHashMap<>();int bytes;
         Pending(String wire,String origin,JsonElement original,long deadline){this.wire=wire;this.origin=origin;this.original=original;this.deadline=deadline;}
     }
     GoRemoteStdlibNavigation(GoRemoteLspMapping mapping,GoRemoteStdlibSources sources,Sender remote,Sender client){
@@ -61,7 +61,7 @@ final class GoRemoteStdlibNavigation implements AutoCloseable {
     }
     synchronized boolean incoming(JsonObject packet)throws IOException {
         if(closed)return true;
-        if(method(packet).equals("goforge/stdlibSource")){sourceResponse(packet.getAsJsonObject("params"));return true;}
+        if(Set.of("goforge/stdlibSource","goforge/moduleSource").contains(method(packet))){sourceResponse(method(packet),packet.getAsJsonObject("params"));return true;}
         if(packet.has("method")||!packet.has("id")||!reserved(packet.get("id")))return false;
         Pending entry=pending.get(packet.get("id").getAsString());
         if(entry==null)return true; // cancelled/expired old wire IDs never become a new capability
@@ -77,10 +77,10 @@ final class GoRemoteStdlibNavigation implements AutoCloseable {
             }
             if(entry.paths.isEmpty()){complete(entry);return true;}
             if(entry.paths.size()>MAX_FILES)throw new IllegalArgumentException("Remote definition exceeds the source file limit.");
-            for(String path:entry.paths){
-                String readId=entry.wire+"/"+(++sequence);reads.put(readId,new Read(entry,path));
-                var params=new JsonObject();params.addProperty("id",readId);params.addProperty("token",sources.token());params.addProperty("path",path);
-                var request=new JsonObject();request.addProperty("jsonrpc","2.0");request.addProperty("method","goforge/readStdlib");request.add("params",params);remote.send(request);
+            for(var target:entry.paths.values()){
+                String readId=entry.wire+"/"+(++sequence);reads.put(readId,new Read(entry,target));
+                var params=new JsonObject();params.addProperty("id",readId);params.addProperty("token",target.token());params.addProperty("path",target.path());
+                var request=new JsonObject();request.addProperty("jsonrpc","2.0");request.addProperty("method",target.requestMethod());request.add("params",params);remote.send(request);
             }
         }catch(IllegalArgumentException|IllegalStateException invalid){fail(entry,Objects.toString(invalid.getMessage(),"Invalid remote definition response."));}
         return true;
@@ -92,22 +92,23 @@ final class GoRemoteStdlibNavigation implements AutoCloseable {
             throw new IllegalArgumentException("Unexpected remote definition shape.");
         String key=link?"targetUri":"uri",uri=GoRemoteStdlibSources.required(location,key);
         try {location.addProperty(key,mapping.uri(uri,false));return;}catch(IllegalArgumentException outside){/* Only the matched definition target may use this exception. */}
-        String relative=sources.relative(uri);entry.paths.add(relative);entry.targets.add(new Target(location,key,relative,link));
+        var target=sources.target(uri);entry.paths.put(target.key(),target);entry.targets.add(new Target(location,key,target,link));
         // The optional origin range is unnecessary to open the destination; don't pass unvalidated overlay ranges.
         location.remove("originSelectionRange");
     }
-    private void sourceResponse(JsonObject result)throws IOException {
+    private void sourceResponse(String method,JsonObject result)throws IOException {
         if(result==null)return;
         String id=GoRemoteStdlibSources.required(result,"id");Read read=reads.remove(id);if(read==null)return;
         Pending entry=read.pending();if(pending.get(entry.wire)!=entry)return;
         try {
+            if(!method.equals(read.source().responseMethod()))throw new IllegalArgumentException("Remote source reply used the wrong capability kind.");
             if(result.has("error"))throw new IllegalArgumentException(GoRemoteStdlibSources.required(result,"error"));
-            var source=sources.accept(read.relative(),result);entry.bytes+=source.byteSize();
+            var source=sources.accept(read.source(),result);entry.bytes+=source.byteSize();
             if(entry.bytes>MAX_RESULT_BYTES)throw new IllegalArgumentException("Remote definition source size limit reached.");
-            entry.completed.put(read.relative(),source);
+            entry.completed.put(read.source().key(),source);
             if(entry.completed.size()!=entry.paths.size())return;
             for(Target target:entry.targets){
-                var fetched=entry.completed.get(target.relative());String text=fetched.text();
+                var fetched=entry.completed.get(target.source().key());String text=fetched.text();
                 if(target.link()){
                     var range=target.location().getAsJsonObject("targetRange");var selection=target.location().getAsJsonObject("targetSelectionRange");
                     GoRemoteStdlibSources.range(range,text);GoRemoteStdlibSources.range(selection,text);

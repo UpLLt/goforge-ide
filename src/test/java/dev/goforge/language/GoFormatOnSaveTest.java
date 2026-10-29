@@ -494,11 +494,17 @@ public final class GoFormatOnSaveTest extends BasePlatformTestCase {
         OptimizeImportsOnSaveOptions.getInstance(getProject()).setRunOnSaveEnabled(false);
         String input="package p\nvar value=fmt.Sprint(1)";change(source,input);
         server.organized="package p\nimport \"fmt\"\nvar value=fmt.Sprint(1)";
+        // The platform prepares imports in a retryable non-blocking read action.
+        // Settle our intentional typing's PSI commit first, so the exact-one-request
+        // assertion measures this explicit invocation rather than a commit-triggered retry.
+        var psiDocuments=com.intellij.psi.PsiDocumentManager.getInstance(getProject());
+        psiDocuments.commitDocument(source.document);
+        assertTrue("The manual invocation must start from committed PSI",psiDocuments.isCommitted(source.document));
         var processor=CompletableFuture.runAsync(()->new com.intellij.codeInsight.actions.OptimizeImportsProcessor(getProject(),source.psi).runWithoutProgress(),
                 com.intellij.util.concurrency.AppExecutorUtil.getAppExecutorService());
         await(processor::isDone);processor.get(1,TimeUnit.SECONDS);
         assertEquals(server.organized,source.document.getText());assertEquals(input,server.lastImportInput);
-        assertEquals(1,server.importRequests.get());assertEquals(0,server.requests.get());
+        assertEquals("Unexpected code-action calls: "+server.importRequestTrace,1,server.importRequests.get());assertEquals(0,server.requests.get());
         assertEquals(List.of(CodeActionKind.SourceOrganizeImports),server.lastImportOnly);
         assertEquals(0,server.commands.get());assertEquals(0,server.resolutions.get());
         var undo=com.intellij.openapi.command.undo.UndoManager.getInstance(getProject());
@@ -631,6 +637,7 @@ public final class GoFormatOnSaveTest extends BasePlatformTestCase {
         final Map<String, String> documents = new ConcurrentHashMap<>();
         final AtomicInteger requests = new AtomicInteger();
         final AtomicInteger importRequests=new AtomicInteger(),commands=new AtomicInteger(),resolutions=new AtomicInteger();
+        final List<String> importRequestTrace=new CopyOnWriteArrayList<>();
         final Map<String,Integer> versions=new ConcurrentHashMap<>();
         volatile String organized,lastImportUri,lastImportInput;
         volatile int lastImportVersion,lastFormatVersion;
@@ -672,8 +679,13 @@ public final class GoFormatOnSaveTest extends BasePlatformTestCase {
             return CompletableFuture.completedFuture(edits(formatted));
         }
         @Override public CompletableFuture<List<org.eclipse.lsp4j.jsonrpc.messages.Either<Command,CodeAction>>> codeAction(CodeActionParams params){
-            lastImportUri=params.getTextDocument().getUri();lastImportInput=documents.get(lastImportUri);lastImportVersion=versions.get(lastImportUri);
-            lastImportOnly=params.getContext().getOnly();lastImportDiagnostics=params.getContext().getDiagnostics();importRequests.incrementAndGet();
+            String uri=params.getTextDocument().getUri(),input=documents.get(uri);
+            int version=versions.get(uri);var only=params.getContext().getOnly();
+            lastImportUri=uri;lastImportInput=input;lastImportVersion=version;
+            lastImportOnly=only;lastImportDiagnostics=params.getContext().getDiagnostics();
+            importRequestTrace.add("only="+only+", trigger="+params.getContext().getTriggerKind()
+                    +", range="+params.getRange()+", version="+version+", input="+input);
+            importRequests.incrementAndGet();
             return importDelayed!=null?importDelayed:CompletableFuture.completedFuture(organized==null?List.of():importActions(organized));
         }
         @Override public CompletableFuture<CodeAction> resolveCodeAction(CodeAction action){resolutions.incrementAndGet();return CompletableFuture.failedFuture(new AssertionError("Unexpected resolve"));}

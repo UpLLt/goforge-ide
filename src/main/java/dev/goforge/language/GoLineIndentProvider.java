@@ -9,9 +9,11 @@ import com.intellij.psi.codeStyle.CommonCodeStyleSettings;
 import com.intellij.psi.codeStyle.lineIndent.LineIndentProvider;
 import com.intellij.psi.tree.IElementType;
 import org.jetbrains.annotations.Nullable;
+import com.intellij.openapi.editor.highlighter.HighlighterIterator;
+import java.util.ArrayDeque;
 import static dev.goforge.language.GoSourceLexer.*;
 
-/** Local, bounded block indentation. It never formats, saves or contacts a language server. */
+/** Local, bounded block and delimiter indentation. Never formats, saves or contacts a server. */
 public final class GoLineIndentProvider implements LineIndentProvider {
     private static final int MAX_CONTEXT_TOKENS = 20_000;
 
@@ -37,27 +39,21 @@ public final class GoLineIndentProvider implements LineIndentProvider {
             if (offset < at.getEnd() || !terminated) return DO_NOT_ADJUST;
         }
 
-        boolean closing = content < text.length() && text.charAt(content) == '}';
-        if (closing) {
+        IElementType closing = null;
+        if (content < text.length()) {
             var token = editor.getHighlighter().createIterator(content);
-            closing = !token.atEnd() && token.getTokenType() == RBRACE;
+            if (!token.atEnd() && openerFor(token.getTokenType()) != null) closing = token.getTokenType();
         }
-        // Find the enclosing real brace, balancing completed blocks and skipping
-        // comments/literals as opaque lexer tokens. Stop conservatively on huge input.
+        // Match all delimiter kinds together: a completed call must not hide a body,
+        // and a function literal inside a call keeps its own block indentation.
         var iterator = editor.getHighlighter().createIterator(Math.max(0, lineStart - 1));
-        int depth = 0;
-        for (int scanned = 0; !iterator.atEnd() && scanned < MAX_CONTEXT_TOKENS; scanned++, iterator.retreat()) {
-            if (iterator.getStart() >= lineStart) continue;
-            IElementType type = iterator.getTokenType();
-            if (type == RBRACE) depth++;
-            else if (type == LBRACE) {
-                if (depth-- == 0) {
-                    String base = leading(document, text, document.getLineNumber(iterator.getStart()));
-                    if (closing) return base;
-                    CommonCodeStyleSettings.IndentOptions options = CodeStyle.getIndentOptions(project, document);
-                    return base + indentUnit(options);
-                }
-            }
+        Opening opening = findOpening(iterator, lineStart, MAX_CONTEXT_TOKENS);
+        if (opening != null) {
+            String base = leading(document, text, document.getLineNumber(opening.offset()));
+            if (closing != null) return openerFor(closing) == opening.type() ? base : DO_NOT_ADJUST;
+            CommonCodeStyleSettings.IndentOptions options = CodeStyle.getIndentOptions(project, document);
+            int width = opening.type() == LBRACE ? options.INDENT_SIZE : options.CONTINUATION_INDENT_SIZE;
+            return base + indentUnit(options, width);
         }
         // Outside a known block, maintain the previous nonblank line's indentation.
         // Do not change indentation inside strings with synthetic brace-looking text.
@@ -68,8 +64,29 @@ public final class GoLineIndentProvider implements LineIndentProvider {
         return "";
     }
 
-    private static String indentUnit(CommonCodeStyleSettings.IndentOptions options) {
-        int width = Math.max(0, options.INDENT_SIZE);
+    record Opening(IElementType type, int offset) { }
+
+    /** A passive backwards token scan; comments and literals remain opaque. */
+    static @Nullable Opening findOpening(HighlighterIterator iterator, int before, int limit) {
+        var completed = new ArrayDeque<IElementType>();
+        for (int scanned = 0; !iterator.atEnd() && scanned < limit; scanned++, iterator.retreat()) {
+            if (iterator.getStart() >= before) continue;
+            IElementType type = iterator.getTokenType();
+            IElementType expected = openerFor(type);
+            if (expected != null) completed.push(expected);
+            else if (type == LPAREN || type == LBRACKET || type == LBRACE) {
+                if (completed.isEmpty()) return new Opening(type, iterator.getStart());
+                // Malformed mixed delimiters have no trustworthy continuation anchor.
+                if (completed.pop() != type) return null;
+            }
+        }
+        return null;
+    }
+    private static @Nullable IElementType openerFor(IElementType closer) {
+        return closer == RPAREN ? LPAREN : closer == RBRACKET ? LBRACKET : closer == RBRACE ? LBRACE : null;
+    }
+    private static String indentUnit(CommonCodeStyleSettings.IndentOptions options, int requestedWidth) {
+        int width = Math.max(0, requestedWidth);
         if (!options.USE_TAB_CHARACTER) return " ".repeat(width);
         int tab = Math.max(1, options.TAB_SIZE);
         return "\t".repeat(width / tab) + " ".repeat(width % tab);

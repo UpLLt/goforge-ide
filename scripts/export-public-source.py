@@ -12,7 +12,8 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 # Exact entry points, plus original implementation/test trees below. New top-level
 # files are NOT implicitly published. GitHub workflows are intentionally separate.
-FILES = '''README.md README.zh-CN.md LICENSE NOTICE THIRD-PARTY-NOTICES.md
+FILES = '''src/main/resources/dev/goforge/remote/module-source.py
+README.md README.zh-CN.md LICENSE NOTICE THIRD-PARTY-NOTICES.md
 .gitignore gradlew gradlew.bat build.gradle.kts settings.gradle.kts gradle.properties
 gradle/wrapper/gradle-wrapper.jar gradle/wrapper/gradle-wrapper.properties
 docs/INSTALL.md docs/USAGE.md docs/KNOWN-LIMITATIONS.md docs/PUBLIC-RELEASE.md
@@ -73,7 +74,7 @@ def selected():
             if any(x in EXCLUDED_PARTS for x in relative.parts): continue
             if p.is_symlink(): raise ValueError('Symlink in public tree: '+relative.as_posix())
             if p.is_file():
-                if p.suffix in extensions:
+                if p.suffix in extensions or relative.as_posix() in FILES:
                     result.add(relative.as_posix())
                 elif folder == 'src':
                     # A new source/resource format must be reviewed, not silently

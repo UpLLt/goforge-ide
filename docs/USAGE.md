@@ -23,11 +23,15 @@ Verification differs by build and host; see [current acceptance and limitations]
 
 Use **Comment with Line Comment** or **Comment with Block Comment** on the current line/selection, then normal Undo/Redo. The block action refuses a selection containing a string's `*/` rather than inserting a broken comment. Braces `()`, `[]` and `{}` pair in Go code and stay ordinary text inside comments/literals; the existing closer can be skipped normally. Project indentation settings override the default four-column tabs.
 
-Enter inside a Go block uses bounded local indentation. With smart indentation enabled, Enter inside a raw backtick string adds a newline without copying the surrounding Go indent, consuming only the spaces/tabs immediately to the right of the caret. It does not cross an existing newline, closing backtick or non-whitespace text. Undo restores the original line and whitespace. Smart indentation and **Insert pair } on Enter** are separate platform options; turning off one does not necessarily disable the other. This is not a replacement for gopls Reformat or complete continuation/switch-case formatting.
+Enter inside a Go block uses bounded local indentation. With smart indentation enabled, Enter inside a raw backtick string adds a newline without copying the surrounding Go indent, consuming only the spaces/tabs immediately to the right of the caret. It does not cross an existing newline, closing backtick or non-whitespace text. Undo restores the original line and whitespace. Smart indentation and **Insert pair } on Enter** are separate platform options; turning off one does not necessarily disable the other. This is not a replacement for gopls Reformat or general expression/switch-case formatting.
+
+Inside an unfinished `(` or `[`, Enter uses the opening line’s leading indentation plus the project’s continuation-indent width. Nested calls use their own nearest opening; commas keep one continuation level, and a matching closing delimiter returns to its opening line’s indentation. Function-literal `{}` bodies retain block indentation. Comments and literals are opaque; malformed or oversized contexts use a conservative fallback. Normal platform Enter, multi-caret and Undo/Redo actions remain in use. The added platform cases passed on the macOS host. Full 19 native Enter after a call opening, an argument comma and a case label matched the same GoLand fixture; this does not cover every editing context. Windows checks remain pending.
 
 使用 **Comment with Line Comment / Comment with Block Comment** 操作当前行或选区，普通 Undo/Redo 可撤销重做；包含字符串 `*/` 的块注释选区会拒绝包裹。代码中的括号可配对，注释和字面量中的括号作为普通文本。默认使用视觉宽度 4 的 tab，项目设置可覆盖。
 
-Go 块内回车使用限定范围的本地缩进。开启智能缩进时，原始字符串内回车不复制外围 Go 缩进，只移除光标右侧紧邻的空格/tab 后插入换行，不跨已有换行、闭合反引号或非空白内容；Undo 恢复原文与空白。智能缩进与 **Insert pair } on Enter** 是独立设置。完整续行、switch-case 和多光标行为仍需更广验证。
+Go 块内回车使用限定范围的本地缩进。开启智能缩进时，原始字符串内回车不复制外围 Go 缩进，只移除光标右侧紧邻的空格/tab 后插入换行，不跨已有换行、闭合反引号或非空白内容；Undo 恢复原文与空白。智能缩进与 **Insert pair } on Enter** 是独立设置。一般表达式续行、switch-case 和更广多光标行为仍需继续验证。
+
+在未闭合的 `(` 或 `[` 内回车，使用起始行的前导缩进加项目续行宽度；嵌套调用选择最近起始括号，逗号后保持同一级续行，匹配闭合括号返回起始行缩进。函数值的 `{}` 保持块缩进，注释/字面量不参与括号计数；语法不完整或超出扫描范围时保守回退。仍使用平台 Enter、多光标和 Undo/Redo 动作。新增平台用例已在 macOS 宿主通过；Full 19 原生检查在调用起始括号、参数逗号及 case 标签后回车，与同一 GoLand 夹具结果一致，不代表全部编辑语境已对齐。Windows 检查待完成。
 
 ### Formatting on save / 保存格式化
 
@@ -248,7 +252,23 @@ The target is a read-only Go editor snapshot identified as remote SDK source, no
 
 目标是标识为远端 SDK 的只读 Go 编辑器快照，不是本地项目文件；允许查看/复制，拒绝修改和保存到 SDK。**Stop remote analysis** 会使本次 URI 失效并关闭所属 SDK 标签，普通项目标签保留。读取上限为每文件 2 MiB、每会话 128 文件/32 MiB；SDK 变化、过期请求、不安全路径或超限会被拒绝，需重新审阅会话获取新快照。macOS 限定原生检查通过自有 localhost SSH 夹具的精确 fmt/io 跳转、编辑/保存拒绝及 Stop 清理；Windows IDE 宿主和更广远端宿主待验收。
 
-This exception does not allow arbitrary dependency/module-cache files, cross-boundary workspace edits or debugger SDK source mapping. / 此例外不开放任意依赖/module-cache 文件、跨边界工作区修改或调试器 SDK 源码映射。
+SDK and dependency sources use distinct session identities. Neither permits cross-boundary workspace edits or debugger source mapping. / SDK 与依赖源码使用不同会话身份，均不允许跨边界工作区修改或调试器源码映射。
+
+### Selected cached remote dependencies / 已选缓存远端依赖
+
+Start Go analysis from one reviewed root `go.mod` and `go.sum`, with all dependencies already cached on the remote host. This source lookup does not support `go.work`, replacement directives or vendor mode. Wait for `Remote dependency source lookup ready for … selected module(s)`; discovery is optional and limited to five seconds, so unavailable dependency sources do not prevent project/SDK analysis. An early request reports that discovery is still loading.
+
+Use the same **Go to Declaration or Usages** or **LSP Type Definition(s)** from a project file. The target opens as a read-only source identified by its exact module path and selected version. The selected Go module graph must match reviewed content and `/go.mod` h1 checksums; the requested cache file must equal its verified archive member. A historical version appearing only in `go.sum` is not permission to open it. Checksums bind reviewed bytes, not publisher trust. Missing metadata/archive, changed paths or bytes, unsafe ZIP entries and size limits cause refusal; no module is downloaded.
+
+SDK and dependency files share the 2 MiB per-file, 128-file/32 MiB session cache. Module discovery/archives also have bounded limits; even an uncached historical metadata anchor may conservatively disable optional dependency lookup. Viewing/copying is supported; editing, saving and onward LSP requests from a fetched source are not. **Stop remote analysis** expires and closes both kinds of source tabs while preserving ordinary project tabs. Re-review a new session after changing module metadata. This does not add dependency paths to remote debugging. Protocol, macOS-host platform and bounded Full 19 native checks passed. In an owned localhost SSH fixture, declaration/type navigation selected `example.test/Upper/dep@v1.1.0` at `3:6`/`2:6`, despite a cached historical v1.0.0; SDK navigation opened `fmt/print.go:314:6`. Both source kinds refused typing/Save. UI Stop closed their tabs, preserved the local tab and stopped analysis children; the listener was stopped separately after normal app exit. Source/cache bytes remained unchanged. Windows IDE-host and broader remote-host acceptance remain pending.
+
+从单个已审阅根 `go.mod` 与 `go.sum` 启动 Go analysis，依赖须已缓存于远端；此源码查找不支持 `go.work`、replace 或 vendor。等待 `Remote dependency source lookup ready for … selected module(s)` 日志。可选发现最多五秒，失败不妨碍项目/SDK 分析；过早请求会提示仍在加载。
+
+在项目文件中使用相同的定义/类型定义动作，目标按精确模块路径和已选版本标识，以只读源码打开。Go 选定模块图须符合审核过的模块内容与 `/go.mod` h1，缓存源文件须与验证后的归档成员一致；`go.sum` 中仅有历史版本不授予读取权限。校验和绑定已审阅字节，不证明作者可信。元数据/归档缺失、路径/内容变化、不安全 ZIP 或超限均拒绝，不自动下载。
+
+SDK 与依赖共享每文件 2 MiB、每会话 128 文件/32 MiB 上限，模块图与归档另有范围限制；历史元数据未缓存也可能保守关闭依赖查找。允许查看/复制，不允许编辑、保存或从只读源页继续请求 LSP。**Stop remote analysis** 同时使两类源码失效并关闭所属标签，普通项目标签保留；修改模块元数据后须重新审阅会话。该功能不增加远端调试器依赖映射。协议、macOS 宿主平台及 Full 19 限定原生检查通过：自有 localhost SSH 夹具中，虽缓存历史 v1.0.0，定义/类型跳转仍选择 `example.test/Upper/dep@v1.1.0` 的 `3:6`/`2:6`，SDK 跳转到 `fmt/print.go:314:6`。两类源码均拒绝输入/保存；UI Stop 关闭所属标签、保留本地标签并停止分析子进程，应用正常退出后另行停止监听器；源文件/缓存字节未变。Windows IDE 宿主及更广远端宿主仍待验收。
+
+The review preview still contains the stale blanket text **“External dependency navigation is unavailable.”** This wording defect remains in Full 19; the supported selected-cache scope is described above. Actual discovery failures and unsupported-source refusals still apply. / 审阅预览仍显示过时的笼统文字 **“External dependency navigation is unavailable.”**，Full 19 保留此缺陷；已支持的缓存版本范围见上，实际发现失败和不支持源码的拒绝仍有效。
 
 ## Remote debugging / 远端调试
 

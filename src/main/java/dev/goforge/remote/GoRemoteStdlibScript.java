@@ -24,7 +24,7 @@ def sdk_read_file(path,limit):
     try:return sdk_read_fd(fd,limit)
     finally:os.close(fd)
 def sdk_env(executable):
-    process=subprocess.Popen([executable,'env','-json','GOROOT','GOVERSION','GOTOOLDIR','GOOS','GOARCH'],cwd=root,env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,start_new_session=True)
+    process=subprocess.Popen([executable,'env','-json','GOROOT','GOVERSION','GOTOOLDIR','GOOS','GOARCH','GOMODCACHE'],cwd=root,env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,start_new_session=True)
     values={};errors=[];overflow=threading.Event()
     def collect(key,stream,limit):
         try:
@@ -68,6 +68,7 @@ def sdk_initialize():
         os.close(sourcefd);raise
     # Use the discovered SDK for this gopls process, including its own go invocations.
     env['GOROOT']=goroot
+    env['GOMODCACHE']=os.path.realpath(settings['GOMODCACHE'])
     return sdkinfo
 def sdk_source(relative,token):
     if sdkfd is None or token!=sdkinfo['token']:raise ValueError('Remote SDK identity is unavailable or changed')

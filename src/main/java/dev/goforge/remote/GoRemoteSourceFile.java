@@ -15,16 +15,16 @@ public final class GoRemoteSourceFile extends LightVirtualFile {
     }
     public String sourceUri(){return source.uri();}
     public String remotePath(){return source.remotePath();}
-    @Override public String getPath(){return source==null?super.getPath():"Remote "+source.sdkVersion()+" "+source.remotePath();}
+    @Override public String getPath(){return source==null?super.getPath():"Remote "+source.origin().label()+" "+source.remotePath();}
     @Override public boolean isWritable(){return false;}
     @Override public boolean isValid(){return owner==null?super.isValid():owner.isOpen()&&super.isValid();}
-    @Override public void setWritable(boolean value){if(value)throw new UnsupportedOperationException("Remote SDK source is read-only.");}
-    @Override public void setContent(Object requestor,CharSequence content,boolean fireEvent){throw new UnsupportedOperationException("Remote SDK source is immutable.");}
+    @Override public void setWritable(boolean value){if(value)throw new UnsupportedOperationException("Remote source is read-only.");}
+    @Override public void setContent(Object requestor,CharSequence content,boolean fireEvent){throw new UnsupportedOperationException("Remote source is immutable.");}
     @Override public OutputStream getOutputStream(Object requestor,long stamp,long timestamp)throws IOException{throw readonly();}
     @Override public void rename(Object requestor,String name)throws IOException{throw readonly();}
     @Override public void delete(Object requestor)throws IOException{throw readonly();}
     @Override public void move(Object requestor,com.intellij.openapi.vfs.VirtualFile parent)throws IOException{throw readonly();}
     @Override public void setBinaryContent(byte[] bytes,long stamp,long timestamp)throws IOException{throw readonly();}
     @Override public void setBinaryContent(byte[] bytes,long stamp,long timestamp,Object requestor)throws IOException{throw readonly();}
-    private static IOException readonly(){return new IOException("Remote SDK source is read-only.");}
+    private static IOException readonly(){return new IOException("Remote source is read-only.");}
 }

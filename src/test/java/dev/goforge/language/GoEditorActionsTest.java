@@ -166,6 +166,66 @@ public final class GoEditorActionsTest extends BasePlatformTestCase {
         enter("package p\nfunc f() {\n\tprintln(\"{\") // } {<caret>\n}",
                 "package p\nfunc f() {\n\tprintln(\"{\") // } {\n\t<caret>\n}");
     }
+    public void testEnterAfterCallOpeningMatchesObservedContinuationAndUndoRedo() {
+        String before = "package p\nfunc f() {\n\tprintln(<caret>\n\t\t\"continuation\",\n\t)\n}";
+        String after = "package p\nfunc f() {\n\tprintln(\n\t\t<caret>\n\t\t\"continuation\",\n\t)\n}";
+        enter(before, after);
+        action(IdeActions.ACTION_UNDO); myFixture.checkResult(before);
+        action(IdeActions.ACTION_REDO); myFixture.checkResult(after);
+    }
+    public void testEnterAfterCallArgumentCommaKeepsOneContinuationLevel() {
+        enter("package p\nfunc f() {\n\tprintln(\n\t\t\"continuation\",<caret>\n\t)\n}",
+                "package p\nfunc f() {\n\tprintln(\n\t\t\"continuation\",\n\t\t<caret>\n\t)\n}");
+        action(IdeActions.ACTION_EDITOR_ENTER);
+        myFixture.checkResult("package p\nfunc f() {\n\tprintln(\n\t\t\"continuation\",\n\t\t\n\t\t<caret>\n\t)\n}");
+    }
+    public void testContinuationUsesConfiguredWidthIndependentOfBlockIndent() {
+        indent(false);
+        var options = CodeStyleSettingsManager.getInstance(getProject()).getCurrentSettings()
+                .getCommonSettings(GoLanguage.INSTANCE).getIndentOptions();
+        options.CONTINUATION_INDENT_SIZE = 6;
+        enter("package p\nfunc f() {\n  println(<caret>\n  )\n}",
+                "package p\nfunc f() {\n  println(\n        <caret>\n  )\n}");
+    }
+    public void testNestedContinuationUsesItsOwnOpeningLine() {
+        enter("package p\nfunc f() {\n\touter(\n\t\tinner(<caret>\n\t\t),\n\t)\n}",
+                "package p\nfunc f() {\n\touter(\n\t\tinner(\n\t\t\t<caret>\n\t\t),\n\t)\n}");
+    }
+    public void testCompletedContinuationReturnsToTheEnclosingBody() {
+        enter("package p\nfunc f() {\n\tprintln(\n\t\t1,\n\t)<caret>\n}",
+                "package p\nfunc f() {\n\tprintln(\n\t\t1,\n\t)\n\t<caret>\n}");
+    }
+    public void testFunctionLiteralInsideCallKeepsBlockIndentRatherThanContinuationWidth() {
+        var options = CodeStyleSettingsManager.getInstance(getProject()).getCurrentSettings()
+                .getCommonSettings(GoLanguage.INSTANCE).getIndentOptions();
+        options.CONTINUATION_INDENT_SIZE = 8;
+        enter("package p\nfunc f() {\n\tapply(func() {<caret>})\n}",
+                "package p\nfunc f() {\n\tapply(func() {\n\t\t<caret>\n\t})\n}");
+    }
+    public void testContinuationIgnoresDelimitersInTrailingCommentsAndLiteralArguments() {
+        enter("package p\nfunc f() {\n\tprintln(\n\t\t\"([{)]}\", /* ) ] } */<caret>\n\t)\n}",
+                "package p\nfunc f() {\n\tprintln(\n\t\t\"([{)]}\", /* ) ] } */\n\t\t<caret>\n\t)\n}");
+    }
+    public void testContinuationEnterWithMultipleCaretsIsOneUndoGroup() {
+        String before = "package p\nfunc f() {\n\tfirst(<caret>\n\t\t1,\n\t)\n\tsecond(\n\t\t2,<caret>\n\t)\n}";
+        String after = "package p\nfunc f() {\n\tfirst(\n\t\t<caret>\n\t\t1,\n\t)\n\tsecond(\n\t\t2,\n\t\t<caret>\n\t)\n}";
+        enter(before, after);
+        action(IdeActions.ACTION_UNDO); myFixture.checkResult(before);
+        action(IdeActions.ACTION_REDO); myFixture.checkResult(after);
+    }
+    public void testEnterBeforeClosingParenthesisReturnsToItsOpeningLineIndent() {
+        enter("package p\nfunc f() {\n\tprintln(\n\t\t1,<caret>)\n}",
+                "package p\nfunc f() {\n\tprintln(\n\t\t1,\n\t<caret>)\n}");
+    }
+    public void testContinuationSmartIndentOffKeepsThePlatformFallback() {
+        CodeInsightSettings.getInstance().SMART_INDENT_ON_ENTER = false;
+        enter("package p\nfunc f() {\n\tprintln(<caret>\n\t)\n}",
+                "package p\nfunc f() {\n\tprintln(\n\t<caret>\n\t)\n}");
+    }
+    public void testRawStringWithinContinuationStillStartsAnUnindentedLiteralLine() {
+        enter("package p\nfunc f() {\n\tprintln(\n\t\t`left(<caret> right)`,\n\t)\n}",
+                "package p\nfunc f() {\n\tprintln(\n\t\t`left(\n<caret>right)`,\n\t)\n}");
+    }
     public void testEnterInRawStringPreservesLiteralIndentation() {
         enter("package p\nfunc f() {\n\ts := `left<caret>right`\n}",
                 "package p\nfunc f() {\n\ts := `left\n<caret>right`\n}");

@@ -135,6 +135,12 @@ public final class GoRemoteLspTransport implements AutoCloseable {
                     if(params.has("stdlib")&&params.getAsJsonObject("stdlib").has("root"))sources.initialize(params.getAsJsonObject("stdlib"));
                     ready.complete(null);continue;
                 }
+                if(method.equals("goforge/moduleCatalog")) {
+                    var catalog=packet.getAsJsonObject("params");sources.initializeModules(catalog);
+                    notice.accept(catalog.has("error")?GoRemoteStdlibSources.required(catalog,"error")+"\n":
+                            "Remote dependency source lookup ready for "+catalog.getAsJsonArray("modules").size()+" selected module(s).\n");
+                    continue;
+                }
                 if(method.equals("goforge/bridgeFailure")) {fail("Remote analysis stopped: "+packet.getAsJsonObject("params").get("message").getAsString());break;}
                 if(navigation.incoming(packet))continue;
                 if(method.startsWith("goforge/"))continue;
