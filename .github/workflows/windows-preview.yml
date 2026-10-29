@@ -152,6 +152,9 @@ jobs:
       - name: Verify extra-tool preparation and Windows file-handle contracts
         shell: pwsh
         run: python scripts/test-setup-extra-tools.py -v
+      - name: Verify native-acceptance environment and failure-reporting contracts
+        shell: pwsh
+        run: python scripts/test-verify-windows-package.py -v
       - name: Run product and IntelliJ Platform tests on Windows
         shell: pwsh
         run: .\gradlew.bat -PgoforgeSandboxDirectory=build/verification-sandbox test buildPlugin verifyPluginStructure --no-daemon
