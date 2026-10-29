@@ -343,8 +343,8 @@
     },
     {
       "path": "scripts/test-verify-windows-package.py",
-      "sha256": "82629a4e061e6be80cf64208f15973ed2a97a3c03653cee3d61667e63a3a31ba",
-      "size": 20358
+      "sha256": "464f5c43306f4015283febdb58fff7eccf2f4b6f33fdc050de0ad670550bce69",
+      "size": 28804
     },
     {
       "path": "scripts/verify-protocols.py",
@@ -353,8 +353,8 @@
     },
     {
       "path": "scripts/verify-windows-package.py",
-      "sha256": "bfb53619f325e978ef2219793ab0b1fffcc94f7474b23fbd0026740d592e4c6a",
-      "size": 22535
+      "sha256": "22fdde35e7feba44c532f9fa06717e73198db7831046762d4aee6c571fbba1bc",
+      "size": 25768
     },
     {
       "path": "settings.gradle.kts",

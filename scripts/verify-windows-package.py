@@ -121,26 +121,51 @@ def windows_file_metadata(executable, inherited):
         "$ErrorActionPreference='Stop'; "
         "$env:PSModulePath=[System.IO.Path]::Combine($PSHOME,'Modules'); "
         "$PSModuleAutoLoadingPreference='None'; "
-        "$security=Import-Module -Name ([System.IO.Path]::Combine($PSHOME,'Modules','Microsoft.PowerShell.Security','Microsoft.PowerShell.Security.psd1')) -PassThru -ErrorAction Stop; "
-        "$utility=Import-Module -Name ([System.IO.Path]::Combine($PSHOME,'Modules','Microsoft.PowerShell.Utility','Microsoft.PowerShell.Utility.psd1')) -PassThru -ErrorAction Stop; "
+        "$securityManifest=[System.IO.Path]::Combine($PSHOME,'Modules','Microsoft.PowerShell.Security','Microsoft.PowerShell.Security.psd1'); "
+        "$utilityManifest=[System.IO.Path]::Combine($PSHOME,'Modules','Microsoft.PowerShell.Utility','Microsoft.PowerShell.Utility.psd1'); "
+        "$null=Import-Module -Name $securityManifest -ErrorAction Stop; "
+        "$null=Import-Module -Name $utilityManifest -ErrorAction Stop; "
+        "function ModuleEvidence($command,$manifest) { $assembly=$command.ImplementingType.Assembly; "
+        "@{manifest=$manifest; moduleName=$command.ModuleName; moduleBase=$command.Module.ModuleBase; modulePath=$command.Module.Path; "
+        "commandType=$command.CommandType.ToString(); assemblyName=$assembly.GetName().Name; assemblyPath=$assembly.Location; "
+        "assemblyGac=$assembly.GlobalAssemblyCache; assemblyIdentity=$assembly.FullName} }; "
+        "$security=ModuleEvidence (Get-Command -Name Microsoft.PowerShell.Security\\Get-AuthenticodeSignature -CommandType Cmdlet -ErrorAction Stop) $securityManifest; "
+        "$utility=ModuleEvidence (Get-Command -Name Microsoft.PowerShell.Utility\\ConvertTo-Json -CommandType Cmdlet -ErrorAction Stop) $utilityManifest; "
         "$v=[System.Diagnostics.FileVersionInfo]::GetVersionInfo($env:GOFORGE_VERIFY_EXE); "
         "$s=Microsoft.PowerShell.Security\\Get-AuthenticodeSignature -LiteralPath $env:GOFORGE_VERIFY_EXE -ErrorAction Stop; "
         "@{properties=@{product=$v.ProductName; description=$v.FileDescription; original=$v.OriginalFilename; signature=$s.Status.ToString()}; "
-        "powershell=@{home=$PSHOME; edition=$PSVersionTable.PSEdition; version=$PSVersionTable.PSVersion.ToString(); securityModule=$security.ModuleBase; utilityModule=$utility.ModuleBase}} "
-        "| Microsoft.PowerShell.Utility\\ConvertTo-Json -Compress -Depth 3")
+        "powershell=@{home=$PSHOME; edition=$PSVersionTable.PSEdition; version=$PSVersionTable.PSVersion.ToString(); securityModule=$security; utilityModule=$utility}} "
+        "| Microsoft.PowerShell.Utility\\ConvertTo-Json -Compress -Depth 5")
     metadata=json.loads(command([home/'powershell.exe','-NoProfile','-NonInteractive','-Command',script],env=env))
+    def refuse(reason):
+        # Preserve observed provenance even when validation fails before main can record a check.
+        raise RuntimeError('Windows metadata query '+reason+'; observed='+json.dumps(metadata,ensure_ascii=True,sort_keys=True))
     properties=metadata.get('properties') if isinstance(metadata,dict) else None
     runtime=metadata.get('powershell') if isinstance(metadata,dict) else None
     if not isinstance(properties,dict) or not all(isinstance(properties.get(key),str) for key in
             ('product','description','original','signature')) or not properties['signature']:
-        raise RuntimeError('Windows metadata query did not return version and signature properties')
+        refuse('did not return version and signature properties')
     if not isinstance(runtime,dict) or runtime.get('edition')!='Desktop' or not str(runtime.get('version','')).startswith('5.1.'):
-        raise RuntimeError('Windows metadata query did not use Windows PowerShell 5.1 Desktop')
-    for key,expected in [('home',home),('securityModule',home/'Modules/Microsoft.PowerShell.Security'),
-                         ('utilityModule',home/'Modules/Microsoft.PowerShell.Utility')]:
-        actual=runtime.get(key)
-        if not isinstance(actual,str) or Path(actual).resolve()!=expected.resolve():
-            raise RuntimeError('Windows metadata query used an unexpected PowerShell module path: '+key)
+        refuse('did not use Windows PowerShell 5.1 Desktop')
+    if not isinstance(runtime.get('home'),str) or Path(runtime['home']).resolve()!=home.resolve():
+        refuse('used an unexpected PowerShell home')
+    for key,module,assembly in [('securityModule','Microsoft.PowerShell.Security','Microsoft.PowerShell.Security'),
+                                ('utilityModule','Microsoft.PowerShell.Utility','Microsoft.PowerShell.Commands.Utility')]:
+        evidence=runtime.get(key)
+        if not isinstance(evidence,dict) or evidence.get('moduleName')!=module or evidence.get('commandType')!='Cmdlet' or evidence.get('assemblyName')!=assembly:
+            refuse('used an unexpected command implementation: '+key)
+        manifest=evidence.get('manifest'); location=evidence.get('assemblyPath')
+        if not isinstance(manifest,str) or Path(manifest).resolve()!=(home/'Modules'/module/(module+'.psd1')).resolve():
+            refuse('used an unexpected module manifest: '+key)
+        if not isinstance(location,str) or not Path(location).is_absolute():
+            refuse('did not return an absolute implementation assembly: '+key)
+        actual=Path(location).resolve()
+        local=actual.parent==home.resolve() or actual.is_relative_to((home/'Modules'/module).resolve())
+        gac=evidence.get('assemblyGac') is True and any(actual.is_relative_to(root.resolve()) for root in
+            (Path(env['SYSTEMROOT'])/'Microsoft.NET/assembly',Path(env['SYSTEMROOT'])/'assembly'))
+        if actual.name.casefold()!=(assembly+'.dll').casefold() or not (local or gac):
+            refuse('used an implementation assembly outside Windows PowerShell or the system GAC: '+key)
+
     return metadata
 
 
@@ -292,6 +317,32 @@ def lsp(wire,app,project,env,out):
         finally:terminate_owned(p)
 
 
+def require_launcher_relocation(output, app, temporary):
+    """Compare filesystem identities, allowing Windows long/short and case aliases."""
+    required=('product','home','runtime','config','system','plugins','log');fields={}
+    def refuse(reason):
+        raise RuntimeError('Native launcher relocation '+reason+'; output='+repr(output))
+    for line in output.splitlines():
+        key,separator,value=line.partition('=')
+        if separator and key in required:
+            if key in fields:refuse('returned duplicate field: '+key)
+            fields[key]=value
+    missing=set(required)-set(fields)
+    if missing:refuse('omitted required fields: '+', '.join(sorted(missing)))
+    if fields['product']!='GoForge':refuse('returned unexpected product: '+fields['product'])
+    paths={}
+    for key in required[1:]:
+        path=Path(fields[key])
+        if not path.is_absolute():refuse('returned a non-absolute '+key+' path')
+        paths[key]=path.resolve()
+    if paths['home']!=app.resolve():refuse('used a different application home: '+str(paths['home']))
+    if paths['runtime']!=(app/'jbr').resolve():refuse('used a different runtime: '+str(paths['runtime']))
+    root=temporary.resolve()
+    for key in ('config','system','plugins','log'):
+        if not paths[key].is_relative_to(root):refuse('used an external '+key+' path: '+str(paths[key]))
+    return {'passed':True,'output':output,'resolvedPaths':{key:str(value) for key,value in paths.items()}}
+
+
 def main(app,report):
     app=app.resolve();report.mkdir(parents=True,exist_ok=True)
     result={'passed':False,'scope':'Native launcher and bundled engines; IDE GUI feature validation remains separate',
@@ -313,12 +364,7 @@ def main(app,report):
             assert resources=={'product':'GoForge','description':'GoForge','original':'goforge64.exe','signature':'NotSigned'},resources
             result['checks']['windowsVersionAndSignature']={'passed':True,**metadata}
             probe=command([relocated/'bin/goforge64.exe','goforge-package-info'],env=env,timeout=120)
-            assert 'product=GoForge' in probe and str(relocated).lower() in probe.lower(),probe
-            runtime=next(x.removeprefix('runtime=') for x in probe.splitlines() if x.startswith('runtime='))
-            assert Path(runtime).resolve()==(relocated/'jbr').resolve(),runtime
-            for key in ('config','system','plugins','log'):
-                line=next(x for x in probe.splitlines() if x.startswith(key+'='));assert str(temp).lower() in line.lower(),line
-            result['checks']['nativeLauncherRelocation']={'passed':True,'output':probe}
+            result['checks']['nativeLauncherRelocation']=require_launcher_relocation(probe,relocated,temp)
             go=relocated/'goforge-tools/go/bin/go.exe'
             assert Path(command([go,'env','GOROOT'],env=env).strip()).resolve()==(relocated/'goforge-tools/go').resolve()
             versions={name:command([relocated/path,*args],env=env) for name,path,args in [

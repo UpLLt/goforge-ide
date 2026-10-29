@@ -2,6 +2,7 @@
 """Portable verifier regressions; passing these is not Windows-native acceptance."""
 from pathlib import Path
 import contextlib
+import ctypes
 import importlib.util
 import io
 import json
@@ -21,12 +22,18 @@ spec=importlib.util.spec_from_file_location('goforge_native_verifier',ROOT/'scri
 verify=importlib.util.module_from_spec(spec);spec.loader.exec_module(verify)
 
 
-def metadata_fixture(system_root,signature='NotSigned'):
+def metadata_fixture(system_root,signature='NotSigned',gac=False):
     home=Path(system_root)/'System32/WindowsPowerShell/v1.0'
+    runtime={'home':str(home),'edition':'Desktop','version':'5.1.26100.0'}
+    for key,module,assembly in [('securityModule','Microsoft.PowerShell.Security','Microsoft.PowerShell.Security'),
+                                ('utilityModule','Microsoft.PowerShell.Utility','Microsoft.PowerShell.Commands.Utility')]:
+        location=(Path(system_root)/'Microsoft.NET/assembly/GAC_MSIL'/assembly/'v4.0_3.0.0.0__31bf3856ad364e35'/(assembly+'.dll')) if gac else home/(assembly+'.dll')
+        runtime[key]={'manifest':str(home/'Modules'/module/(module+'.psd1')),'moduleName':module,
+                      'moduleBase':str(location.parent),'modulePath':str(location),
+                      'commandType':'Cmdlet','assemblyName':assembly,'assemblyPath':str(location),
+                      'assemblyGac':gac,'assemblyIdentity':assembly+', Version=3.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35'}
     return {'properties':{'product':'GoForge','description':'GoForge','original':'goforge64.exe','signature':signature},
-            'powershell':{'home':str(home),'edition':'Desktop','version':'5.1.26100.0',
-                          'securityModule':str(home/'Modules/Microsoft.PowerShell.Security'),
-                          'utilityModule':str(home/'Modules/Microsoft.PowerShell.Utility')}}
+            'powershell':runtime}
 
 
 class WindowsVerifierTest(unittest.TestCase):
@@ -107,6 +114,28 @@ class WindowsVerifierTest(unittest.TestCase):
                     with self.assertRaisesRegex(RuntimeError,'Windows metadata query'):
                         verify.windows_file_metadata(self.app/'bin/goforge64.exe',env)
 
+    def test_powershell_accepts_system_assembly_provenance_without_assuming_manifest_modulebase(self):
+        env={'SYSTEMROOT':str(self.root/'Windows')}
+        for gac in (False,True):
+            with self.subTest(gac=gac):
+                metadata=metadata_fixture(env['SYSTEMROOT'],gac=gac)
+                with patch.object(verify,'command',return_value=json.dumps(metadata)):
+                    self.assertEqual(metadata,verify.windows_file_metadata(self.app/'bin/goforge64.exe',env))
+
+    def test_powershell_rejects_external_or_forged_implementation_and_reports_actual_details(self):
+        env={'SYSTEMROOT':str(self.root/'Windows')}
+        for key,value in [('assemblyPath',str(self.root/'untrusted/Microsoft.PowerShell.Security.dll')),
+                          ('assemblyPath',str(self.root/'Windows/Microsoft.NET/assembly-evil/Microsoft.PowerShell.Security.dll')),
+                          ('assemblyPath','relative.dll'),('assemblyName','External.Security'),
+                          ('manifest',str(self.root/'external.psd1')),('moduleName','External.Security'),
+                          ('commandType','Function'),('assemblyGac',False)]:
+            with self.subTest(key=key,value=value):
+                metadata=metadata_fixture(env['SYSTEMROOT'],gac=True);metadata['powershell']['securityModule'][key]=value
+                with patch.object(verify,'command',return_value=json.dumps(metadata)):
+                    with self.assertRaisesRegex(RuntimeError,'observed=') as caught:
+                        verify.windows_file_metadata(self.app/'bin/goforge64.exe',env)
+                self.assertIn(json.dumps(metadata,ensure_ascii=True,sort_keys=True),str(caught.exception))
+
     def test_powershell_module_failure_or_missing_signature_cannot_become_success(self):
         env={'SYSTEMROOT':str(self.root/'Windows')};failure=RuntimeError('module import failed: original detail')
         with patch.object(verify,'command',side_effect=failure):
@@ -136,6 +165,68 @@ class WindowsVerifierTest(unittest.TestCase):
         self.assertIn(metadata['properties']['signature'],('Valid','UnknownError','NotSigned','HashMismatch',
                      'NotTrusted','NotSupportedFileFormat','Incompatible'))
         print('Windows system metadata preflight: '+json.dumps(metadata,ensure_ascii=True,sort_keys=True))
+
+    def launcher_probe(self,changes=None):
+        (self.app/'jbr').mkdir(parents=True,exist_ok=True)
+        fields={'product':'GoForge','home':str(self.app),'runtime':str(self.app/'jbr')}
+        fields.update({key:str(self.root/key) for key in ('config','system','plugins','log')})
+        fields.update(changes or {})
+        return '\n'.join(key+'='+value for key,value in fields.items())
+
+    def test_launcher_probe_accepts_resolved_directory_aliases_and_preserves_raw_output(self):
+        (self.app/'nested').mkdir(parents=True)
+        output=self.launcher_probe({'home':str(self.app/'nested/..'),'runtime':str(self.app/'nested/../jbr')})
+        result=verify.require_launcher_relocation(output,self.app,self.root)
+        self.assertTrue(result['passed']);self.assertEqual(output,result['output'])
+        self.assertEqual(str(self.app.resolve()),result['resolvedPaths']['home'])
+        if os.name!='nt':
+            alias=self.root/'app alias';alias.symlink_to(self.app,target_is_directory=True)
+            result=verify.require_launcher_relocation(self.launcher_probe({'home':str(alias),'runtime':str(alias/'jbr')}),self.app,self.root)
+            self.assertEqual(str(self.app.resolve()),result['resolvedPaths']['home'])
+
+    def test_launcher_probe_rejects_duplicate_missing_relative_and_wrong_product_fields(self):
+        valid=self.launcher_probe()
+        cases=[valid+'\nhome='+str(self.app),valid+'\nproduct=GoForge',
+               '\n'.join(line for line in valid.splitlines() if not line.startswith('runtime=')),
+               self.launcher_probe({'config':'relative/config'}),self.launcher_probe({'product':'Other GoForge'})]
+        for output in cases:
+            with self.subTest(output=output):
+                with self.assertRaisesRegex(RuntimeError,'Native launcher relocation') as caught:
+                    verify.require_launcher_relocation(output,self.app,self.root)
+                self.assertIn(repr(output),str(caught.exception))
+
+    def test_launcher_probe_rejects_wrong_home_runtime_and_sibling_or_symlink_escape(self):
+        for key,path in [('home',self.root/'OtherApp'),('runtime',self.root/'OtherJbr'),
+                         *[(key,self.root.parent/(self.root.name+'-sibling')/key) for key in ('config','system','plugins','log')]]:
+            with self.subTest(key=key,path=str(path)):
+                with self.assertRaisesRegex(RuntimeError,'Native launcher relocation'):
+                    verify.require_launcher_relocation(self.launcher_probe({key:str(path)}),self.app,self.root)
+        if os.name!='nt':
+            escape=self.root/'escape';escape.symlink_to(self.root.parent,target_is_directory=True)
+            with self.assertRaisesRegex(RuntimeError,'external config'):
+                verify.require_launcher_relocation(self.launcher_probe({'config':str(escape/'config')}),self.app,self.root)
+
+    @unittest.skipUnless(os.name=='nt','Requires real Windows path aliases and GetShortPathNameW')
+    def test_real_windows_launcher_probe_accepts_case_and_short_long_path_aliases(self):
+        output=self.launcher_probe()
+        kernel=ctypes.WinDLL('kernel32',use_last_error=True)
+        get_short=kernel.GetShortPathNameW
+        get_short.argtypes=[ctypes.c_wchar_p,ctypes.c_wchar_p,ctypes.c_uint32];get_short.restype=ctypes.c_uint32
+        length=get_short(str(self.root),None,0)
+        if not length:raise ctypes.WinError(ctypes.get_last_error())
+        buffer=ctypes.create_unicode_buffer(length+1)
+        written=get_short(str(self.root),buffer,len(buffer))
+        if not written or written>=len(buffer):raise ctypes.WinError(ctypes.get_last_error())
+        alias=Path(buffer.value);canonical=self.root.resolve()
+        # Existing runner ancestor aliases are usable even when the volume disables new 8.3 names.
+        long_output=output.replace(str(self.root),str(canonical))
+        self.assertTrue(verify.require_launcher_relocation(long_output,alias/self.app.name,alias)['passed'])
+        # Only path values are case-insensitive; field names and product identity remain exact.
+        short_output='\n'.join(key+'='+value.swapcase() if key!='product' else key+'='+value
+            for key,value in (line.split('=',1) for line in output.replace(str(self.root),str(alias)).splitlines()))
+        self.assertTrue(verify.require_launcher_relocation(short_output,self.app,canonical)['passed'])
+        print('Windows path alias preflight: '+json.dumps({'canonical':str(canonical),'shortAlias':str(alias),
+              'distinctShortAlias':str(alias).casefold()!=str(canonical).casefold()},ensure_ascii=True))
 
     def fixture(self):
         project=self.root/'fixture space 中文';project.mkdir()
@@ -239,11 +330,36 @@ class CleanupTests(unittest.TestCase):
   one,two=socket.socketpair();reader=one.makefile('rb');writer=one.makefile('wb');protocol=verify.load_protocol().FramedJson(reader,writer)
   primary=RuntimeError('original protocol failure')
   try:
-   with patch.object(verify,'terminate_owned',side_effect=OSError('synthetic adapter termination failure')):
+   def stop_peer_then_report_error(process):
+    try:two.shutdown(socket.SHUT_RDWR)
+    except OSError:pass
+    two.close()
+    raise OSError('synthetic adapter termination failure')
+   with patch.object(verify,'terminate_owned',side_effect=stop_peer_then_report_error):
     verify.cleanup_debug_session(object(),one,reader,writer,None,primary)
    self.assertTrue(reader.closed);self.assertTrue(writer.closed);self.assertEqual('original protocol failure',str(primary))
    self.assertTrue(any('synthetic adapter termination failure' in note for note in primary.__notes__))
   finally:two.close();one.close()
+ def test_live_peer_after_failed_shutdown_and_termination_returns_bounded_cleanup_failure(self):
+  one,two=socket.socketpair();reader=one.makefile('rb');writer=one.makefile('wb');protocol=verify.load_protocol().FramedJson(reader,writer)
+  primary=RuntimeError('original live-peer protocol failure')
+  class FailedShutdown:
+   def shutdown(self,how):raise OSError('simulated unavailable shutdown')
+   def close(self):one.close()
+  started=time.monotonic()
+  try:
+   with patch.object(verify,'terminate_owned',side_effect=OSError('adapter still alive')):
+    verify.cleanup_debug_session(object(),FailedShutdown(),reader,writer,None,primary)
+   self.assertLess(time.monotonic()-started,3.5)
+   self.assertEqual('original live-peer protocol failure',str(primary))
+   self.assertTrue(any('adapter still alive' in note for note in primary.__notes__))
+   self.assertTrue(any('Protocol stream cleanup exceeded 2 seconds' in note for note in primary.__notes__))
+  finally:
+   two.shutdown(socket.SHUT_RDWR);two.close()
+   deadline=time.monotonic()+2
+   while not (reader.closed and writer.closed) and time.monotonic()<deadline:time.sleep(.01)
+   one.close()
+   self.assertTrue(reader.closed);self.assertTrue(writer.closed)
  def test_cleanup_failure_after_success_is_a_failure(self):
   with patch.object(verify,'terminate_owned',side_effect=OSError('synthetic adapter termination failure')):
    with self.assertRaisesRegex(RuntimeError,'Native debugger cleanup failed'):
@@ -267,7 +383,7 @@ class CleanupTests(unittest.TestCase):
  def test_failure_receipt_preserves_cleanup_notes(self):
   with tempfile.TemporaryDirectory() as name:
    root=Path(name);app=self.make_app(root);out=root/'report';failure=RuntimeError('original protocol error');failure.__notes__=['Native debugger cleanup: synthetic detail']
-   with patch.object(verify,'require_windows_host'),patch.object(verify,'load_protocol',side_effect=failure):
+   with patch.object(verify,'require_windows_host'),patch.object(verify,'load_protocol',side_effect=failure),contextlib.redirect_stdout(io.StringIO()):
     with self.assertRaisesRegex(RuntimeError,'original protocol error'):verify.main(app,out)
    receipt=json.loads((out/'native-verification.json').read_text());self.assertFalse(receipt['passed']);self.assertEqual(failure.__notes__,receipt['cleanupNotes'])
  def test_launcher_still_requires_exact_unsigned_goforge_metadata_before_any_engine_runs(self):
@@ -300,7 +416,7 @@ class CleanupTests(unittest.TestCase):
     if name=='dlv.exe':return '1.27.2'
     if name=='node.exe':return '0.89.0' if len(args)>2 else 'v24.22.1'
     raise AssertionError(args)
-   with patch.object(verify,'require_windows_host'),patch.object(verify,'load_protocol',return_value=object()),patch.object(verify,'native_environment',side_effect=environment),patch.object(verify,'command',side_effect=command),patch.object(verify,'lsp',return_value={'passed':True}),patch.object(verify,'debug',return_value={'passed':True}),patch.object(verify.tempfile,'TemporaryDirectory',CleanupFailure):
+   with patch.object(verify,'require_windows_host'),patch.object(verify,'load_protocol',return_value=object()),patch.object(verify,'native_environment',side_effect=environment),patch.object(verify,'command',side_effect=command),patch.object(verify,'lsp',return_value={'passed':True}),patch.object(verify,'debug',return_value={'passed':True}),patch.object(verify.tempfile,'TemporaryDirectory',CleanupFailure),contextlib.redirect_stdout(io.StringIO()):
     with self.assertRaisesRegex(PermissionError,'synthetic temporary directory cleanup failure'):verify.main(app,out)
    receipt=json.loads((out/'native-verification.json').read_text());self.assertFalse(receipt['passed']);self.assertTrue(receipt['checks']['fixtureUnchanged']['passed'])
    self.assertIn('synthetic temporary directory cleanup failure',receipt['error'])
