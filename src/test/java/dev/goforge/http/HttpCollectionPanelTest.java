@@ -32,6 +32,40 @@ public final class HttpCollectionPanelTest extends BasePlatformTestCase {
     public void testCollectionAndSourceViewportRemainVisibleAt280Pixels(){
         var service=new HttpClientService(getProject());try{var panel=new HttpClientPanel(getProject(),service);var outer=new JTabbedPane();outer.addTab("HTTP Client",panel);outer.setSize(1000,280);for(int i=0;i<4;i++)layoutTree(outer);JTable table=find(panel,JTable.class).getFirst();JScrollPane resultScroll=(JScrollPane)SwingUtilities.getAncestorOfClass(JScrollPane.class,table);assertTrue("One complete result row must be visible",resultScroll.getViewport().getExtentSize().height>=table.getRowHeight());JTextArea source=source(panel);JScrollPane sourceScroll=(JScrollPane)SwingUtilities.getAncestorOfClass(JScrollPane.class,source);assertTrue("Source must retain at least two visible lines",sourceScroll.getViewport().getExtentSize().height>=source.getFontMetrics(source.getFont()).getHeight()*2);for(String label:List.of("Run All","Cancel","Environments…","Save Summary…")){JButton button=button(panel,label);assertTrue("Toolbar action must fit horizontally: "+label,button.getX()+button.getWidth()<=button.getParent().getWidth());}}finally{service.dispose();}
     }
+    public void testRedirectToggleDefaultsOffAndRequestDirectiveOverridesEnabledRunAll()throws Exception{
+        var server=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);var followed=new AtomicInteger();
+        server.createContext("/start",e->{e.getResponseHeaders().set("Location","/final");e.sendResponseHeaders(302,-1);e.close();});
+        server.createContext("/final",e->{followed.incrementAndGet();e.sendResponseHeaders(204,-1);e.close();});server.start();var service=new HttpClientService(getProject());
+        try{var panel=new HttpClientPanel(getProject(),service);var toggle=find(panel,JCheckBox.class).stream().filter(b->"http-follow-redirects".equals(b.getName())).findFirst().orElseThrow();assertFalse(toggle.isSelected());
+            String request="GET http://127.0.0.1:"+server.getAddress().getPort()+"/start";panel.load(request,0,false);button(panel,"Send").doClick();var table=find(panel,JTable.class).getFirst();await(()->service.collection==null&&table.getRowCount()==1);assertEquals(302,table.getValueAt(0,2));assertEquals(0,followed.get());
+            toggle.doClick();panel.load("# @expect status 204\n"+request+"\n### opt out\n// @no-redirect\n# @expect status 302\n"+request,0,false);button(panel,"Run All").doClick();assertFalse(toggle.isEnabled());await(()->service.collection==null&&table.getRowCount()==2);assertTrue(toggle.isEnabled());assertEquals(1,followed.get());assertEquals(204,table.getValueAt(0,2));assertEquals(302,table.getValueAt(1,2));assertEquals(HttpCollectionRunner.Status.PASSED,table.getValueAt(0,1));assertEquals(HttpCollectionRunner.Status.PASSED,table.getValueAt(1,1));
+        }finally{service.dispose();server.stop(0);}
+    }
+    public void testRedirectControlsWrapWithoutClippingAtCompactWidths(){
+        var service=new HttpClientService(getProject());try{var panel=new HttpClientPanel(getProject(),service);
+            for(int width:List.of(1000,600)){
+                panel.setSize(width,280);for(int i=0;i<4;i++)layoutTree(panel);
+                var toggle=find(panel,JCheckBox.class).stream().filter(b->"http-follow-redirects".equals(b.getName())).findFirst().orElseThrow();
+                for(Component control:find(panel,JButton.class))assertToolbarControlVisible(control,width);
+                assertToolbarControlVisible(toggle,width);boolean previous=toggle.isSelected();toggle.doClick();assertEquals(!previous,toggle.isSelected());
+                var table=find(panel,JTable.class).getFirst();var resultScroll=(JScrollPane)SwingUtilities.getAncestorOfClass(JScrollPane.class,table);
+                var requestSource=source(panel);var sourceScroll=(JScrollPane)SwingUtilities.getAncestorOfClass(JScrollPane.class,requestSource);
+                var bars=find(panel,JComponent.class).stream().filter(c->"http-action-bars".equals(c.getName())).findFirst().orElseThrow();
+                var split=find(panel,JComponent.class).stream().filter(c->"http-request-result-split".equals(c.getName())).findFirst().orElseThrow();
+                String sizes="width="+width+", toolbar="+bars.getSize()+", split="+split.getSize()+", sourceViewport="+sourceScroll.getViewport().getExtentSize()+", resultViewport="+resultScroll.getViewport().getExtentSize()+", rowHeight="+table.getRowHeight()+", twoSourceLines="+(requestSource.getFontMetrics(requestSource.getFont()).getHeight()*2);
+                System.out.println("HTTP compact layout: "+sizes);
+                assertTrue("Result row visible: "+sizes,resultScroll.getViewport().getExtentSize().height>=table.getRowHeight());
+                assertTrue("Two source lines visible: "+sizes,sourceScroll.getViewport().getExtentSize().height>=requestSource.getFontMetrics(requestSource.getFont()).getHeight()*2);
+            }
+        }finally{service.dispose();}
+    }
+    private static void assertToolbarControlVisible(Component control,int width){
+        // Ignore tab/scrollbar infrastructure buttons; the owned toolbar rows are direct children of the two-row bar.
+        if(!(control.getParent().getLayout() instanceof FlowLayout))return;
+        assertTrue("visible at "+width+": "+control,control.isVisible());assertTrue(control.getX()>=0&&control.getY()>=0);
+        assertTrue("right edge at "+width+": "+control,control.getX()+control.getWidth()<=control.getParent().getWidth());
+        assertTrue("bottom edge at "+width+": "+control,control.getY()+control.getHeight()<=control.getParent().getHeight());
+    }
     private static JTextArea source(Container panel){return find(panel,JTextArea.class).stream().filter(area->"HTTP request source".equals(area.getAccessibleContext().getAccessibleName())).findFirst().orElseThrow();}
     private static JButton button(Container panel,String text){return find(panel,JButton.class).stream().filter(button->text.equals(button.getText())).findFirst().orElseThrow();}
     private static void layoutTree(Container component){component.doLayout();for(Component child:component.getComponents())if(child instanceof Container container)layoutTree(container);}

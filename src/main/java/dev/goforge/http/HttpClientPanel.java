@@ -25,6 +25,7 @@ final class HttpClientPanel extends JPanel {
     private final JComboBox<String> environmentNames=new JComboBox<>(new String[]{HttpEnvironment.NONE.name()});
     private final JLabel status=new JLabel("Responses stay in memory. Choose environments explicitly; no scripts execute.");
     private final JButton send=new JButton("Send"),cancel=new JButton("Cancel"),save=new JButton("Save Response…"),saveSummary=new JButton("Save Summary…");
+    private final JCheckBox followRedirects=new JCheckBox("Follow redirects");
     private final List<JComponent> idleControls=new ArrayList<>();
     private final DefaultTableModel resultsModel=new DefaultTableModel(new String[]{"Request","Outcome","HTTP","Checks","ms"},0){@Override public boolean isCellEditable(int row,int column){return false;}};
     private final JTable results=new JTable(resultsModel);
@@ -36,27 +37,53 @@ final class HttpClientPanel extends JPanel {
     private HttpRequestEngine.Result result;
     HttpClientPanel(Project project,HttpClientService service){
         super(new BorderLayout(0,4));this.project=project;this.service=service;
-        var first=new JPanel(new FlowLayout(FlowLayout.LEFT,4,1));var second=new JPanel(new FlowLayout(FlowLayout.LEFT,4,1));
+        var first=new ToolbarRow();var second=new ToolbarRow();
         var open=button("Open .http…",this::openFile);var refresh=button("List",()->parseAt(0));
         requests.setPreferredSize(new Dimension(180,26));requests.setName("http-request-selection");
         first.add(open);first.add(refresh);first.add(requests);first.add(send);first.add(button("Run All",this::runAll));first.add(button("Run Selected…",this::selectRequests));first.add(cancel);
+        followRedirects.setName("http-follow-redirects");
+        followRedirects.setToolTipText("Up to 5 redirects. Off by default. @no-redirect overrides this. Cross-origin requests drop all original headers; preserved bodies and HTTPS downgrade are refused.");
+        first.add(followRedirects);
         environmentNames.setPreferredSize(new Dimension(145,26));environmentNames.setName("http-environment-selection");
         second.add(button("Environments…",this::chooseEnvironments));second.add(environmentNames);second.add(button("Next Failure",this::nextFailure));second.add(saveSummary);second.add(save);second.add(button("Help",this::help));
-        var bars=new JPanel(new GridLayout(2,1,0,0));bars.add(first);bars.add(second);add(bars,BorderLayout.NORTH);
+        var bars=new JPanel(new BorderLayout());bars.setName("http-action-bars");bars.add(first,BorderLayout.NORTH);bars.add(second,BorderLayout.CENTER);add(bars,BorderLayout.NORTH);
         source.setFont(new Font(Font.MONOSPACED,Font.PLAIN,13));source.getAccessibleContext().setAccessibleName("HTTP request source");
         for(var area:List.of(body,headers,assertions)){area.setEditable(false);area.setFont(source.getFont());}
         body.getAccessibleContext().setAccessibleName("HTTP response body");headers.getAccessibleContext().setAccessibleName("HTTP response headers");assertions.getAccessibleContext().setAccessibleName("HTTP response assertions");
         results.setName("http-collection-results");results.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);results.setRowHeight(23);
-        var tabs=new JTabbedPane();tabs.addTab("Results",new JBScrollPane(results));tabs.addTab("Response",new JBScrollPane(body));tabs.addTab("Headers",new JBScrollPane(headers));tabs.addTab("Assertions",new JBScrollPane(assertions));
-        var split=new OnePixelSplitter(true,.46f,.1f,.9f);split.setHonorComponentsMinimumSize(false);split.setFirstComponent(new JBScrollPane(source));split.setSecondComponent(tabs);
+        var resultScroll=new JBScrollPane(results);
+        Insets resultBorder=resultScroll.getInsets();
+        resultScroll.setMinimumSize(new Dimension(0,results.getRowHeight()+results.getTableHeader().getPreferredSize().height+resultBorder.top+resultBorder.bottom));
+        var tabs=new JTabbedPane();tabs.addTab("Results",resultScroll);tabs.addTab("Response",new JBScrollPane(body));tabs.addTab("Headers",new JBScrollPane(headers));tabs.addTab("Assertions",new JBScrollPane(assertions));
+        var sourceScroll=new JBScrollPane(source);Insets sourceBorder=sourceScroll.getInsets();
+        sourceScroll.setMinimumSize(new Dimension(0,source.getFontMetrics(source.getFont()).getHeight()*2+sourceBorder.top+sourceBorder.bottom));
+        var split=new OnePixelSplitter(true,.46f,.1f,.9f);split.setName("http-request-result-split");
+        split.setHonorComponentsMinimumSize(true);split.setFirstComponent(sourceScroll);split.setSecondComponent(tabs);
         add(split,BorderLayout.CENTER);add(status,BorderLayout.SOUTH);
-        idleControls.addAll(List.of(requests,send,environmentNames));cancel.setEnabled(false);save.setEnabled(false);saveSummary.setEnabled(false);
+        idleControls.addAll(List.of(requests,send,environmentNames,followRedirects));cancel.setEnabled(false);save.setEnabled(false);saveSummary.setEnabled(false);
         send.addActionListener(e->start(List.of(Math.max(0,requests.getSelectedIndex()))));cancel.addActionListener(e->{if(active!=null)active.cancel();});save.addActionListener(e->saveResponse());saveSummary.addActionListener(e->saveSummary());
         environmentNames.addActionListener(e->{if(active==null){String selected=(String)environmentNames.getSelectedItem();environment=selected==null||selected.equals(HttpEnvironment.NONE.name())?HttpEnvironment.NONE:environments.select(selected);parseAt(0);}});
         results.getSelectionModel().addListSelectionListener(e->{if(!e.getValueIsAdjusting())showResult();});
         results.addMouseListener(new MouseAdapter(){@Override public void mouseClicked(MouseEvent e){if(e.getClickCount()==2)navigateToResult();}});
         results.getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER,0),"source");results.getActionMap().put("source",new AbstractAction(){@Override public void actionPerformed(ActionEvent e){navigateToResult();}});
         parseAt(0);
+    }
+    /** FlowLayout wraps children, but its default preferred height does not include wrapped rows. */
+    private final class ToolbarRow extends JPanel {
+        ToolbarRow(){super(new FlowLayout(FlowLayout.LEFT,4,1));}
+        @Override public Dimension getPreferredSize(){
+            Dimension natural=super.getPreferredSize();
+            int width=HttpClientPanel.this.getWidth()-HttpClientPanel.this.getInsets().left-HttpClientPanel.this.getInsets().right;
+            if(width<=0)return natural;
+            Insets insets=getInsets();int available=Math.max(1,width-insets.left-insets.right-8);
+            int used=0,rowHeight=0,height=insets.top+insets.bottom+2;
+            for(Component child:getComponents())if(child.isVisible()){
+                Dimension size=child.getPreferredSize();
+                if(used>0&&used+4+size.width>available){height+=rowHeight+1;used=0;rowHeight=0;}
+                used+=(used==0?0:4)+size.width;rowHeight=Math.max(rowHeight,size.height);
+            }
+            return new Dimension(natural.width,height+rowHeight);
+        }
     }
     private JButton button(String label,Runnable action){var button=new JButton(label);button.addActionListener(e->action.run());idleControls.add(button);return button;}
     void load(String text,int line,boolean execute){if(active!=null){status.setText("Cancel or finish the collection before loading another file.");return;}source.setText(text);source.setCaretPosition(0);if(parseAt(line)&&execute)start(List.of(Math.max(0,requests.getSelectedIndex())));}
@@ -79,9 +106,9 @@ final class HttpClientPanel extends JPanel {
         if(selection.isEmpty()){status.setText("Select at least one request.");return;}
         if(selection.stream().anyMatch(index->index>=parsed.size())){status.setText("Request selection changed; list requests and select again.");return;}
         requests.setSelectedIndex(Math.min(previous,parsed.size()-1));rows.clear();resultsModel.setRowCount(0);result=null;summary=null;body.setText("");headers.setText("");assertions.setText("");save.setEnabled(false);saveSummary.setEnabled(false);runSource=source.getText();busy(true);
-        status.setText("Running in file order · 60 s/request · 4 MiB/response, 16 MiB/collection · continues after failures");
+        status.setText("Running in file order · 60 s/request including redirects · 4 MiB/response, 16 MiB/collection · "+(followRedirects.isSelected()?"up to 5 redirects unless @no-redirect":"redirects off"));
         var privacy=HttpPrivacy.forRun(environment,parsed);
-        active=HttpCollectionRunner.start(service.engine,parsed,selection,Duration.ofSeconds(60),4*1024*1024,16*1024*1024,privacy,row->ApplicationManager.getApplication().invokeLater(()->{if(!project.isDisposed()&&active!=null){rows.add(row);resultsModel.addRow(new Object[]{(row.requestIndex()+1)+". "+row.name(),row.status(),row.response()==null?"":row.response().status(),row.assertions().stream().filter(HttpAssertion.Outcome::passed).count()+"/"+row.assertions().size(),row.response()==null?"":row.response().elapsedMillis()});if(results.getSelectedRow()<0)results.setRowSelectionInterval(0,0);}}));
+        active=HttpCollectionRunner.start(service.engine,parsed,selection,Duration.ofSeconds(60),4*1024*1024,16*1024*1024,privacy,row->ApplicationManager.getApplication().invokeLater(()->{if(!project.isDisposed()&&active!=null){rows.add(row);resultsModel.addRow(new Object[]{(row.requestIndex()+1)+". "+row.name(),row.status(),row.response()==null?"":row.response().status(),row.assertions().stream().filter(HttpAssertion.Outcome::passed).count()+"/"+row.assertions().size(),row.response()==null?"":row.response().elapsedMillis()});if(results.getSelectedRow()<0)results.setRowSelectionInterval(0,0);}}),followRedirects.isSelected()?HttpRequestEngine.RedirectPolicy.FOLLOW:HttpRequestEngine.RedirectPolicy.NEVER);
         service.collection=active;var expected=active;
         expected.completion().whenComplete((value,error)->ApplicationManager.getApplication().invokeLater(()->{
             if(project.isDisposed()||active!=expected)return;active=null;service.collection=null;busy(false);
@@ -122,5 +149,5 @@ final class HttpClientPanel extends JPanel {
     private void saveSummary(){if(summary!=null)export(summary.safeJson().getBytes(StandardCharsets.UTF_8),"Save HTTP Summary","Metadata only; no URLs, names, variables, headers or bodies","http-results.json");}
     private void saveResponse(){var current=result;if(current==null)return;if(Messages.showYesNoDialog(project,"Export the original response bytes? They can contain tokens, personal data or other secrets, including values masked in this panel. Only save to a private location. No environment file is copied.","Save Original HTTP Response",Messages.getWarningIcon())!=Messages.YES)return;export(current.body().bytes(),"Save HTTP Response","Original bytes; sensitive data may be present","response.bin");}
     private void export(byte[] bytes,String title,String description,String suggested){var target=FileChooserFactory.getInstance().createSaveFileDialog(new FileSaverDescriptor(title,description),project).save(suggested);if(target==null)return;var path=target.getFile().toPath();ApplicationManager.getApplication().executeOnPooledThread(()->{String message;try{Files.write(path,bytes,StandardOpenOption.CREATE_NEW);message="Saved to the explicitly chosen new file.";}catch(Exception failure){message="Unable to save; existing files are preserved.";}String displayed=message;ApplicationManager.getApplication().invokeLater(()->{if(!project.isDisposed())status.setText(displayed);});});}
-    private void help(){Messages.showInfoMessage(project,"Requests run in file order; errors/assertion failures do not stop later requests. Cancel stops the current client request and marks the rest Not run.\n\nBefore METHOD, declare checks:\n# @expect status 200\n# @expect header Content-Type \"application/json\"\n# @expect json /items/0/name \"GoForge\"\nJSON pointers use ~1 for / and ~0 for ~; use \"\" for root. Values are JSON, not JavaScript.\n\nDouble-click a result or choose Next Failure to locate its source line. Known private values and sensitive headers are masked in presentation. Arbitrary server data may contain other secrets. Summary export excludes response data; original response export asks separately.\n\nTLS verification remains enabled; redirects are not followed automatically. No account, response scripts, automatic history or background collection runs.","HTTP Collections and Assertions");}
+    private void help(){Messages.showInfoMessage(project,"Requests run in file order; errors/assertion failures do not stop later requests. Cancel stops the current client request and marks the rest Not run.\n\nBefore METHOD, declare checks:\n# @expect status 200\n# @expect header Content-Type \"application/json\"\n# @expect json /items/0/name \"GoForge\"\nJSON pointers use ~1 for / and ~0 for ~; use \"\" for root. Values are JSON, not JavaScript.\n\nDouble-click a result or choose Next Failure to locate its source line. Known private values and sensitive headers are masked in presentation. Arbitrary server data may contain other secrets. Summary export excludes response data; original response export asks separately.\n\nRedirects are off by default. Enable Follow redirects for this panel run; // @no-redirect or # @no-redirect before a request still returns its redirect response. Up to five 301/302/303/307/308 hops share one timeout. 301/302 POST and 303 (except HEAD) become GET without the body. 307/308 retain method/body. Cross-origin redirects remove all original headers and refuse a preserved nonempty body. HTTPS to HTTP is refused. Final-response assertions apply after redirects; Headers shows status/method hops without URLs. No cookies are stored or replayed automatically.\n\nTLS verification remains enabled. No account, response scripts, automatic history or background collection runs.","HTTP Collections and Assertions");}
 }

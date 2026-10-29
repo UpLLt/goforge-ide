@@ -51,7 +51,7 @@ public final class GoRemoteLspMapping {
         }
         catch(URISyntaxException e){throw new IllegalArgumentException("Invalid remote document URI.");}
         if(path==null||!path.equals(remote)&&!path.startsWith(remote+"/"))
-            throw new IllegalArgumentException("Remote dependency is outside the analysis snapshot; external dependency navigation is unavailable.");
+            throw new IllegalArgumentException("This operation requires a file inside the reviewed analysis snapshot.");
         String suffix=path.substring(remote.length());
         if(!runtimeWorkFile.isEmpty()) {
             if(suffix.equals("/"+runtimeWorkFile))suffix="/go.work";

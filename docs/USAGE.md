@@ -14,7 +14,7 @@ Verification differs by build and host; see [current acceptance and limitations]
 | Run → Run Go Coverage | Save the module, run coverage, select a row to navigate, use Clear to remove coverage marks. / 保存模块后运行覆盖率，点行跳转，Clear 清除标记。 | One module; saved-file snapshots; no combined go.work report. |
 | Tools → Go Profiling… | Collect CPU/memory profiles for one package or open pprof data; use top/compare/viewer. / 单包采集或打开 pprof，查看 top、比较与交互视图。 | Viewer binds loopback; graph layout needs Graphviz. |
 | Tools → Go Database | Add a connection; browse schema; execute SQL. Select Begin/Commit/Rollback then Apply. Review primary-key edits before applying; export CSV. / 连接数据库后执行 SQL，事务选动作再 Apply。 | Passwords are not persisted. Row editing requires a supported primary key. Explain estimates SELECT/WITH; no ANALYZE execution. |
-| Tools → GoForge HTTP Client | Open `.http`/`.rest`, select environment files explicitly, run one/all requests, inspect assertions and results. / 打开请求文件、选择环境、运行并查看结果。 | No script execution, redirects, WebSocket or gRPC. Raw response save is a separate explicit action. |
+| Tools → GoForge HTTP Client | Open `.http`/`.rest`, select environment files explicitly, run one/all requests, inspect assertions and results. / 打开请求文件、选择环境、运行并查看结果。 | Optional bounded redirects; no script execution, WebSocket or gRPC. Raw response save is a separate explicit action. |
 | Containers → Docker | Choose a context; refresh containers/images; inspect logs, start/stop or use reviewed build/Compose actions. / 选择 context 后管理。 | Requires Docker CLI/daemon. Cancel stops the local command, not necessarily an accepted daemon operation. |
 | Containers → Kubernetes | Choose context/namespace, refresh, inspect logs/describe, preview diff/apply, use loopback forwarding and Cancel. / 选择集群与命名空间后操作。 | Requires kubectl and access to the selected cluster. Deletion checks resource UID. No global context switching. |
 | Containers → Dev Containers | Load and review the supported configuration, Start, open Terminal; execute postCreate separately if desired; Stop or Remove owned resources. / 先预览，再启动；postCreate 单独触发。 | Basic image/build projection, not the complete specification. Unsupported metadata/configuration is rejected or explicitly omitted. |
@@ -103,7 +103,7 @@ The action refuses inferred/output-only nodes, subbenchmark nodes, foreign/dispo
 
 仅从输出推测的节点、子基准、其他/已关闭控制台及本地 Stop 的运行不授权此动作；源码/配置守卫与不支持参数拒绝仍保留。当前源码新增完成节点声明跳转及独立编辑器直接 Debug，基准逐节点重跑仍不可用。较早选中节点流程的 macOS/Windows 平台测试通过，不包含新入口；bdf5 macOS 限定原生会话通过断点、表达式、步进、继续与退出，但另一次 Stop 清除适配器/目标进程后仍留下 `__debug_bin…` 文件，后来 Full 17 正常退出输出清理通过，但工具栏 Stop 失败；Full 18 顶部 Stop/正常退出清理与归档检查通过，Windows 与完整界面仍待验收。Windows 第 10 次检查了直接 Delve 正常/取消协议，不是本 IDE 工具栏或 Benchmark 流程；详见验证范围。
 
-Full 17 packaged macOS checks passed direct editor Benchmark Debug normal exit and exact completed-result navigation, but failed toolbar Stop cleanup. Full 18 repairs passed 805 macOS-host tests, independent archive audit and bounded top-toolbar Stop/normal Resume cleanup, followed by normal app exit and signature recheck. Windows and full GUI acceptance remain pending. / Full 17 Mac 包已限定验证编辑器直接 Benchmark Debug 正常退出及结果精确跳转，工具栏 Stop 清理失败；Full 18 修复通过 805 项 macOS 宿主测试、独立归档审计和顶部 Stop/Resume 正常结束限定清理，随后应用正常退出及再次验签通过；Windows 与完整界面验收仍待完成。
+Full 17 packaged macOS checks passed direct editor Benchmark Debug normal exit and exact completed-result navigation, but failed toolbar Stop cleanup. Full 18 repairs passed 805 macOS-host tests, independent archive audit and bounded top-toolbar Stop/normal Resume cleanup, followed by normal app exit and signature recheck. Native Windows IDE cleanup workflows and complete GUI acceptance remain pending. / Full 17 Mac 包已限定验证编辑器直接 Benchmark Debug 正常退出及结果精确跳转，工具栏 Stop 清理失败；Full 18 修复通过 805 项 macOS 宿主测试、独立归档审计和顶部 Stop/Resume 正常结束限定清理，随后应用正常退出及再次验签通过；Windows 原生 IDE 清理工作流与完整界面验收仍待完成。
 
 ### Debug a benchmark at the editor caret / 直接调试光标所在基准测试
 
@@ -172,9 +172,9 @@ Unsupported options, including coverage/profile collection, `-vet`, custom test-
 
 此入口保留上表所列选项，具体可用性仍受 Go 工具链和操作系统限制。覆盖率/性能数据采集、`-vet`、自定义测试程序参数、`-exec` 等未支持选项会明确报错并停止启动。请修改运行配置，或针对这些需求创建显式 Delve 配置；不会悄悄丢弃参数继续调试。
 
-The current cleanup change gives default local Delve launches in `debug`/`test` mode a separate, session-owned temporary output directory. After the adapter and observed target processes exit, it removes only that session’s generated executable and empty directory. If exit or ownership cannot be established, it retains the output and reports a warning. Explicit `output` paths, `exec`, attach and remote sessions retain their separate behavior. Full 17 native normal-exit cleanup passed, but toolbar Stop failed and retained output. Full 18 fixes passed macOS-host tests, archive audit and bounded top-toolbar Stop/normal-exit cleanup. Windows and full GUI acceptance remain pending.
+The current cleanup change gives default local Delve launches in `debug`/`test` mode a separate, session-owned temporary output directory. After the adapter and observed target processes exit, it removes only that session’s generated executable and empty directory. If exit or ownership cannot be established, it retains the output and reports a warning. Explicit `output` paths, `exec`, attach and remote sessions retain their separate behavior. Full 17 native normal-exit cleanup passed, but toolbar Stop failed and retained output. Full 18 fixes passed macOS-host tests, archive audit and bounded top-toolbar Stop/normal-exit cleanup. Native Windows IDE cleanup workflows and complete GUI acceptance remain pending.
 
-当前清理改动为默认本地 Delve `debug`/`test` 启动分配独立、由本会话拥有的临时输出目录。适配器及已观察到的目标进程退出后，仅删除本会话生成的可执行文件和空目录；不能确认退出或目录归属时保留输出并警告。显式 `output` 路径、`exec`、attach 和远端会话保持各自行为。Full 17 原生正常退出清理通过，但工具栏 Stop 失败并保留输出。Full 18 修复通过 macOS 宿主测试、归档审计与顶部 Stop/正常退出限定清理，Windows 与完整界面验收仍待完成。
+当前清理改动为默认本地 Delve `debug`/`test` 启动分配独立、由本会话拥有的临时输出目录。适配器及已观察到的目标进程退出后，仅删除本会话生成的可执行文件和空目录；不能确认退出或目录归属时保留输出并警告。显式 `output` 路径、`exec`、attach 和远端会话保持各自行为。Full 17 原生正常退出清理通过，但工具栏 Stop 失败并保留输出。Full 18 修复通过 macOS 宿主测试、归档审计与顶部 Stop/正常退出限定清理，Windows 原生 IDE 清理工作流与完整界面验收仍待完成。
 
 ## Change a Go signature / 修改 Go 签名
 
@@ -194,7 +194,7 @@ For example, add `count int` at position `1` with default `1`: `Join(left, right
 
 Supported functions are free functions with bodies, including generic functions. Generic calls may infer type arguments, supply all of them, or supply a prefix and infer the rest. Parentheses may surround a fully instantiated callee, such as `(Join[string, string])(...)`; uninstantiated or partially instantiated generic values inside parentheses are refused. Existing type parameters, constraints, explicit type arguments and the order of the original value arguments are preserved. Existing value parameters must each have one non-blank name; the new name must not already occur in the function, its type parameters or constraints. Supported new types are `bool`, `string`, predeclared numeric types, `byte`, `rune` and `uintptr`. Defaults are representable numeric/string/rune literals, signed numeric literals, `true` or `false`; `int`, `uint` and `uintptr` defaults use a portable 32-bit range. Boolean defaults appear as constant comparisons in the preview so caller-local names cannot shadow them.
 
-Methods, variadics, grouped/unnamed parameters, function-value references (including instantiated functions used as values), nested instantiations, tuple/variadic call shapes, runtime/test entry points and compiler/linkage directives are refused. Ordinary declaration imports require a standalone module, cached dependencies and offline before/after compile checks; project code is not executed. Explicit aliases/no-import cases keep their existing bounded planner. Dot imports and scalar-shadowing bindings are refused. The new scalar type must not be shadowed by a declaration, import or function type parameter; a new parameter of a custom type or type parameter is not supported. All references must fit the captured project and resolve to verified direct calls; an unrelated same-name identifier can also cause a conservative refusal. Arbitrary default expressions, new imported/custom types, existing type/result changes and cross-package declaration moves remain outside this operation.
+Exported/generic receiver methods, interface migration, method values/expressions/promotions, variadics, grouped/unnamed parameters, function-value references (including instantiated functions used as values), nested instantiations, tuple/variadic call shapes, runtime/test entry points and compiler/linkage directives are refused. Ordinary declaration imports require a standalone module, cached dependencies and offline before/after compile checks; project code is not executed. Explicit aliases/no-import cases keep their existing bounded planner. Dot imports and scalar-shadowing bindings are refused. The new scalar type must not be shadowed by a declaration, import or function type parameter; a new parameter of a custom type or type parameter is not supported. All references must fit the captured project and resolve to verified direct calls; an unrelated same-name identifier can also cause a conservative refusal. Arbitrary default expressions, new imported/custom types, existing type/result changes and cross-package declaration moves remain outside this operation.
 
 把光标放在函数声明的 **`func`** 关键字上，执行 **Go Refactor… → Add parameter to verified project calls…**。填写新参数名、Go 预声明标量类型、插入位置（`0` 表示最前，现有参数数量表示末尾）和每个已验证调用都要插入的字面量值。点击 **Preview verified callers**，检查声明和全部调用方后 **Apply**。预览不修改文件；Apply 后编辑器内容可能尚未保存，**先保存受影响文件，再运行外部 Go 命令**。普通 Undo/Redo 撤销或重做整组修改。取消、文件变化或冲突会阻止应用。
 
@@ -202,13 +202,25 @@ Methods, variadics, grouped/unnamed parameters, function-value references (inclu
 
 支持有函数体的普通函数，包括泛型函数。泛型调用可以推断类型实参、完整显式指定，或指定前缀后推断其余类型；括号可包住完整实例化的调用目标，例如 `(Join[string, string])(...)`，但括号内未实例化或仅部分实例化的泛型值会拒绝。原类型参数、约束、显式类型实参及原值实参顺序保持不变。现有值参数须逐个具名且不能是 `_`，新名字不能已出现在函数、类型参数或约束中。新类型限 `bool`、`string`、预声明数值类型、`byte`、`rune` 和 `uintptr`。默认值限类型可表示的数值/字符串/字符字面量、带正负号数值或 `true`/`false`；`int`、`uint`、`uintptr` 按可移植的 32 位范围校验。布尔默认值在预览中呈现为常量比较，避免调用方同名变量遮蔽。
 
-方法、可变参数、合并/未命名参数、函数值引用（含实例化后作为值使用的函数）、嵌套实例化、多返回值/可变参数调用形态、运行时或测试入口，以及带编译/链接指令的函数会拒绝。声明文件的普通导入需要单独模块、已缓存依赖及离线前后编译检查，不执行项目代码；明确别名/无导入仍用原限定规划器，点导入和标量遮蔽绑定会拒绝。新增标量类型被声明、导入或函数类型参数遮蔽时也会拒绝，新增参数的类型不能是自定义类型或类型参数。引用必须位于捕获的项目内并可验证为直接调用；无关的同名标识符也可能触发保守拒绝。任意默认表达式、导入类型/自定义类型、修改现有类型或返回值、跨包移动声明仍不在此操作范围内。
+导出/泛型接收者方法、接口迁移、方法值/表达式/提升调用、可变参数、合并/未命名参数、函数值引用（含实例化后作为值使用的函数）、嵌套实例化、多返回值/可变参数调用形态、运行时或测试入口，以及带编译/链接指令的函数会拒绝。声明文件的普通导入需要单独模块、已缓存依赖及离线前后编译检查，不执行项目代码；明确别名/无导入仍用原限定规划器，点导入和标量遮蔽绑定会拒绝。新增标量类型被声明、导入或函数类型参数遮蔽时也会拒绝，新增参数的类型不能是自定义类型或类型参数。引用必须位于捕获的项目内并可验证为直接调用；无关的同名标识符也可能触发保守拒绝。任意默认表达式、导入类型/自定义类型、修改现有类型或返回值、跨包移动声明仍不在此操作范围内。
 
 For ordinary imports, the compile check requires default host settings, one root go.mod, no active/parent go.work, nested modules, local module replacements or vendor tree, and a complete pure-Go source graph. It uses go test -c including tests without executing init, TestMain or tests. Compile success confirms type compatibility, not identical behavior. Module/GOENV/SDK, project build settings, unsaved metadata, the active server and captured sources are rechecked before Apply; changed proof inputs require a new preview.
 
 普通导入的编译检查要求默认宿主设置、根 go.mod、完整纯 Go 源码图，不支持活动/父级 go.work、嵌套模块、本地 module replace 或 vendor。通过 go test -c 编译含测试的源码，不执行 init、TestMain 或测试；编译成功只证明类型兼容，不证明行为完全相同。Apply 前再次校验模块、GOENV、SDK、项目构建设置、未保存元数据、活动服务及捕获源码；证明输入变化时须重新预览。
 
 Bounded dd87 macOS native acceptance used one module with ordinary standard-library imports, adding `extra int` at index `1` with literal default `7`: preview/cancel preserved all sources; Apply changed the declaration and two callers across three files; Save, Undo/Redo, bundled Go tests after saved edits, final restoration and normal exit passed. Place the caret on `func`; a caret after the function name did not expose this signature operation. This does not establish methods, arbitrary defaults or Windows GUI acceptance. / dd87 macOS 限定原生检查使用单模块及普通标准库导入，在位置 `1` 新增 `extra int`、默认值 `7`：预览/取消保留源码，Apply 修改三文件中的声明和两个调用，保存、Undo/Redo、保存后包内 Go 测试、最终恢复及正常退出通过。光标须放在 `func`，函数名后的光标未显示该签名操作；不代表方法、任意默认值或 Windows 界面验收。
+
+### Add a private method parameter / 为私有方法新增参数
+
+The same **Add parameter to verified project calls…** action accepts a private method on a private, non-generic, non-alias struct or pointer receiver. Put the caret on **`func`**. Every method goes through offline compilation of the captured module before and after the proposed edits, plus a typed check of the original method and its exact direct-call reference set. Same-package test calls are included. The caller must use a concrete identifier receiver, such as `w.render(a, b)`; existing arguments keep their order.
+
+The check refuses related interfaces and type constraints, including anonymous assertions, even when the proposed code could still compile. It also refuses exported methods/types, generic or alias receivers, method values, method expressions, promoted methods and incomplete reference sets. Existing scalar/literal-default, standalone-module, cached-dependency and preview freshness bounds still apply. This operation does not migrate an interface API or other projects. Preview does not run project init, TestMain or tests. Save after Apply before running external Go commands; use ordinary Undo/Redo for the complete edit.
+
+同一 **Add parameter to verified project calls…** 入口也接受私有、非泛型、非别名结构体或指针接收者上的私有方法，光标仍放在 **`func`**。每次都对捕获模块进行离线修改前后编译，并用完整类型信息核对原方法及其全部直接调用；包含同包测试中的调用。接收者须是 `w.render(a, b)` 这样的具体变量，原实参顺序保留。
+
+即使修改后仍能编译，涉及相关接口、类型约束或匿名类型断言也会拒绝；导出方法/类型、泛型或别名接收者、方法值、方法表达式、提升调用和不完整引用同样拒绝。仍限标量/字面量默认值、单独模块、已缓存依赖及有效预览，不迁移接口 API 或其他项目。预览不会运行项目 init、TestMain 或测试。Apply 后先保存再运行外部 Go 命令；普通 Undo/Redo 操作整组修改。
+
+The Full 20 Mac package passed 23 real method-protocol cases with its bundled JBR, Go and gopls and no development overlay, including refusal and stale-preview cases. This is protocol evidence; native IDE method Apply/Undo and Windows execution remain pending. / Full 20 Mac 包使用自身 JBR、Go、gopls 且无开发覆盖，通过 23 个真实方法协议场景，含拒绝及预览失效检查；这是协议证据，原生 IDE 方法 Apply/Undo 与 Windows 实际执行仍待验证。
 
 ### Change an existing scalar type / 修改现有标量类型
 
@@ -293,3 +305,13 @@ Debugging uses a private copy of `go.work` and `go.work.sum`; the original files
 
 
 See [Known limitations / 已知差距](KNOWN-LIMITATIONS.md) for verification boundaries. / 验收边界见已知差距。
+
+## Follow HTTP redirects / 跟随 HTTP 重定向
+
+Open **Tools → GoForge HTTP Client**. Redirects are off by default, so Send displays the first 3xx response. Enable **Follow redirects** for the current panel run to follow up to five HTTP(S) redirects; the single-request timeout covers all hops. Put `// @no-redirect` or `# @no-redirect` before a request’s METHOD line to keep that request’s first redirect response even when the checkbox is enabled. Run All applies each request’s own choice and checks assertions against its final response.
+
+301/302 POST and 303 except HEAD become GET without the body. 307/308 retain method and body. Cross-origin redirects remove all original headers and refuse a preserved nonempty body; HTTPS-to-HTTP is refused. Headers shows hop status/method without redirect URLs. No automatic cookie store, response JavaScript, WebSocket or gRPC is provided. Cancel stops the active request and leaves later collection requests Not run. These choices are bounded GoForge behavior, not a claim of identical GoLand redirect defaults or full client parity.
+
+打开 **Tools → GoForge HTTP Client**。默认不跟随重定向，Send 显示第一次 3xx 响应。勾选 **Follow redirects** 后，本次面板运行最多跟随五跳 HTTP(S) 重定向，所有跳转共用单次请求超时。在某请求的 METHOD 行之前写 `// @no-redirect` 或 `# @no-redirect`，即使勾选仍只返回该请求的首个重定向响应。Run All 分别遵守各请求设置，并在最终响应上检查断言。
+
+301/302 的 POST 和除 HEAD 外的 303 转为无请求体的 GET；307/308 保留方法和请求体。跨源跳转清除全部原始请求头，且保留非空请求体的跨源跳转会被拒绝；HTTPS 降级为 HTTP 也会拒绝。Headers 显示跳转状态和方法，不显示跳转 URL。不提供自动 Cookie 存储、响应 JavaScript、WebSocket 或 gRPC。Cancel 停止当前请求，集合后续请求保留 Not run。这是 GoForge 当前限定行为，不代表与 GoLand 的重定向默认设置或完整客户端一致。

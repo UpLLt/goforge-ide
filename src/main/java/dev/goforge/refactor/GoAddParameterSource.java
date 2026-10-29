@@ -28,7 +28,7 @@ final class GoAddParameterSource {
         type Spec struct { Name string `json:"name"`; Type string `json:"type"`; Index int `json:"index"`; DefaultValue string `json:"defaultValue"` }
         type Input struct { Mode string `json:"mode"`; Sources []Source `json:"sources"`; Target Location `json:"target"`; References []Location `json:"references"`; Spec Spec `json:"spec"`; CheckedImports bool `json:"checkedImports"` }
         type Edit struct { Range Range `json:"range"`; NewText string `json:"newText"` }
-        type Output struct { Passed bool `json:"passed"`; Reason string `json:"reason,omitempty"`; Target *Location `json:"target,omitempty"`; Changes map[string][]Edit `json:"changes,omitempty"`; Checked int `json:"checked"`; NeedsCompilation bool `json:"needsCompilation,omitempty"` }
+        type Output struct { Passed bool `json:"passed"`; Reason string `json:"reason,omitempty"`; Target *Location `json:"target,omitempty"`; Changes map[string][]Edit `json:"changes,omitempty"`; Checked int `json:"checked"`; NeedsCompilation bool `json:"needsCompilation,omitempty"`; Method bool `json:"method,omitempty"` }
         type Parsed struct { Source; File *ast.File; Tokens *token.File }
         
         func offset(text string,p Position)(int,error) {
@@ -80,7 +80,18 @@ final class GoAddParameterSource {
          var decl *ast.FuncDecl
          for _,d:=range target.File.Decls{if f,ok:=d.(*ast.FuncDecl);ok{end:=target.Tokens.Offset(f.Type.End());if at>=target.Tokens.Offset(f.Pos())&&at<=end{decl=f;break}}}
          if decl==nil{return fail("select the func keyword of a function declaration")}
-         if decl.Recv!=nil||decl.Body==nil{return fail("adding parameters supports free functions with bodies; methods and external declarations are refused")}
+         if decl.Body==nil{return fail("adding parameters requires a function or method body; external declarations are refused")}
+         method:=decl.Recv!=nil
+         if method{
+          if len(decl.Recv.List)!=1||len(decl.Recv.List[0].Names)!=1||decl.Recv.List[0].Names[0].Name=="_"{return fail("method parameters require a private method and one named concrete receiver")}
+          recv:=decl.Recv.List[0].Type;if star,ok:=recv.(*ast.StarExpr);ok{recv=star.X};name,ok:=recv.(*ast.Ident)
+          if !ok||name.IsExported(){return fail("methods and external declarations require separate proof; only private non-generic struct receivers are supported")}
+          if decl.Name.IsExported(){return fail("method parameters require a private method")}
+          var receiver *ast.TypeSpec
+          for _,p:=range files{if parent(p.URI)!=parent(target.URI)||p.File.Name.Name!=target.File.Name.Name{continue};for _,d:=range p.File.Decls{if gen,ok:=d.(*ast.GenDecl);ok{for _,sp:=range gen.Specs{if typ,ok:=sp.(*ast.TypeSpec);ok&&typ.Name.Name==name.Name{if receiver!=nil{return fail("ambiguous receiver declaration")};receiver=typ}}}}}
+          if receiver==nil||receiver.Assign.IsValid()||receiver.TypeParams!=nil{return fail("method receiver must be a private non-alias, non-generic local struct")};if _,ok:=receiver.Type.(*ast.StructType);!ok{return fail("method receiver must be a concrete local struct")}
+          if !in.CheckedImports{return Output{Reason:"Methods require a frozen typed-interface and before/after compile check.",NeedsCompilation:true}}
+         }
          typeParameters:=0
          if decl.Type.TypeParams!=nil{for _,field:=range decl.Type.TypeParams.List{typeParameters+=len(field.Names);for _,name:=range field.Names{if name.Name==s.Type{return fail("new scalar type is shadowed by a function type parameter")}}}}
          if decl.Name.Name=="init"||decl.Name.Name=="main"{return fail("runtime entry-point signatures cannot be changed")}
@@ -100,7 +111,7 @@ final class GoAddParameterSource {
          if needsCompilation&&!in.CheckedImports{return Output{Reason:"Ordinary declaration imports require a frozen before/after compile check.",NeedsCompilation:true}}
          nameStart,nameEnd:=target.Tokens.Offset(decl.Name.Pos()),target.Tokens.Offset(decl.Name.End())
          loc:=Location{target.URI,Range{position(target.Text,nameStart),position(target.Text,nameEnd)}}
-         if in.Mode=="target"{return Output{Passed:true,Target:&loc}}
+         if in.Mode=="target"{return Output{Passed:true,Target:&loc,Method:method}}
          if in.Mode!="plan"||in.References==nil{return fail("a complete reference response is required")}
          if len(in.References)>10000{return fail("reference limit exceeded")}
          changes:=map[string][]Edit{};seen:=map[string]map[int]bool{}

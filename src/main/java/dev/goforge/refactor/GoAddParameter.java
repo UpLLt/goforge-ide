@@ -30,7 +30,8 @@ public final class GoAddParameter {
     }
     private record Source(String uri, String text) { }
     private record Input(String mode, List<Source> sources, Location target, List<Location> references, Spec spec, boolean checkedImports) { }
-    private record Result(boolean passed, String reason, Location target, Map<String, List<TextEdit>> changes, int checked, boolean needsCompilation) { }
+    record Result(boolean passed, String reason, Location target, Map<String, List<TextEdit>> changes, int checked, boolean needsCompilation, boolean method) { }
+    private record Planned(WorkspaceEdit workspace, GoMethodParameterSafety.Request method) { }
 
     static final class CompilationRequired extends IllegalStateException {
         CompilationRequired(String message) { super(message); }
@@ -40,17 +41,23 @@ public final class GoAddParameter {
             Collection<GoRefactorWorkspaceEdit.Source> snapshot,String uri,Position position,Spec spec,
             GoSignatureSafety.References references,BooleanSupplier cancelled)throws Exception {
         Objects.requireNonNull(spec);Objects.requireNonNull(references);
+        var method=new java.util.concurrent.atomic.AtomicReference<GoMethodParameterSafety.Request>();
         return GoChangeScalarType.compileCheckedPlan(go,environment,root,snapshot,uri,position,cancelled,
-                (sources,owned,helperEnv)->plan(go,environment,sources.values(),uri,position,spec,references,cancelled,true));
+                (sources,owned,helperEnv)->{
+                    var planned=plan(go,environment,sources.values(),uri,position,spec,references,cancelled,true);
+                    method.set(planned.method());return planned.workspace();
+                },(copy,owned,compileEnv)->{
+                    if(method.get()!=null)GoMethodParameterSafety.verify(go,root,snapshot,method.get(),copy,owned,compileEnv,cancelled);
+                });
     }
 
     /** Worker-only; returns versioned edits for the existing all-file preview/Apply pipeline. */
     public static WorkspaceEdit plan(String go, Map<String, String> environment,
             Collection<GoRefactorWorkspaceEdit.Source> snapshot, String uri, Position position, Spec spec,
             GoSignatureSafety.References references, BooleanSupplier cancelled) throws Exception {
-        return plan(go,environment,snapshot,uri,position,spec,references,cancelled,false);
+        return plan(go,environment,snapshot,uri,position,spec,references,cancelled,false).workspace();
     }
-    private static WorkspaceEdit plan(String go,Map<String,String> environment,
+    private static Planned plan(String go,Map<String,String> environment,
             Collection<GoRefactorWorkspaceEdit.Source> snapshot,String uri,Position position,Spec spec,
             GoSignatureSafety.References references,BooleanSupplier cancelled,boolean checkedImports)throws Exception {
         Objects.requireNonNull(spec); Objects.requireNonNull(references); Objects.requireNonNull(cancelled);
@@ -100,7 +107,7 @@ public final class GoAddParameter {
             var workspace = new WorkspaceEdit(edits);
             GoRefactorWorkspaceEdit.prepare(sources.values(), workspace); // enforce overlap/size/version contracts before returning
             checkCancelled(cancelled);
-            return workspace;
+            return new Planned(workspace,declaration.method()?new GoMethodParameterSafety.Request(declaration.target(),List.copyOf(normalized)):null);
         } finally {
             try (var paths = Files.walk(owned)) { for (var path : paths.sorted(Comparator.reverseOrder()).toList()) Files.deleteIfExists(path); }
         }
@@ -122,10 +129,16 @@ public final class GoAddParameter {
         Files.writeString(request, new Gson().toJson(input), StandardCharsets.UTF_8);
         String output = run(List.of(binary.toString(), request.toString()), owned, env, cancelled, Duration.ofSeconds(15));
         if (output.length() > 8 * 1024 * 1024) throw new IOException("Parameter planner output exceeded its limit.");
+        return decodeResult(output,input.checkedImports());
+    }
+    /** A method target cannot enter the unchecked path even if a helper omits its compilation hint. */
+    static Result decodeResult(String output,boolean compileChecked) {
         Result result = new Gson().fromJson(output, Result.class);
         if (result != null && result.needsCompilation()) throw new CompilationRequired(result.reason());
         if (result == null || !result.passed() || result.target() == null)
             throw new IllegalStateException(result == null ? "Parameter planning failed." : result.reason());
+        if(result.method()&&!compileChecked)
+            throw new CompilationRequired("Private methods always require the typed-interface and before/after compile proof.");
         return result;
     }
     private static String run(List<String> command, Path owned, Map<String, String> env, BooleanSupplier cancelled, Duration timeout) throws Exception {

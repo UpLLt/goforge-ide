@@ -62,7 +62,8 @@ public final class HttpCollectionRunner {
             if(error!=null){
                 Throwable cause=error;while(cause.getCause()!=null)cause=cause.getCause();
                 String type=cause instanceof java.util.concurrent.TimeoutException||cause instanceof java.net.http.HttpTimeoutException?"Timed out":cause instanceof java.util.concurrent.CancellationException?"Transport cancelled":"Transport failed";
-                add(row(index,Status.ERROR,null,List.of(),type+"; no URL or exception payload logged"));next();return;
+                String detail=cause instanceof HttpRedirects.Refused?cause.getMessage():type+"; no URL or exception payload logged";
+                add(row(index,Status.ERROR,null,List.of(),detail));next();return;
             }
             retained+=response.body().bytes().length;
             var outcomes=requests.get(index).assertions().stream().map(a->a.evaluate(response)).map(a->new HttpAssertion.Outcome(privacy.redact(a.label()),a.passed(),privacy.redact(a.detail()),a.sourceLine())).toList();
@@ -74,6 +75,7 @@ public final class HttpCollectionRunner {
             var request=requests.get(index);String headerText="",bodyText="";
             if(response!=null){
                 var headers=new StringBuilder(response.version()).append(' ').append(response.status()).append('\n');
+                for(var hop:response.redirects()) headers.append("Redirect ").append(hop.status()).append(": ").append(hop.method()).append(" → ").append(hop.nextMethod()).append(hop.crossOrigin()?" (cross-origin; request headers removed)":"").append('\n');
                 response.headers().forEach((key,values)->values.forEach(value->headers.append(privacy.redact(key)).append(": ").append(privacy.header(key,value)).append('\n')));
                 headerText=headers.toString();bodyText=privacy.redact(displayBody(response));
             }
@@ -89,7 +91,12 @@ public final class HttpCollectionRunner {
     private HttpCollectionRunner(){}
     public static Run start(HttpRequestEngine engine,List<HttpRequestFile.Request> requests,List<Integer> selected,
                             Duration timeout,int perResponseBytes,int totalBytes,HttpPrivacy privacy,Consumer<Row> progress){
-        return start(engine::send,requests,selected,timeout,perResponseBytes,totalBytes,privacy,progress);
+        return start(engine,requests,selected,timeout,perResponseBytes,totalBytes,privacy,progress,HttpRequestEngine.RedirectPolicy.NEVER);
+    }
+    public static Run start(HttpRequestEngine engine,List<HttpRequestFile.Request> requests,List<Integer> selected,
+                            Duration timeout,int perResponseBytes,int totalBytes,HttpPrivacy privacy,Consumer<Row> progress,
+                            HttpRequestEngine.RedirectPolicy redirects){
+        return start((request,deadline,limit)->engine.send(request,deadline,limit,redirects),requests,selected,timeout,perResponseBytes,totalBytes,privacy,progress);
     }
     static Run start(Sender sender,List<HttpRequestFile.Request> requests,List<Integer> selected,
                      Duration timeout,int perResponseBytes,int totalBytes,HttpPrivacy privacy,Consumer<Row> progress){

@@ -84,7 +84,10 @@ public final class GoRemoteService implements Disposable {
                     .append("Local files are never replaced by download. Rename edits use the normal IDE preview/undo.\n")
                     .append(review.description()).append("\nWorkspace metadata stays fixed for this session. Save metadata edits and request a fresh preview to change modules/dependencies.\n")
                     .append("No module downloads or local environment forwarding. Existing remote module cache can be used.\n")
-                    .append("External dependency navigation is unavailable. Adding/deleting/renaming files requires a new snapshot.\n")
+                    .append("Go SDK definitions and type definitions can open read-only source tabs.\n")
+                    .append("Cached dependency sources require one root go.mod/go.sum, no go.work, replacements or vendor directory, and a selected cached module version matching the reviewed checksums.\n")
+                    .append("These read-only tabs do not provide further remote code analysis or navigation. Stop closes them.\n")
+                    .append("Adding/deleting/renaming files requires a new snapshot.\n")
                     .append("Stop/close disconnects processes but retains the remote snapshot for your review. Activation is not saved across IDE restarts.\n\n")
                     .append(snapshot.files().size()).append(" saved files, ").append(snapshot.bytes()).append(" bytes:\n");
             snapshot.files().forEach(f -> text.append(f.path()).append('\n'));

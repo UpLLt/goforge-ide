@@ -180,10 +180,18 @@ public final class GoChangeScalarType {
     @FunctionalInterface interface CheckedPlanner {
         WorkspaceEdit plan(Map<Path,GoRefactorWorkspaceEdit.Source> sources,Path owned,Map<String,String> helperEnv) throws Exception;
     }
+    @FunctionalInterface interface OriginalSnapshotProof {
+        void verify(Path copy,Path owned,Map<String,String> compileEnvironment) throws Exception;
+    }
     /** Shared compile-only proof; planner output never bypasses frozen source/metadata/SDK checks. */
     static Plan compileCheckedPlan(String go,Map<String,String> environment,Path root,
             Collection<GoRefactorWorkspaceEdit.Source> snapshot,String uri,Position position,
             BooleanSupplier cancelled,CheckedPlanner planner)throws Exception {
+        return compileCheckedPlan(go,environment,root,snapshot,uri,position,cancelled,planner,null);
+    }
+    static Plan compileCheckedPlan(String go,Map<String,String> environment,Path root,
+            Collection<GoRefactorWorkspaceEdit.Source> snapshot,String uri,Position position,
+            BooleanSupplier cancelled,CheckedPlanner planner,OriginalSnapshotProof originalProof)throws Exception {
         Objects.requireNonNull(planner); Objects.requireNonNull(cancelled);
         checkCancelled(cancelled);
         for (String key : List.of("GOFLAGS", "GOOS", "GOARCH", "GOEXPERIMENT", "GOROOT"))
@@ -253,6 +261,8 @@ public final class GoChangeScalarType {
                     throw new IllegalStateException("Local module replacements are outside this captured single-module compile check.");
             }
             List<String> packages = compile(go, copy, owned.resolve("before"), compileEnv, sources.keySet().stream().map(root::relativize).toList(), cancelled, "The current captured module does not compile");
+            if(originalProof!=null)originalProof.verify(copy,owned,Collections.unmodifiableMap(compileEnv));
+            checkCancelled(cancelled);
             for (var file : prepared.files()) Files.writeString(copy.resolve(root.relativize(GoRefactorWorkspaceEdit.uriPath(file.uri()))), file.edit().replacement(), StandardCharsets.UTF_8);
             List<String> after = compile(go, copy, owned.resolve("after"), compileEnv, sources.keySet().stream().map(root::relativize).toList(), cancelled, "The proposed refactoring is incompatible with the captured function or callers");
             if (!packages.equals(after)) throw new IllegalStateException("The compiler package graph changed during type validation.");

@@ -15,8 +15,9 @@ public final class HttpRequestFile {
     private static final Pattern REQUEST = Pattern.compile("([A-Z]+)\\s+(\\S+?)(?:\\s+HTTP/(1\\.[01]|2))?");
     public record Header(String name, String value) { }
     public record Request(String name, String method, URI uri, List<Header> headers, byte[] body,
-                          int startLine, int endLine, String version, List<HttpAssertion> assertions) {
-        public Request(String name,String method,URI uri,List<Header> headers,byte[] body,int startLine,int endLine,String version){this(name,method,uri,headers,body,startLine,endLine,version,List.of());}
+                          int startLine, int endLine, String version, List<HttpAssertion> assertions, boolean noRedirect) {
+        public Request(String name,String method,URI uri,List<Header> headers,byte[] body,int startLine,int endLine,String version){this(name,method,uri,headers,body,startLine,endLine,version,List.of(),false);}
+        public Request(String name,String method,URI uri,List<Header> headers,byte[] body,int startLine,int endLine,String version,List<HttpAssertion> assertions){this(name,method,uri,headers,body,startLine,endLine,version,assertions,false);}
         @Override public String toString() { return name; }
     }
     private HttpRequestFile() { }
@@ -43,10 +44,15 @@ public final class HttpRequestFile {
                                    Map<String, String> vars, List<Request> result) {
         int line = start;
         var declarations=new ArrayList<Map.Entry<Integer,String>>();
+        boolean noRedirect=false;
         while (line < end) {
             String value = lines[line].trim();
             var definition = DEFINITION.matcher(value);
-            if (definition.matches()) {
+            String comment=value.startsWith("//")?value.substring(2).trim():value.startsWith("#")?value.substring(1).trim():null;
+            if(comment!=null&&comment.startsWith("@no-redirect")){
+                if(!comment.equals("@no-redirect"))throw failure(line,"Malformed @no-redirect directive; use it without parameters.");
+                noRedirect=true;
+            } else if (definition.matches()) {
                 if (vars.size() >= 256) throw failure(line, "Too many variables.");
                 vars.put(definition.group(1), definition.group(2));
             } else if(value.startsWith("# @expect")) {
@@ -97,7 +103,7 @@ public final class HttpRequestFile {
         var assertions=declarations.stream().map(d->HttpAssertion.parse(d.getValue(),d.getKey(),vars)).toList();
         result.add(new Request(title.isEmpty() ? method + " request " + (result.size() + 1) : title,
                 method, uri, List.copyOf(headers), expand(body.toString(), vars).getBytes(StandardCharsets.UTF_8),
-                requestLine, end, request.group(3),assertions));
+                requestLine, end, request.group(3),assertions,noRedirect));
     }
 
     static String expand(String value, Map<String, String> vars) { return expand(value, vars, new java.util.HashSet<>(), 0); }
