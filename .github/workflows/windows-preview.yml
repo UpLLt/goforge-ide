@@ -1,4 +1,4 @@
-name: Windows preview
+name: GoForge release verification
 
 on:
   workflow_dispatch:
@@ -8,13 +8,13 @@ on:
         type: string
         default: ''
       publish:
-        description: Publish only after full-parity acceptance is recorded and all Windows checks pass
+        description: Prepare an owner-authorized release draft after all Windows checks pass
         type: boolean
         default: false
       tag:
-        description: New preview release tag
+        description: Owner-authorized release tag
         type: string
-        default: v0.1.0-preview.1
+        default: v0.1.0
 
 permissions:
   contents: read
@@ -214,6 +214,9 @@ jobs:
       - name: Verify the installed-plugin search patch against the pristine Windows platform
         shell: pwsh
         run: python scripts/test-patch-installed-plugin-search.py --platform-zip .tools/windows-downloads/ideaIC-2025.2.6.3.win.zip --javac (Join-Path $env:JAVA_HOME 'bin/javac.exe') --output .artifacts/windows-platform-patch
+      - name: Verify the Git dashboard dispatcher repair against the pristine Windows platform
+        shell: pwsh
+        run: python scripts/test-patch-git-dashboard.py --platform-zip .tools/windows-downloads/ideaIC-2025.2.6.3.win.zip --javac (Join-Path $env:JAVA_HOME 'bin/javac.exe') --output .artifacts/windows-git-dashboard
       - name: Verify the LSP4IJ lifecycle repair against the original dependency
         shell: pwsh
         run: |
@@ -238,6 +241,7 @@ jobs:
             .artifacts/windows-native
             .artifacts/windows-platform-patch
             .artifacts/windows-lsp-lifecycle
+            .artifacts/windows-git-dashboard
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 14
@@ -256,6 +260,7 @@ jobs:
             .artifacts/windows-method-refactor
             .artifacts/windows-platform-patch
             .artifacts/windows-lsp-lifecycle
+            .artifacts/windows-git-dashboard
           include-hidden-files: true
           retention-days: 14
       - name: Prepare corresponding third-party sources
@@ -287,22 +292,28 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ needs.source.outputs.commit }}
-      - name: Enforce the owner's complete-alignment release condition
+      - name: Enforce the owner-authorized usable-release scope
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
         shell: python
         run: |
           from pathlib import Path
-          import json
+          import json, os
           policy = json.loads(Path('packaging/release-readiness.json').read_text(encoding='utf-8'))
-          if (policy.get('schema') != 1
-              or policy.get('publicReleaseApprovedByAcceptance') is not True
-              or policy.get('status') != 'verified'
-              or not policy.get('evidence')):
-              raise SystemExit('Public release is blocked until complete GoLand alignment has been verified. A preview does not waive this condition.')
+          if (policy.get('schema') != 2
+              or policy.get('ownerAuthorizedPublicRelease') is not True
+              or policy.get('releaseTag') != os.environ['RELEASE_TAG']
+              or policy.get('releaseScope') != 'early-usable-local-go-workflows'
+              or policy.get('fullGoLandParityVerified') is not False
+              or policy.get('windowsInteractiveGuiVerified') is not False
+              or not policy.get('evidence')
+              or not all(Path(p).is_file() for p in policy['evidence'])):
+              raise SystemExit('Missing explicit owner authorization, evidence or truthful release scope.')
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: windows-release-files
           path: release-files
-      - name: Publish the verified development preview
+      - name: Create the verified release draft
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.tag }}
@@ -312,38 +323,34 @@ jobs:
           from pathlib import Path
           import hashlib, json, os, re, subprocess
           tag = os.environ['RELEASE_TAG']
-          if not re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+-preview\.[0-9]+', tag):
-              raise SystemExit('Only a new explicit preview release tag is accepted.')
+          if not re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+', tag):
+              raise SystemExit('An explicit version tag is required.')
           root = Path('release-files')
+          renames = {
+              'GoForge-0.1.0-dev-windows-x64.zip': 'GoForge-0.1.0-windows-x64.zip',
+              'package-manifest.json': 'windows-package-manifest.json',
+              'native-verification.json': 'windows-native-verification.json',
+              'verification.json': 'windows-refactoring-verification.json',
+          }
+          for old, new in renames.items():
+              matches = list(root.rglob(old))
+              if len(matches) != 1:
+                  raise SystemExit('Expected one release input: ' + old)
+              matches[0].rename(matches[0].with_name(new))
           assets = sorted(p for p in root.rglob('*') if p.is_file())
-          if not any(p.name == 'native-verification.json' for p in assets):
-              raise SystemExit('Missing Windows native verification evidence.')
+          required = set(renames.values()) | {'source-assets-manifest.json',
+              'jbr-21.0.9-b1038.78-source.tar.gz', 'jcef-33f6357c0226-source.tar.gz',
+              'cef-122.1.9-d14e051-source.tar.gz', 'chromium-ffmpeg-17525de887d5-source.tar.gz'}
           names = [p.name for p in assets]
-          if len(names) != len(set(names)):
-              raise SystemExit('Duplicate release asset name.')
-          checksums = root/'SHA256SUMS.txt'
+          if len(names) != len(set(names)) or not required.issubset(names):
+              raise SystemExit('Duplicate or missing release asset.')
+          checksums = root/'SHA256SUMS-windows.txt'
           checksums.write_text(''.join(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.name+'\n' for p in assets), encoding='utf-8')
-          notes = Path('release-notes.md')
-          notes.write_text('''## GoForge 开发预览版 / Development preview
-
-          无需 GoForge 注册、登录或激活。Windows x64：下载 ZIP，完整解压，运行 `GoForge/bin/goforge64.exe`。
-          No GoForge account, login or activation is required. On Windows x64, extract the whole ZIP and run `GoForge/bin/goforge64.exe`.
-
-          Windows 平台测试、原生启动器、重定位、Go run/test、gopls 和 Delve 断点/变量/单步/取消检查通过。
-          Windows platform tests and native launcher, relocation, Go run/test, gopls and Delve breakpoint/variables/step/cancel checks passed.
-          这不代表完整 IDE 界面验收或与 GoLand 完全等价。发行程序未做 GoForge Authenticode 签名。
-          This does not establish exhaustive IDE UI acceptance or full GoLand parity. The derivative launcher is not Authenticode-signed by GoForge.
-
-          安装使用 / Installation and usage: see `docs/INSTALL.md` and `docs/USAGE.md` in the repository.
-          已知限制 / Known limitations: `docs/KNOWN-LIMITATIONS.md`.
-          校验 / Integrity: `SHA256SUMS.txt`. Corresponding third-party source archives accompany this release.
-          ''', encoding='utf-8')
-          # Creating a ref is atomic and refuses an existing tag, even if it has
-          # no release. --target alone would silently reuse a different commit.
+          notes = Path('docs/RELEASE-0.1.0.md')
           subprocess.run(['gh', 'api', '--method', 'POST',
               'repos/'+os.environ['GITHUB_REPOSITORY']+'/git/refs', '--input', '-'],
               input=json.dumps({'ref': 'refs/tags/'+tag, 'sha': os.environ['SOURCE_COMMIT']}),
               text=True, check=True)
           subprocess.run(['gh', 'release', 'create', tag, '--repo', os.environ['GITHUB_REPOSITORY'],
-              '--verify-tag', '--title', 'GoForge '+tag,
-              '--prerelease', '--notes-file', str(notes), *map(str, assets), str(checksums)], check=True)
+              '--verify-tag', '--title', 'GoForge '+tag+' — 可用版 / First usable release',
+              '--draft', '--notes-file', str(notes), *map(str, assets), str(checksums)], check=True)
