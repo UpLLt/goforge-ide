@@ -1,266 +1,40 @@
 # Install GoForge / 安装 GoForge
 
-[English README](../README.md) · [中文说明](../README.zh-CN.md) · [Usage / 用法](USAGE.md)
+[English README](../README.md) · [中文首页](../README.zh-CN.md) · [Usage / 用法](USAGE.md) · [Download v0.1.0 / 下载](https://github.com/UpLLt/goforge-ide/releases/tag/v0.1.0)
 
-**Internal preparation:** public source and binary releases are withheld until full GoLand alignment has been verified. The archive instructions below document internal installation and future distribution; they do not announce an available public download. Original GoForge code is Apache-2.0; third-party terms remain separate.
-
-**内部准备说明：** 完整对齐 GoLand 并验证完成前，不公开源码或二进制。下列步骤用于内部安装及未来发行，不表示已有公开下载。原创 GoForge 代码采用 Apache-2.0，第三方条款另行保留。
-
-GoForge itself has no account or activation step. Install only the archive for your OS and CPU. A source download is not an application installer.
-
-GoForge 本身无需账号或激活。请使用与你的系统和 CPU 一致的发行文件；源码压缩包不是应用安装包。
+GoForge requires no product account, registration, login or activation. Use the application ZIP for your OS/CPU, not GitHub's source-code archive. v0.1.0 retains tested internal `0.1.0-dev` / `0.1 Development` metadata. / 无需 GoForge 账号、注册、登录或激活。下载匹配系统/CPU 的应用 ZIP，不要把源码包当安装包；本版保留已测试的内部版本文字。
 
 ## macOS Apple Silicon
 
-Current audited internal package: **GoForge-0.1.0-dev-macos-aarch64.zip (Full 28/f2d1)**. Independent archive readback and packager checks passed; all 141 packaged refactoring cases passed independent readback. The Mac is locked, so no Full 28 native IDE workflow group ran. Earlier native and protocol results retain their own build identities. See [package identities](#prepared-package-identities).
+Requirements: Apple Silicon, macOS **13.5+**. Java and Go tools are bundled; Git, Cgo and local debugging may additionally require Apple's Command Line Tools. / 要求 Apple Silicon、macOS 13.5+；已内置 Java 和 Go，Git、Cgo、本地调试可能另需 Apple Command Line Tools。
 
-当前已审计内部包为 **GoForge-0.1.0-dev-macos-aarch64.zip（Full 28/f2d1）**。独立归档及打包检查通过，全部 141 个包内重构场景通过独立读回。Mac 锁定，本轮未运行 Full 28 原生界面组；此前原生及协议结果保留各自构建身份。校验值见[包身份](#prepared-package-identities)。
+1. Download `GoForge-0.1.0-macos-aarch64.zip` and `SHA256SUMS-macos.txt` from the release page. / 从发行页下载这两个文件。
+2. In that folder, run `shasum -a 256 -c SHA256SUMS-macos.txt`. The application archive must report `OK`. / 在下载目录运行校验，应用 ZIP 应显示 `OK`。
+3. Extract the whole archive, move `GoForge.app` to a folder you control (for example Applications), and open it. Keep the bundle intact. / 完整解压，把应用放入自己的应用目录再打开，保留整个应用包。
+4. This app is ad-hoc signed, without Developer ID notarization. macOS may block a downloaded build; after checking source and checksum, use the normal system approval interface if available. Do not disable system protection. / 应用未做 Developer ID 公证；核对来源和校验值后使用正常系统授权界面，保留系统保护。
+5. Select **New Go Project…** or open an existing module. Handle debugger authorization through the normal macOS prompt. / 新建或打开 Go 模块，通过系统弹窗完成调试授权。
 
-Requirements: macOS **13.5+**, Apple Silicon. The development package contains its Java runtime and Go tools. Git, Cgo, and local debugging may additionally need Apple's Command Line Tools; Delve uses Apple's debugger components. No global Go installation is required for bundled pure-Go workflows.
-
-1. Obtain the internal macOS ARM64 archive from the maintainer, or build locally. Use **Releases** only after a public release is actually announced.
-2. Compare its checksum with that release's published checksum:
-   ```sh
-   shasum -a 256 GoForge-0.1.0-dev-macos-aarch64.zip
-   ```
-3. Extract it and move **GoForge.app** to a location you control, such as Applications. Keep the app bundle intact.
-4. Open it. This development build uses an **ad-hoc signature**, not Apple Developer ID notarization. macOS may block downloaded builds. After verifying the source and checksum, use the normal macOS approval interface if available; do not disable Gatekeeper or system protection. Building locally is an alternative.
-5. Select **New Go Project…** or open a module. If macOS requests debugger authorization, handle it through the normal system interface.
-
-要求：Apple Silicon、macOS **13.5 或更新版本**。下载对应 ZIP，按发行页校验 SHA-256，解压后将 GoForge.app 放到自己的应用目录再打开。包内带运行时与 Go 工具；Git、Cgo 和本地调试可能还需要 Apple Command Line Tools。开发包没有 Developer ID 公证，系统可能拦截；核实来源后通过正常系统界面处理，不关闭系统安全功能。
-
-Per-user settings are isolated under `~/Library/Application Support/GoForge/GoForge2026.1`; caches under `~/Library/Caches/GoForge/GoForge2026.1`; logs under `~/Library/Logs/GoForge/GoForge2026.1`. Removing the app does not delete projects or those settings.
-
-设置、缓存与日志分别使用上述独立 GoForge 目录。删除应用不会删除项目或这些个人设置。
+Settings: `~/Library/Application Support/GoForge/GoForge2026.1`; caches: `~/Library/Caches/GoForge/GoForge2026.1`; logs: `~/Library/Logs/GoForge/GoForge2026.1`. Removing the app does not remove projects or these settings. / 设置、缓存、日志使用上述独立目录，删除应用不会删除项目或个人设置。
 
 ## Windows x64
 
-**Current internal Windows installer: Full 28 / Run 18.** Product tests, independent plugin readback, nine native groups and all 141 packaged refactoring cases passed. The CI packager generated and checked the application; its declared checksum is listed below. Complete local archive readback has not been performed for this installer; previous Run 17 retains that independent byte audit. Interactive GUI remains unverified and the launcher is unsigned. This is private validation, not a public release. See [CI status](#windows-ci-status--windows-ci-状态).
+Targets Windows **10/11 x64**. The launcher is not Authenticode-signed by GoForge. Windows CI verifies the launcher, tools, product tests and bounded packaged protocols; **interactive Windows desktop acceptance remains pending**. / 面向 Windows 10/11 x64，GoForge 启动器未签名；CI 检查启动器、工具、产品测试及限定包内协议，**交互界面尚待验收**。
 
-The prepared archive is `GoForge-0.1.0-dev-windows-x64.zip`, targeting Windows 10/11 x64. Preparation does not mean it has been publicly released. When a release includes it:
+1. Download `GoForge-0.1.0-windows-x64.zip` and `SHA256SUMS-windows.txt` from the release page. / 从发行页下载对应 ZIP 和校验文件。
+2. In PowerShell, run `Get-FileHash .\GoForge-0.1.0-windows-x64.zip -Algorithm SHA256`; compare the result with the same filename in the checksum file. / 在 PowerShell 运行并与同名记录核对。
+3. Extract the entire archive to a writable local folder. Run `GoForge\bin\goforge64.exe`. Do not run inside the ZIP. / 完整解压到可写目录，再运行上述程序，不要在压缩包内启动。
+4. Keep `bin`, `jbr`, `lib`, `plugins` and `goforge-tools` together. No separate Java or Go installation is needed for bundled pure-Go workflows. / 保留整个目录，普通纯 Go 开发无需另装 Java 或 Go。
+5. Use the normal Windows security interface after checking the source and checksum; keep protections enabled. / 核对来源与校验值后使用正常系统安全界面，保留保护功能。
 
-1. Verify its published SHA-256 in PowerShell:
-   ```powershell
-   Get-FileHash .\GoForge-0.1.0-dev-windows-x64.zip -Algorithm SHA256
-   ```
-2. Extract the entire archive to a writable location such as a folder inside your user profile. Do not launch from inside the ZIP.
-3. Run `GoForge\bin\goforge64.exe` from the extracted directory. The package includes its runtime and Go toolchain.
-4. Check **Settings → GoForge** if you deliberately want to use different tool versions. Use Windows `.exe` tool paths.
-
-The distribution has no GoForge Authenticode signature or installer. The native launcher receives GoForge icon/version resources, which invalidates its original signature; the derivative launcher is unsigned. Follow normal Windows security prompts; do not turn off SmartScreen or antivirus. Remote SSH features additionally require the Windows OpenSSH client; Docker and Kubernetes require their own installations.
-
-**当前内部 Windows 安装包：Full 28 / 第 18 次。**产品测试、独立插件读回、9 组原生及全部 141 个包内重构场景通过；CI 打包器已生成并检查应用，声明校验值见下方。本版本完整归档尚未在本机独立下载读回，此前第 17 次保留该独立字节审计。交互界面未验收、启动器无签名；当前为私有验证，不是公开发行。目标 Windows 10/11 x64；取得内部 ZIP 后校验、完整解压，再运行 GoForge/bin/goforge64.exe。遵循正常安全提示，不关闭 SmartScreen/杀毒软件。
-
-### Windows CI status / Windows CI 状态
-
-**Windows Run 18 — CI, native and 141 packaged cases passed.** [Run 18](https://github.com/UpLLt/goforge-ide/actions/runs/40895762939) used frozen Full 28 with two reviewed validation-script updates: **925 passed plus one existing POSIX-only skip, 926 total**, zero failures/errors and 121 XML reports. All five prior Windows regression identities passed. Independent plugin readback matches six files and 478 classes/resources to the Mac build, except Build-OS. Nine native groups and all 141 packaged cases passed strict independent report readback; the final native JSON matches the earlier pre-refactor upload. The method suite verifies five exact groups, readiness, same-JVM bundled JNA/provider identity, source preservation, completed phases and fixture/process cleanup, plus nine reorder output and nine method-result type/value comparisons. All 141 stderr files are empty; 55 gopls shutdown warnings (11/16/1/8/19), plus one separate native-check warning, remain recorded. Overall CI succeeded and publication was skipped. The application was assembled/checked by CI; whole-archive local readback and Windows interactive GUI are separate and have not been completed for Run 18.
-
-**Windows 第 18 次——CI、原生及 141 包内场景通过。**[第 18 次](https://github.com/UpLLt/goforge-ide/actions/runs/40895762939)使用冻结 Full 28 及两项已审查验证脚本更新：**925 通过、1 项既存 POSIX 跳过，共 926 项**，零失败/错误、121 份 XML，五项此前失败回归均通过。独立插件读回的 6 个文件、478 个类和资源与 Mac 构建一致，仅 Build-OS 不同。9 组原生及全部 141 个包内场景通过严格独立报告读回，最终原生 JSON 与重构前上传完全一致。方法套件核对五组精确场景、就绪、同 JVM 包内 JNA/实现身份、源码保护、完整阶段和夹具/进程清理，另有 9 组重排输出及 9 组方法返回值类型/值对照。141 份 stderr 为空，保留 55 条 gopls 关闭警告（11/16/1/8/19），另有 1 条原生检查警告。整体 CI 成功，发布步骤跳过；应用由 CI 组装并检查，本版本整包本机独立读回及 Windows 交互界面仍未完成。
-
-**Windows Run 17 — CI and bounded protocols passed.** [Run 17](https://github.com/UpLLt/goforge-ide/actions/runs/40884184711) used frozen Full 27 product source with reviewed validation-only changes: 923 passed plus the existing POSIX-only skip, 924 total, zero failures/errors and 120 XML reports. Independent plugin and nine-group native readback passed. All 103 actual packaged refactoring cases passed with bundled providers and tools, source preservation, completed phases and fixture/process cleanup; 38 gopls shutdown warnings remain recorded. Complete application-archive readback passed. Interactive Windows GUI and the newer Full 28 result-type feature are not covered; publication remains disabled.
-
-**Windows 第 17 次——CI 与限定协议通过。**[第 17 次](https://github.com/UpLLt/goforge-ide/actions/runs/40884184711)使用冻结 Full 27 产品源码及已审查验证调整：923 通过、1 项既存 POSIX 跳过，共 924 项，零失败/错误、120 份 XML。独立插件及 9 组原生读回通过；103 个真实包内重构场景使用包内实现与工具通过，源码保护、阶段完成及夹具/进程清理均通过，保留 38 条 gopls 关闭警告。完整应用归档读回通过，不涵盖 Windows 交互界面或新增 Full 28 返回值功能；发布保持关闭。
-
-**Previous attempt — [Run 16](https://github.com/UpLLt/goforge-ide/actions/runs/40869160021) timed out and was cancelled.** It used frozen Full 24, separately from newer Full 27. Product tests passed 914 cases plus one existing POSIX-only skip (915 total; no failures/errors, 118 XML), and independent test/plugin readback passed. GitHub reports a one-hour job limit; the package job displayed 1h 5m and the whole run 1h 17m 39s. Only test reports and the verified plugin were uploaded. No native/method report or release archive was retained, so neither a 72-case pass nor its precise blocking phase is established. Publication was skipped.
-
-**此前尝试——[第 16 次](https://github.com/UpLLt/goforge-ide/actions/runs/40869160021)超时取消。**使用冻结 Full 24，与新 Full 27 分开。产品测试 914 通过、1 项既存 POSIX 专用跳过，共 915 项，零失败/错误、118 份 XML；测试/插件独立读回通过。GitHub 注明任务超过一小时上限，打包任务显示 1 小时 5 分钟，整次运行 1 小时 17 分 39 秒。仅上传测试报告及已验证插件；未保留原生/方法报告或发行归档，不能确认 72 场景通过，也无法确定验证内部的具体阻塞阶段。发布已跳过。
-
-**Previous attempt — [Run 15](https://github.com/UpLLt/goforge-ide/actions/runs/40860866004) failed.** Frozen Full 22 produced exactly 901 product cases: 900 passed, one existing POSIX-only skip, no failures/errors (115 XML). The prior Run 14 layout failure and four older Windows regressions passed. The plugin has 461 class payloads identical to the tested Full 22 Mac build, with only Build-OS differing. Nine native groups passed, including launcher relocation and bundled engines; one gopls shutdown warning remains. The later private-method check failed deleting its temporary planner executable: 15 cases completed, the alias-receiver case failed and seven were not reached. A second fixture-directory deletion also failed. The responsible open handle was not identified. The package job failed, no release archive was produced and publication was skipped; Windows interactive GUI is unverified.
-
-**此前尝试——[第 15 次](https://github.com/UpLLt/goforge-ide/actions/runs/40860866004)失败。**冻结的 Full 22 源码共 901 项产品测试：900 通过、1 项既存 POSIX 专用跳过，零失败/错误（115 份 XML）。第 14 次布局失败及另外四个旧 Windows 回归均已通过；插件的 461 个类字节与已测 Full 22 Mac 构建一致，仅 Build-OS 不同。9 组原生检查通过，含启动器迁移与内置引擎，保留 1 条 gopls 退出期警告；后续私有方法检查在删除临时规划器可执行文件时失败：15 场景完成、别名接收者场景失败、7 场景未执行，另有夹具目录删除失败。尚未确定占用句柄来源。打包任务失败、未生成发行归档，发布跳过；Windows 交互界面未验收。
-
-**Previous attempt — [Run 14](https://github.com/UpLLt/goforge-ide/actions/runs/40853780477) failed.** Its Full 20 source produced exactly 872 product cases: 870 passed, one failed and the existing POSIX-only skip (111 XML, zero errors). The only failure was the HTTP compact layout at width 600: the source viewport was shorter than two text lines. Earlier failed identities from Runs 11/12 passed. Packaging, the packaged-method probe, native checks and publication were skipped. The layout correction subsequently passed the exact failed test in Run 15; the original failed run remains preserved.
-
-**此前尝试——[第 14 次](https://github.com/UpLLt/goforge-ide/actions/runs/40853780477)失败。**Full 20 源码的 872 项产品测试中，870 通过、1 失败、1 项既存 POSIX 跳过（111 份 XML，零错误）。唯一失败是宽度 600 的 HTTP 紧凑布局：源码视口不足两行文字；第 11/12 次的旧失败用例均已通过。打包、包内方法协议、原生检查与发布被跳过。布局修正随后在第 15 次通过该精确失败用例，原失败记录仍保留。
-
-**Windows Run 13 — CI and bounded native checks passed.** [Run 13](https://github.com/UpLLt/goforge-ide/actions/runs/40844074829) tested the frozen Full 19 source: **834 passed, one existing POSIX-shell skip, 835 total**, 108 XML reports and no failures/errors. All four failures previously observed in Runs 11 and 12 now pass. The downloaded plugin and native reports were independently checked against that source. Nine native check groups passed, including Unicode/space-path launcher relocation, bundled tools, Go run/test, gopls navigation/rename preview/completion/diagnostics, and Delve normal/cancel sessions with child exit. One gopls shutdown warning remains recorded. Complete application-archive readback has passed; interactive Windows GUI is unverified. The repository is private and publication was skipped.
-
-**Previous Windows attempt — [Run 12](https://github.com/UpLLt/goforge-ide/actions/runs/40838772682) failed** on Full 18: **805 product tests = 803 passed, one failed and one existing POSIX-shell skip** (105 XML, no errors). All three failed cases from [Run 11](https://github.com/UpLLt/goforge-ide/actions/runs/40834616140) passed. The remaining manual Optimize Imports fixture counted two requests instead of one; packaging/native checks were skipped. Full 19 restores the real action’s committed-PSI test precondition and adds request diagnostics without relaxing that assertion. The subsequent Run 13 passed this case. Run 10 below retains its separate Full 13 product/native/archive results.
-
-Windows [Run 10](https://github.com/UpLLt/goforge-ide/actions/runs/40823363745) passed on the reviewed Full 13 source: **43/43 preflight checks**, **756 product tests = 755 passed + one existing POSIX-shell skip** (99 XML, no failures/errors), packaging and **nine native checks**. The relocated launcher/bundled JBR, Unicode and space paths, exact isolated configuration paths, tool versions, Go run/test, gopls and Delve normal/cancel cleanup passed. Windows interactive IDE GUI remains unverified; the launcher is unsigned, and publication was skipped with `publish=false`.
-
-**Windows 第 13 次——CI 与限定原生检查通过。**[第 13 次](https://github.com/UpLLt/goforge-ide/actions/runs/40844074829)使用冻结的 Full 19 源码：**834 通过、1 项既存 POSIX shell 跳过，共 835 项**，108 份 XML，零失败/错误。第 11、12 次出现的四个失败用例现在均已通过。已下载插件与原生报告均已独立核对源码身份；9 组原生检查通过，覆盖中文/空格路径启动器迁移、内置工具、Go 运行/测试、gopls 跳转/重命名预览/补全/诊断，以及 Delve 正常结束/取消与子进程退出。保留 1 条 gopls 退出阶段警告。完整应用归档已通过独立读回；Windows 交互界面未验收。仓库保持私有，发布任务已跳过。
-
-**此前 Windows 尝试——[第 12 次 CI](https://github.com/UpLLt/goforge-ide/actions/runs/40838772682)失败**，使用 Full 18：**805 项产品测试＝803 通过、1 失败、1 项既存 POSIX shell 跳过**（105 份 XML，零错误）。[第 11 次](https://github.com/UpLLt/goforge-ide/actions/runs/40834616140)的三项失败用例均已通过；剩余手动 Optimize Imports 夹具观测到两次请求而预期一次，打包与原生检查已跳过。Full 19 按真实动作入口恢复“先提交 PSI”的测试前置条件并增加请求诊断，未放宽该断言；随后的 Windows 第 13 次已通过此用例。下方第 10 次保留其独立 Full 13 测试、原生与归档结果。
-
-Windows [第 10 次 CI](https://github.com/UpLLt/goforge-ide/actions/runs/40823363745)使用审阅后的 Full 13 源码，**43/43 项预检**、**756 项产品测试＝755 通过＋1 项既存 POSIX shell 跳过**（99 份 XML，零失败/错误）、打包及 **9 项原生检查**通过。迁移启动器/包内 JBR、中文与空格路径、精确独立配置目录、工具版本、Go run/test、gopls、Delve 正常及取消清理通过。Windows 交互式 IDE 界面仍未验收，启动器无签名，`publish=false` 且发布步骤已跳过。
-
-The run used checkout `c0d92d8397497a1aa33460139bc22210c761093a`, imported from reviewed source ZIP `08e592b36144b958889e99e5fb7de0a5ed4f1c7af30eaaba6ce8a090e348cb34`. Its exact 756 test identities match Full 13. These are real Windows runner results, not a Windows GUI pass or proof of full parity. See [verification scope](KNOWN-LIMITATIONS.md#verification-scope--验证范围). / 本轮 checkout 与源码 ZIP 身份如上，756 项测试身份与 Full 13 一致；这是实际 Windows runner 结果，不代表 Windows 界面或完整功能对齐通过。详见[验证范围](KNOWN-LIMITATIONS.md#verification-scope--验证范围)。
+Settings/caches use `%APPDATA%` and `%LOCALAPPDATA%` under `GoForge\GoForge2026.1`. Git, OpenSSH, Docker, kubectl and Cgo compilers are optional host tools for their workflows. / 设置和缓存使用上述独立目录，外部工具按需安装。
 
 ## Prepared package identities
 
-**Current verified source — Full 28.** All 926 macOS-host JUnit tests passed (549 component, 377 platform; 121 XML, 398 frozen inputs), including two new private-method result transaction tests. Independent Mac build/archive and all 141 actual packaged refactoring cases passed, including 38 single-result cases. Windows [Run 18](https://github.com/UpLLt/goforge-ide/actions/runs/40895762939) passed the same product revision: 925 tests plus one existing POSIX-only skip, independent plugin readback, nine native groups and all 141 packaged cases. CI generated the current Full 28 Windows installer; its whole archive has not been independently downloaded/read back locally. Previous Full 27 Run 17 retains a complete local archive audit. No new Full 28 Mac GUI group ran while locked; Windows interactive GUI and full GoLand parity remain unverified. Earlier failures retain their separate histories; publication remains disabled.
+The release assets' `SHA256SUMS-macos.txt`, `SHA256SUMS-windows.txt` and platform manifests identify the actual application ZIPs. Historic development archives are different builds; their old checksums must not be used for v0.1.0. Corresponding JBR/JCEF/CEF/FFmpeg sources accompany the release; notices and JDBC source JARs remain in the application. / 使用发行页对应校验文件及平台清单核对真实应用 ZIP；旧开发归档哈希不适用于本版。发行附对应上游源码，包内保留通知和 JDBC 源码 JAR。
 
-**当前已验证源码——Full 28。**926 项 macOS 宿主 JUnit 全部通过（549 component、377 platform，121 份 XML、398 项冻结输入），含新增两项私有方法返回值事务测试；独立 Mac 构建/归档与全部 141 个真实包内重构场景通过，其中 38 个为单返回值场景。Windows [第 18 次](https://github.com/UpLLt/goforge-ide/actions/runs/40895762939)通过同一产品版本的 925 项测试及 1 项既存 POSIX 跳过、独立插件读回、9 组原生及全部 141 个包内场景。CI 已生成当前 Full 28 Windows 安装包，完整归档尚未在本机独立下载读回；此前 Full 27 第 17 次保留完整本机归档审计。Mac 锁定，本轮无新 Full 28 GUI 组；Windows 交互界面及完整 GoLand 对齐仍未验证，历史失败分别保留、发布仍关闭。
+## Verification / 验证
 
-**Previous verified package baseline — Full 19 (c0c9).** Passed **835/835 macOS-host JUnit tests** (482 component + 353 platform; 108 XML reports, no failures/errors/skips), plugin build and structure verification, with 364 frozen inputs. It adds bounded read-only navigation into selected cached remote module versions and local parenthesis/bracket continuation indentation. The manual Optimize Imports test now starts with committed PSI, matching the real action; its exact-one-request assertion remains. The Full 19 Mac archive passed independent source/plugin/resource/notice readback and packager checks. Eight bounded Mac native groups passed: three Enter comparisons with GoLand, selected-module declaration/type navigation, SDK navigation, read-only enforcement and UI Stop. Sources/cache remained unchanged; normal app/listener exit and signature recheck passed, with nine warnings and no ERROR/SEVERE entries. The preview still incorrectly says “External dependency navigation is unavailable.”; that wording is not fixed in this build. Windows Run 13 subsequently passed its product tests and bounded native checks; complete application-archive readback has passed. Full 18 retains its separate debug Stop/normal-exit evidence; complete GUI and GoLand parity remain unverified.
-
-The current cleanup change gives default local Delve launches in `debug`/`test` mode a separate, session-owned temporary output directory. After the adapter and observed target processes exit, it removes only that session’s generated executable and empty directory. If exit or ownership cannot be established, it retains the output and reports a warning. Explicit `output` paths, `exec`, attach and remote sessions retain their separate behavior. Full 17 native normal-exit cleanup passed, but toolbar Stop failed and retained output. Full 18 fixes passed macOS-host tests, archive audit and bounded top-toolbar Stop/normal-exit cleanup. Native Windows IDE cleanup workflows and complete GUI acceptance remain pending.
-
-**既有已验证包基线——Full 19（c0c9）。**通过 **835/835 项 macOS 宿主 JUnit 测试**（482 component + 353 platform，108 份 XML，零失败/错误/跳过）、插件构建与结构检查，364 项输入已冻结。新增受限的已选缓存远端模块版本只读跳转，以及本地圆括号/方括号续行缩进；手动 Optimize Imports 测试按真实动作入口先提交 PSI，仍保留精确一次请求断言。Full 19 Mac 归档已通过独立源码/插件/资源/许可读回及打包检查，8 组限定 Mac 原生检查通过：3 项与 GoLand 对照的回车、已选模块定义/类型跳转、SDK 跳转、只读保护及 UI Stop。源文件/缓存未变，应用与监听器正常退出、再次验签通过，保留 9 条警告且无 ERROR/SEVERE。预览仍误报“External dependency navigation is unavailable.”，本版未修此文字。Windows 第 13 次随后通过产品测试与限定原生检查，完整应用归档已通过独立读回；Full 18 调试 Stop/正常退出保留独立证据，完整界面及 GoLand 全面对齐仍未完成。
-
-**Current source/plugin — Full 28.** The verified plugin ZIP is 15158062 bytes, SHA-256 `f2d18ef2962eb078b24105a61a81884c6d7b56ef249ee389beae7ef494c07d84`, bound to 398 frozen inputs and 478 classes. Independent build audit: `692a857c66beddabad15c8faaac07802cd8b7dfa561f5e015a9a4c263296d74b`. The plugin ZIP is not an app installer. / 当前 Full 28 插件 ZIP 绑定 398 项冻结输入与 478 个类，独立构建审计已通过；插件 ZIP 不是应用安装包。
-
-**Previous source/plugin — Full 27.** The verified plugin ZIP is 15158141 bytes, SHA-256 `f86d7580c46e2d86d63665753fc4814a3a706f3fdce4ca50cde3dc792b86dbe9`, bound to 395 frozen inputs and 478 classes. Independent build audit: `82ab09bf08cc312d10504ae4fd10e633bd5b590157c3f7a44c157a250873cb7a`. Its Mac archive passed independent readback and all 103 actual packaged cases passed independent readback; the plugin ZIP is not an app installer. / 既有 Full 27 插件 ZIP 绑定 395 项冻结输入与 478 个类，构建独立审计已通过；Mac 归档已通过独立读回，103 个真实包内场景通过独立读回；插件 ZIP 不是应用安装包。
-
-Previous Full 24 macOS-host plugin ZIP: `85ca670cc5b2a30859525c57d508739a43be60cd8d805b715a387a61b9fbb58b` (15,119,757 bytes). Its Mac archive and 72-case packaged protocol checks passed independent readback; this plugin ZIP is not an app installer. / 此前 Full 24 插件 ZIP 身份如上，Mac 归档及 72 场景包内协议已通过独立读回；插件 ZIP 不是应用安装包。
-
-Previous Full 23 macOS-host plugin ZIP: `6e6794023f8da2b01ab78692af3c77cbf8c4538a19a24a633a145b08c8bc389d` (15,112,490 bytes), included in the audited Full 23 Mac archive below. A plugin ZIP is not an app installer. / 此前 Full 23 插件 ZIP 身份如上，已包含于下表已审计 Mac 包；插件 ZIP 不是应用安装包。
-
-Previous Full 22 macOS-host plugin ZIP: `5d190100b2fb0039698602b3043684eabcf3a49e13e9bbac66aa8e771e7b096c` (15,110,931 bytes). It is included in the audited Full 22 Mac archive below; the plugin ZIP itself is not an app installer. / 此前 Full 22 插件 ZIP 已包含于下表已审计 Mac 包；插件 ZIP 本身不是应用安装包。
-
-Previous Full 20 macOS-host plugin ZIP: `4ae7e9efc48fe2ec059f51de8185234587a68323f6f2f74f463c8035385f68d5` (15,093,828 bytes). It is included in the audited Full 20 Mac archive below; this plugin ZIP is not an app installer. / 此前 Full 20 插件 ZIP 身份如上，已包含于下表已审计 Mac 包；插件 ZIP 不是应用安装包。
-
-Previous Full 19 macOS-host plugin ZIP: `c0c934605092b7c366419bc3c98c283384112cb164faf8d2fc213ef57de59295` (15,060,336 bytes). It is included in the independently audited Full 19 Mac archive below; this plugin ZIP is not an app installer. / 既有 Full 19 插件 ZIP 身份如上，已包含于下表独立审计的 Mac 包；插件 ZIP 不是应用安装包。
-
-Historical Full 18 macOS-host plugin ZIP: `2de4ffea4b620c73be726c9442cbd25dc129ca2b84030963b1b9d9fb63bd442a` (15,047,717 bytes), included in the independently audited Mac archive below. / 此哈希属于 Full 18 的 macOS 宿主插件产物，已包含在下表独立审计的 Mac 包中。
-
-当前清理改动为默认本地 Delve `debug`/`test` 启动分配独立、由本会话拥有的临时输出目录。适配器及已观察到的目标进程退出后，仅删除本会话生成的可执行文件和空目录；不能确认退出或目录归属时保留输出并警告。显式 `output` 路径、`exec`、attach 和远端会话保持各自行为。Full 17 原生正常退出清理通过，但工具栏 Stop 失败并保留输出。Full 18 修复通过 macOS 宿主测试、归档审计与顶部 Stop/正常退出限定清理，Windows 原生 IDE 清理工作流与完整界面验收仍待完成。
-
-**Packaged baseline — Full 13 (dd87)** passed **756/756 macOS-host JUnit tests** (433 component + 323 platform; 99 XML reports, no failures/errors/skips), plugin build and structure verification, with 345 frozen build inputs. The same reviewed source passed Windows Run 10 with 755 product tests and one existing POSIX-shell skip. Its Mac archive is independently audited; ordinary-import Add Parameter has bounded macOS native evidence. Full GUI and complete GoLand parity remain unverified.
-
-**既有包基线——Full 13（dd87）**通过 **756/756 项 macOS 宿主 JUnit 测试**（433 component + 323 platform，99 份 XML，零失败/错误/跳过）、插件构建与结构检查，345 项输入已冻结。同一审阅源码在 Windows 第 10 次通过 755 项产品测试，1 项既存 POSIX shell 跳过。Mac 包已独立审计，普通导入 Add Parameter 已有限定 macOS 原生证据；完整界面与 GoLand 全面对齐仍未完成。
-
-| Audited app archive / 已审计应用包 | Bytes / 字节 | SHA-256 |
-| --- | ---: | --- |
-| `GoForge-0.1.0-dev-windows-x64.zip` (current Run 18/Full 28; CI-reported) | 771403309 | `a3a3aa833dd2c0c9b9b14eaeaac489accf927d4f23ae8731f74a8199275ceadf` |
-| `GoForge-0.1.0-dev-windows-x64.zip` (Run 17/Full 27) | 771403380 | `de668666e4be58739f0a6eef2cac6453c3c46b5b096b41bcd4b9c0d5bba3df6f` |
-| `GoForge-0.1.0-dev-macos-aarch64.zip` (Full 28/f2d1) | 751787073 | `eeef3e715e0b348ad01130432a3caf1bd6046de66bc253e425bc53947dfd2097` |
-| `GoForge-0.1.0-dev-macos-aarch64.zip` (Full 27/f86d) | 751787148 | `60fc85019c6ce20fe4ea45172e9cac948ea0090950f4204ee22df1fea73986ab` |
-| `GoForge-0.1.0-dev-macos-aarch64.zip` (Full 24/85ca) | 751748768 | `018ff3eeff74ac59b58963742074a4b2ca7b9920d59a9b7a0ad885a0ceeaa4a2` |
-| `GoForge-0.1.0-dev-macos-aarch64.zip` (Full 23/6e67) | 751724714 | `b82d672cfed5732a49f354622290ded71709353ff9544f25bac31d377b0cb852` |
-| `GoForge-0.1.0-dev-windows-x64.zip` (Run 13/Full 19) | 771305580 | `af51bc5332615f3a6339de9f724906541e8adb0115e7a3390e74ef99254ab134` |
-| `GoForge-0.1.0-dev-macos-aarch64.zip` (Full 22/5d19) | 751723159 | `f6a478908c204d0c4f71c2d7b0129c2bdfd84c86e9fb8b581d18502e83957a4f` |
-| `GoForge-0.1.0-dev-macos-aarch64.zip` (Full 20/4ae7) | 751706047 | `5ee7680f66940e66ddd2016a7af13b02c4e529e6338d3c242d1146c9a2a0a8a4` |
-| `GoForge-0.1.0-dev-macos-aarch64.zip` (Full 19/c0c9) | 751672560 | `df4ef621ae18316d222c6febcffc4bb0d5dea029ed4fbd0f68b13e42feef58f8` |
-| `GoForge-0.1.0-dev-macos-aarch64.zip` (Full 18/2de4) | 751659936 | `5e9c8a463c79f6271014023d077febdb092dd13942ebb96f0b2dcc7bc4af5559` |
-| `GoForge-0.1.0-dev-macos-aarch64.zip` (Full 17/6425) | 751659791 | `24a32b3c062e890a0d03ef57b441a04013e5bcf073482086b6acdecc7aff4e87` |
-| `GoForge-0.1.0-dev-windows-x64.zip` (Run 10/Full 13) | 771249254 | `856ed96054c07acbceb286c851f9034581d374ab54e6e7e4ae0f72b59b231424` |
-
-The **current internal Windows installer is Run 18/Full 28**, including the private-method single-result operation. The application ZIP checksum/size in the table is declared by the successful CI packager, which safely extracted/checked the assembled archive and computed its digest. Native and 141-case checks ran against that same package output directory. The outer CI artifact has UI-reported SHA-256 `9d90ecac4c2c0d828d1d964cc000be21f9ddbd57d483c65606326fa2da30af7c`; neither this outer artifact nor the complete inner application has been independently downloaded/read back locally. Independent native report audit: `8afe39fc448796216b647d47cd594d310ec3ae4e5a3f0c0e05f741eca76a539c`; 141-case report audit: `0b00d961947be6853885c52c2b34a2ab951017ac6fa462be0509a028a608071d`. / **当前内部 Windows 安装包为第 18 次/Full 28**，包含私有方法单返回值操作。表内大小与校验值来自成功 CI 打包器声明，其已安全解压检查并计算摘要；原生与 141 场景使用同一打包输出目录。外层 CI 产物界面声明哈希如上，本机尚未独立下载读回外层及完整内部应用；报告独立审计与完整归档字节审计明确区分。
-
-A separate incremental check matched 71 of the 72 Run 18 package-file claims to available bytes: 65 unchanged runtime files from the fully audited Run 17 archive and six files from the downloaded Run 18 plugin. The reported branding JAR differs from Run 17 and its Run 18 bytes are not available locally; that incremental reader therefore records incomplete verification, not a 72/72 pass. This does not reverse the native/141 report results or establish a product defect. / 另一次增量核对将第 18 次 72 项包文件声明中的 71 项与可用字节匹配：65 项来自已完整审计且声明未变的第 17 次运行资源，6 项来自已下载的第 18 次插件。branding JAR 的声明不同于第 17 次，本机没有第 18 次对应字节；该增量读回记为未完整验证，不能写成 72/72 通过。这不推翻原生/141 报告结果，也不据此判定产品缺陷。
-
-The **previous independently byte-audited Windows baseline is Run 17/Full 27**. Its outer artifact `windows-release-files.zip` is 925437492 bytes, SHA-256 `851788df0931883389232aeedc665e329be7ed7483ec2c5c6639615a85a06125`; the inner application ZIP is listed separately above. Audit `ac766d7d3133164b198daffde8f1919d5a284131bae694802d3d457f2276815c` verified all 16350 members/CRCs/hashes, six tested plugin files and 72 protocol package-file claims, plus launcher/PE, JDBC/source and notice/provenance bytes. This older installer lacks the Full 28 method-result feature. / **此前完整字节审计基线为第 17 次/Full 27**：外层及内层归档身份分别列出；独立审计核对 16350 成员的 CRC/哈希、6 个已测插件文件、72 项协议包文件及启动器/PE、JDBC/源码和许可来源。该旧安装包不包含 Full 28 方法返回值功能。
-
-The Full 28 Mac archive binds all 398 frozen inputs and plugin `f2d18ef2962eb078b24105a61a81884c6d7b56ef249ee389beae7ef494c07d84`. Independent archive audit: `8cfe07ab808fc47492ca5e672f1d439187fcfa5490d2a52d80044c78dd776d0a`. All six plugin members, runtime resources, tools and notices match the tested build and reviewed assembly inputs. All 141 actual packaged cases passed independent readback; native IDE GUI acceptance remains pending. / Full 28 Mac 包绑定 398 项冻结输入及已测插件；6 个插件成员、运行资源、工具和许可与审阅输入一致，全部 141 个真实包内场景通过独立读回，原生 IDE 界面验收待完成。
-
-Full 28 packaged protocol audit: `c6ff07393d5958523904498ae9dafaed7b3b72f933f1527b547c5cde038c62c9`. All five groups (23/29/20/31/38) used the bundled implementations, tools and same-JVM packaged JNA without overlays. Independent readback verified all 141 case identities, versioned readiness, unchanged/restored sources, completed phases and fixture/process cleanup; all 72 declared package-file bytes matched the archive. Nine reorder output comparisons and nine method-result type/value comparisons passed, alongside eight existing Apply/Test/Restore checks. All 141 stderr files were empty; 60 gopls shutdown warnings remain recorded. Two validation-script updates were separately tested after the frozen product build; they do not represent another JUnit run. These results do not cover Windows Full 28 or interactive IDE GUI. / Full 28 五组共 141 场景均使用包内实现、工具与同 JVM 包内 JNA，无开发覆盖；独立读回核对场景身份、版本化就绪、源码保护、完整阶段及夹具/进程清理，72 项包文件字节与归档一致。9 组重排固定输出、9 组方法返回值类型/值对照及 8 组既有 Apply/Test/Restore 检查通过；141 份 stderr 为空，保留 60 条 gopls 关闭阶段警告。冻结产品构建后的两个验证脚本调整单独测试，不冒充新增 JUnit 全量运行；不涵盖 Windows Full 28 或交互式 IDE GUI。
-
-The Full 27 Mac archive binds 395 frozen inputs and plugin `f86d7580c46e2d86d63665753fc4814a3a706f3fdce4ca50cde3dc792b86dbe9`. Independent archive audit: `1ab566eb8b16ffd08709ecd80ccfebc3f96ee74b0951b7b7f4647ee7dac118f3`. Independent 103-case packaged protocol audit: `80f8be1a6fedd30ef71f2f34feee57ed72596058a250e44a5d9fa3069bbc4712`. All four groups (23/29/20/31) used bundled implementations/tools and same-JVM packaged JNA, without overlays; fixture sources/cleanup and all 72 declared package-file bytes were verified. The suite records nine new fixed-output comparisons, eight existing Apply/Test/Restore checks and 44 gopls shutdown warnings; all case stderr files were empty. Signature, headless startup and relocation/archive checks also passed. No Full 27 IDE GUI group ran while the Mac was locked. / Full 27 Mac 归档绑定 395 项冻结输入与已测插件；四组共 103 场景均使用包内实现、工具及同 JVM 包内 JNA，无开发覆盖，夹具源码/清理及全部 72 项包文件字节通过校验。保留 9 组新增固定输出对照、8 组既有 Apply/Test/Restore 检查与 44 条 gopls 关闭阶段警告，各场景 stderr 均为空。验签、无界面启动及迁移/归档检查通过；Mac 锁定，本轮未执行 Full 27 IDE GUI 功能组。
-
-The Full 24 Mac archive binds 386 frozen inputs and plugin `85ca670cc5b2a30859525c57d508739a43be60cd8d805b715a387a61b9fbb58b`. Archive audit: `61d2e58aca6e544209991cca0a1f59581e69d6c3f83b97412e25cf4ae3fca28f`. Independent 72-case protocol audit: `adba4fed366e50bafd7ca9fb2eb80119e0c46192d60e0e92654c1daf581b66b0`. All three groups loaded bundled JNA in the same JVM, preserved fixture sources and cleaned their fixtures/gopls processes; 32 shutdown warnings remain recorded. This does not establish GUI or Windows acceptance. / Full 24 Mac 归档绑定 386 项冻结输入与已测插件；72 个协议场景通过，三组均在同一 JVM 加载包内 JNA，夹具源文件保护及夹具/gopls 清理通过，32 条关闭阶段警告保留。GUI 与 Windows 验收仍独立记录。
-
-The Full 23 Mac archive independently binds 384 frozen inputs and the tested plugin. Archive audit SHA-256: `67bb5fefe544560191d1e06cf24b160d4195458052984408a5afc4138127d91d`. All 72 actual packaged protocol cases passed (29 method scalar, 23 Add Parameter and 20 free-function scalar), using the bundled implementation and tools without a development overlay. Independent protocol audit: `31a1c3170bf0c8953381f7886393a4bce070d88f87faed4425f2805957569e93`. GUI and Windows acceptance remain separate. / Full 23 Mac 归档独立审计绑定 384 项冻结输入与已测插件，72 个真实包内协议场景通过（29 方法标量、23 新增参数、20 普通函数标量），使用包内实现与工具且无开发覆盖；GUI 与 Windows 验收分别记录。
-
-The Run 13 outer GitHub artifact ZIP is `02e7dd60d6cb8f8bef0db0ed9ac205be6d3454a0f7da9e3fc555daf3701e2037` (925,225,960 bytes); it contains the distinct application ZIP listed above. Independent audit `37c4da5ea71e82cd7cabd437248da186851d54dca8153da2990bb5f31ee0ed80` checked all 16,350 application files, source/plugin/native identity, tools and notices. This historical Full 19 artifact is unsigned and does not establish interactive GUI acceptance. / 第 13 次 GitHub 外层归档与上表内部应用 ZIP 身份不同；完整审计核对 16,350 个应用文件及源码/插件/原生身份、工具与许可。这是历史 Full 19 包，未签名且不代表交互界面验收。
-
-The Full 22 Mac audit binds 381 frozen inputs, six plugin members and 28 assembly inputs. Archive audit SHA-256: `03579fcf4799c00e39a56572188356c8dcc31df2703b4b61e660c1db3a1bf846`; packaged 23-case method-protocol audit: `2547943a743e28921ce57155b22b6ff9d17a2a81ad836b060bc4cb5828859336`. The bundled JBR/Go/gopls and implementation classes were checked with no development overlay. Signature, headless, relocation and extracted-archive packager checks passed; signing remains ad-hoc. These results do not establish native IDE GUI or Windows acceptance. / Full 22 Mac 审计绑定 381 项冻结输入、6 个插件成员和 28 项打包输入；23 场景方法协议使用包内工具与实现，无开发覆盖。打包验签、无界面启动、迁移及解包检查通过，仍为 ad-hoc 签名，不代表原生 IDE 界面或 Windows 验收。
-
-The Full 20 Mac audit binds all 374 frozen build inputs, six plugin members and 28 assembly inputs. Archive audit SHA-256: `761b250c75a4c09d611e2fee47572cd3e740ef89c46bbfbdcce74ca99a78c0b8`. Its 23-case real packaged method-protocol audit is `522b52d6e579b6422f122b8b877c70c196b10f32ea7fadb0206ed5c9acc77824`; bundled JBR/Go/gopls and implementation providers were checked, with no development overlay. These are archive/protocol results, not native IDE GUI acceptance. / Full 20 Mac 归档审计绑定 374 项冻结输入、6 个插件成员及 28 项打包输入；23 场景协议审计核对包内 JBR/Go/gopls 与实现来源，无开发覆盖，不代表原生 IDE 界面验收。
-
-The Full 19 Mac audit binds all 364 frozen build inputs, six plugin members, the exact embedded module-source resource and 28 assembly inputs. Audit SHA-256: `309bfe5b779edcd88fd14049cdfb6baaf0397f54525ccd5c33bd9c63a21ce20b`. Archive verification is not GUI acceptance. / Full 19 Mac 审计绑定 364 项冻结输入、6 个插件成员、精确模块源码读取资源和 28 项打包输入；归档通过不等于界面验收。
-
-The Run 10 GitHub artifact wrapper `windows-release-files.zip` also includes corresponding-source archives and reports: 925169484 bytes, SHA-256 `2b894372c2fe1047332185ff1f3a9f4dd3d45a9c32adb2754a39e96ed71b2613`. Use the inner application ZIP above for installation. Its 16,350 application files, tested plugin, tools/notices and four corresponding-source archives passed independent readback. / 第 10 次 GitHub 外层归档还含对应源码和报告，安装请使用上表内层应用 ZIP；16,350 个应用文件、已测插件、工具/许可及 4 个对应源码包已独立读回通过。
-
-| Historical Full 13 artifact / 历史 Full 13 产物 | Bytes / 字节 | SHA-256 |
-| --- | ---: | --- |
-| Full 13/dd87 plugin ZIP (not a standalone app) / 插件 ZIP（非独立应用） | 15004033 | `dd8738a5b4fddbf4fc87d3f7ab1b7d7d4cad1b391f0931a7b291e83c54193279` |
-| `GoForge-0.1.0-dev-macos-aarch64.zip` (dd87) | 751616260 | `c652c5e3ada58ae8b9f7ba54e7272a57af4bfec51958ce3f3951989f83e54fc1` |
-
-The historical dd87 Mac archive above retains its own audited Full 13 inputs and bounded Add Parameter native result. Its audit SHA-256 is `c0b70ec7b355548ef02d873a7b7c03516860ee5d0742eb15e81edb8b1d8c5f92`. The newer Full 19, Full 18 and preceding Full 17 Mac archives and the separately built Run 10 Windows archive have the distinct identities shown above.
-
-历史 dd87 Mac 包保留其 Full 13 输入审计与限定 Add Parameter 原生结果，审计 SHA-256 为上列 `c0b70ec7…`。较新的 Full 19、Full 18、此前 Full 17 Mac 包与独立构建的第 10 次 Windows 包分别使用上表身份，不混用验收结果。
-
-**Previous Mac native scope — Full 18 (2de4).** Two bounded Benchmark debug workflows passed: actual top-toolbar Stop and normal Resume/exit. Both reached the breakpoint, exited the adapter with code 0, removed their exact generated-output directories and left none of their eight tracked processes. All four fixture files remained unchanged; normal app exit and signature recheck passed. Seven log warnings remain recorded. Full 17 direct-editor evaluation and exact declaration navigation remain separate evidence; its failed Stop and retained zombie/output are preserved, not counted as current-session success. Native Windows IDE cleanup workflows and complete GUI acceptance remain pending.
-
-**既有 Mac 原生范围——Full 18（2de4）。**两个限定 Benchmark 调试流程通过：实际顶部工具栏 Stop，以及 Resume 正常结束。均到达断点、适配器退出 0、精确删除各自生成目录，两次共 8 个跟踪进程均已退出。四个夹具文件未变，应用正常退出与再次验签通过，保留 7 条日志警告。Full 17 编辑器直接求值及精确声明跳转保留各自证据；其失败 Stop 与残留僵尸/输出仍保留，不记为本轮成功。Windows 原生 IDE 清理工作流与完整界面验收仍待完成。
-
-Earlier archives below remain checksum references only. Detailed build/test history is retained in internal records. Always read the manifest for the exact archive you install; never transfer a native pass from one build or host to another.
-
-下列旧包只保留校验值，详细构建/测试历史留在内部记录。安装时核对实际归档的清单，不把其他构建或宿主的原生通过结果移用到当前包。
-
-| Historical bdf5 Mac archive / 历史 Mac 包 | Bytes | SHA-256 |
-| --- | ---: | --- |
-| `GoForge-bdf5-macos-aarch64.zip` | 751613652 | `01a81eb7e87cc336d408464d71ea3ac8bb44fbb69de6d943d124ca7bcc1aa667` |
-
-| Historical 2406 Mac archive / 历史 Mac 包 | Bytes | SHA-256 |
-| --- | ---: | --- |
-| `GoForge-2406-macos-aarch64.zip` | 751572012 | `d00296e54c4a0cf903842505baac98d370fb98eb36b8a75a5fec07c9f2a8cdde` |
-
-### Previous 318d package
-
-Historical identity only; not a current release or a new host-validation result. / 仅保留历史包身份，不是当前发行或新宿主验收。
-
-| Historical 318d internal archive | Bytes | SHA-256 |
-| --- | ---: | --- |
-| `GoForge-318d-macos-aarch64.zip` | 751553996 | `7a53be4464eb41afe752b069201f08ec7f5c4a6987b0c9903b8b1c70af8dbb02` |
-
-### Previous 5259 package and latest actual GUI acceptance
-
-Historical identity only; not a current release or a new host-validation result. / 仅保留历史包身份，不是当前发行或新宿主验收。
-
-| Historical 5259 internal archive | Bytes | SHA-256 |
-| --- | ---: | --- |
-| `GoForge-5259-macos-aarch64.zip` | 751543468 | `c2c27d6b42cc98deaa95f8138b06cddd2cb7beac1042ccf5a3d85d08c4d87ecb` |
-
-### Previous a252 package identities
-
-Historical identity only; not a current release or a new host-validation result. / 仅保留历史包身份，不是当前发行或新宿主验收。
-
-| Historical a252 internal archive | Bytes | SHA-256 |
-| --- | ---: | --- |
-| `GoForge-a252-windows-x64.zip` | 771129607 | `7285dd2f4f80fd914a164e87fa169207c3a2fb4baacd78025fc69feb4af2b815` |
-| `GoForge-a252-macos-aarch64.zip` | 751496018 | `864a9f676325c79efb102e59cbbf46ad1bc4e8f7eb5f93e85d9ac7443de3495c` |
-
-### Previous 319d package identities
-
-Historical identity only; not a current release or a new host-validation result. / 仅保留历史包身份，不是当前发行或新宿主验收。
-
-| Historical internal archive | Bytes | SHA-256 |
-| --- | ---: | --- |
-| `GoForge-319d-windows-x64.zip` | 771124243 | `47123eb149867d57823342c59acf89706fcfebf5a3b9b800204222290b5176f1` |
-| `GoForge-319d-macos-aarch64.zip` | 751490656 | `1e4ec4b6b0ba8e36af676efc30d29d714b7d8cec393109bf3aefdf652fcad3d0` |
-
-### Previous f9e0 package identities
-
-Historical identity only; not a current release or a new host-validation result. / 仅保留历史包身份，不是当前发行或新宿主验收。
-
-| Historical internal archive | Bytes | SHA-256 |
-| --- | ---: | --- |
-| `GoForge-f9e0-windows-x64.zip` | 771095262 | `0e63479351e5abc6b6a58f9fba49bd3d17ead685d96be2f42266c4041908b047` |
-| `GoForge-f9e0-macos-aarch64.zip` | 751461676 | `1f9727d9b69183ab6790d31d5241e15c292cdc165783d9eba50373858201ba78` |
-
-### Previous 921d package identities
-
-Historical identity only; not a current release or a new host-validation result. / 仅保留历史包身份，不是当前发行或新宿主验收。
-
-| Historical internal archive | Bytes | SHA-256 |
-| --- | ---: | --- |
-| `GoForge-921d-windows-x64.zip` | 770984053 | `2bf07ff5553f6f9241e1a1c1012ab13ad118e65243752d4961cde128dc2542a1` |
-| `GoForge-921d-macos-aarch64.zip` | 751350473 | `6fc10a779001db2727f9d282d3f0a07594752ce3f109a12173f1aae5404f5039` |
-
-### Previous 9abc package identities
-
-Historical identity only; not a current release or a new host-validation result. / 仅保留历史包身份，不是当前发行或新宿主验收。
-
-| Internal 9abc archive | Bytes | SHA-256 |
-| --- | ---: | --- |
-| `GoForge-9abc-macos-aarch64.zip` | 751312246 | `df6d45bb8895f3c5bdb796dafa254e032c611fd90070c52396a3675f0458852d` |
-| `GoForge-9abc-windows-x64.zip` | 770945833 | `35f5083be3b20684e8ff9d653308bc0da9f2a8a972c17de8b97b5c435cb75abe` |
-
-### Historical archive identities / 历史包身份
-
-Historical identity only; not a current release or a new host-validation result. / 仅保留历史包身份，不是当前发行或新宿主验收。
-
-| Historical 1caa archive | Bytes | SHA-256 |
-| --- | ---: | --- |
-| macOS ARM64 | 751301187 | `f953c343f00624d09f16b08021bdac0fd0d76abc4a9ca267859fe2be4f9f0669` |
-| Windows x64 | 770934771 | `ccc6bd6d08957f5cb8740622e895267d2a8295d480db54b81012e269946faab2` |
-| Historical archive | Bytes | SHA-256 |
-| --- | ---: | --- |
-| macOS ARM64 d3d7 | 752381187 | `e6fa4390a10de749a7c095f7a694df20f6e1ec6a960d207bfc98553d9f0ea5bd` |
-| Windows x64 d3d7 | 772025428 | `df11cdaabeba5676e62eec95caed57b7ba49e584e08ccc6f333760e4257ac642` |
+macOS ordinary-project native workflows passed on 2026-10-30 after repairing the Git dashboard exception: open, edit/completion, save, run, tests/failure recovery, debug, Git and close/reopen. Windows assets are produced only after the release workflow passes. Full GoLand parity, Windows GUI, large projects and long sessions remain unverified. See [release notes](RELEASE-0.1.0.md) and [limitations/history](KNOWN-LIMITATIONS.md). / Mac 普通项目日常流程及 Git 修复复测通过，Windows 资产须通过发行 CI；完整 GoLand 对齐、Windows 交互、大工程及长会话未完成验收。
 
 ## Building on Windows
 

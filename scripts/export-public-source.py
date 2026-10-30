@@ -16,12 +16,13 @@ FILES = '''src/main/resources/dev/goforge/remote/module-source.py
 README.md README.zh-CN.md LICENSE NOTICE THIRD-PARTY-NOTICES.md
 .gitignore gradlew gradlew.bat build.gradle.kts settings.gradle.kts gradle.properties
 gradle/wrapper/gradle-wrapper.jar gradle/wrapper/gradle-wrapper.properties
-docs/INSTALL.md docs/USAGE.md docs/KNOWN-LIMITATIONS.md docs/PUBLIC-RELEASE.md
+docs/RELEASE-0.1.0.md docs/INSTALL.md docs/USAGE.md docs/KNOWN-LIMITATIONS.md docs/PUBLIC-RELEASE.md
 scripts/export-public-source.py scripts/prepare-release-sources.py
 scripts/setup-jdk.py scripts/setup-tools.sh scripts/setup-extra-tools.py scripts/test-setup-extra-tools.py scripts/dev-ide.sh
 scripts/package-macos.py scripts/patch-lsp4ij-metadata.py
 scripts/patch-lsp4ij-lifecycle.py scripts/test-patch-lsp4ij-lifecycle.py
 scripts/patch-installed-plugin-search.py scripts/test-patch-installed-plugin-search.py
+scripts/patch-git-dashboard.py scripts/test-patch-git-dashboard.py
 scripts/test-package-lsp-textmate.py scripts/test-patch-lsp4ij-metadata.py scripts/verify-protocols.py
 scripts/package-windows.py scripts/test-package-windows.py scripts/verify-windows-package.py
 scripts/test-verify-windows-package.py scripts/debug-cleanup-probe.py
@@ -44,7 +45,11 @@ patches/intellij-252-installed-search/InstalledSearchGate.java
 patches/intellij-252-installed-search/InstalledSearchGateProbe.java
 patches/intellij-252-installed-search/EssentialPluginToggleGuard.java
 patches/intellij-252-installed-search/EssentialPluginToggleProbe.java
-patches/intellij-252-installed-search/PatchInstalledSearch.java'''.split()
+patches/intellij-252-installed-search/PatchInstalledSearch.java
+patches/intellij-252-git-dashboard/README.md patches/intellij-252-git-dashboard/LICENSE
+patches/intellij-252-git-dashboard/GitDashboardEdt.java
+patches/intellij-252-git-dashboard/GitDashboardEdtProbe.java
+patches/intellij-252-git-dashboard/PatchGitDashboard.java'''.split()
 TREES = {'src': {'.java', '.kt', '.xml', '.txt', '.json', '.jsonl', '.http', '.rest', '.go', '.mod', '.sum'},
          'examples/hello-go': {'.go', '.mod', '.sum'}}
 OPTIONAL = {'scripts/package-windows.py', 'scripts/test-package-windows.py', 'scripts/verify-windows-package.py',

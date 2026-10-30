@@ -18,18 +18,18 @@
     },
     {
       "path": "README.md",
-      "sha256": "65aff1039ac3c0a0ddfa0d8a3fad1fcbcb12e27af97ee7842253eb2854000633",
-      "size": 10410
+      "sha256": "e47962853770b3074a40d3de063813fd306a5bc023a3ffeaf0967b2676f243ec",
+      "size": 9030
     },
     {
       "path": "README.zh-CN.md",
-      "sha256": "e627dd7ea5dc5574bdecb661eb8c266268d7cff440654998a0dd4aaa1a99daca",
-      "size": 9208
+      "sha256": "07884b87f664a7b4ae71505a59d75d93c5beda271e4adc0c6ae3f8f22fca8ef5",
+      "size": 7940
     },
     {
       "path": "THIRD-PARTY-NOTICES.md",
-      "sha256": "709b718fdfe9dc513fd9eb4ef803e69bc4d3fc87837f6153d8afc5f956a7d6a9",
-      "size": 7388
+      "sha256": "ac789c7f78a73816a81e6293cb7a28ae4d46eb4385757075e5d17ae333b43e9f",
+      "size": 7808
     },
     {
       "path": "build.gradle.kts",
@@ -38,18 +38,23 @@
     },
     {
       "path": "docs/INSTALL.md",
-      "sha256": "17d5858e045566ac87a5f665a2af23d3fbb843f906ea056fc22b3b5ab51698a5",
-      "size": 50461
+      "sha256": "3aa17c48e1b24632b61a87dd9c0585d90e576dce7398d6cef4d6100c896f7187",
+      "size": 7361
     },
     {
       "path": "docs/KNOWN-LIMITATIONS.md",
-      "sha256": "3de3b4021d3a6f0019525baeacc9bf9eaf19be4356bc203569526ab228893ded",
-      "size": 28804
+      "sha256": "eb69538b046029f760b3560ea2f70793748309f91ccbc2df26ccc56b72cf0c45",
+      "size": 29557
     },
     {
       "path": "docs/PUBLIC-RELEASE.md",
-      "sha256": "32f4ff62e26abd4da1f373913a64ff29ba394541193152d6a7dd34fa206daa95",
-      "size": 6740
+      "sha256": "35b8b3e1cdf227c62eff1d77adc619a3d11e6fd6e9f8abc754c19c1d3dedb965",
+      "size": 5789
+    },
+    {
+      "path": "docs/RELEASE-0.1.0.md",
+      "sha256": "e26216e024242cc262b492d72a6387adfaa491e723468000140aca4a1f68af06",
+      "size": 5507
     },
     {
       "path": "docs/USAGE.md",
@@ -118,8 +123,8 @@
     },
     {
       "path": "packaging/macos/THIRD-PARTY-NOTICES.md",
-      "sha256": "25857cc7bbc174b7fcdb3169b3a3ed54d7188d74740cd23aede38531d65f3cd8",
-      "size": 10593
+      "sha256": "e33ee166c708bdfa40b0da0921631d9cb55de48147d7a74a9167e196bdf79262",
+      "size": 10982
     },
     {
       "path": "packaging/macos/bundled-plugins.json",
@@ -148,8 +153,8 @@
     },
     {
       "path": "packaging/release-readiness.json",
-      "sha256": "a8ee140e5e4f0a085c4734444c5cfdc59a85863681d31ec92d7784ce742042ad",
-      "size": 434
+      "sha256": "a9478cbc56c28041462835d8b51c5d7d086b65dcf219eb2df16a0cc966619bde",
+      "size": 842
     },
     {
       "path": "packaging/windows/README.md",
@@ -163,8 +168,8 @@
     },
     {
       "path": "packaging/windows/THIRD-PARTY-NOTICES.md",
-      "sha256": "00b83c414cf0d3b906605e2de1ddb351936df09cd13f219f0bebb0f937b8b2fd",
-      "size": 10822
+      "sha256": "5235a33080088b4ecc811d69e144377ae1792d004962dca0755ba8e0152d1113",
+      "size": 11211
     },
     {
       "path": "packaging/windows/WindowsPackageProbe.java",
@@ -180,6 +185,31 @@
       "path": "packaging/windows/requirements.txt",
       "sha256": "665f283b44086a8211ccfbc2b4e667187ae2dbb100a2d4c3c6323303c7d353a7",
       "size": 109
+    },
+    {
+      "path": "patches/intellij-252-git-dashboard/GitDashboardEdt.java",
+      "sha256": "df8a573e4c78b124801ec79c1338ed05d95c355d5db3a1b6a2c1cae8c48e68dd",
+      "size": 1097
+    },
+    {
+      "path": "patches/intellij-252-git-dashboard/GitDashboardEdtProbe.java",
+      "sha256": "82cc8843cb48e3fc25f6f5e0a6472820cfcd4a1d7bf0f70713b55ad20efef68a",
+      "size": 14059
+    },
+    {
+      "path": "patches/intellij-252-git-dashboard/LICENSE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "size": 11358
+    },
+    {
+      "path": "patches/intellij-252-git-dashboard/PatchGitDashboard.java",
+      "sha256": "c762593b598ca5fdde275c3858f5e76199e6120699459d155cacced856f2d2f9",
+      "size": 4534
+    },
+    {
+      "path": "patches/intellij-252-git-dashboard/README.md",
+      "sha256": "68b93271c32952fe4c145d1142aef9c70233069ba089d16fdf8a015773469f33",
+      "size": 3454
     },
     {
       "path": "patches/intellij-252-installed-search/EssentialPluginToggleGuard.java",
@@ -258,18 +288,23 @@
     },
     {
       "path": "scripts/export-public-source.py",
-      "sha256": "c27ac7d94c29b586647ed0829cebe4180af8f9bdcf41ea771d87d04c1470e4e2",
-      "size": 7450
+      "sha256": "7aad15fc20aba37f98ee3deb623cd724ef831a9586c5c2e1ab51e5efcabbba72",
+      "size": 7802
     },
     {
       "path": "scripts/package-macos.py",
-      "sha256": "c2b671137e7313f4f4474c8030e8b80468f939f39f117ae14141d64ae8549e8a",
-      "size": 29730
+      "sha256": "6b6891c3e867061cc61041ec8eed323a37adc0d499699626d710d1fbe34a5784",
+      "size": 30268
     },
     {
       "path": "scripts/package-windows.py",
-      "sha256": "d10ed0465191bf3ec2288f3f2799406a9ef5aa8e670c974ddee223d77c0d6f29",
-      "size": 23114
+      "sha256": "2003e5807a211ed5fe025df23a99767b4c8b4d12ba30f41ff8524efa137b9458",
+      "size": 23632
+    },
+    {
+      "path": "scripts/patch-git-dashboard.py",
+      "sha256": "37466b3e015f7d089f7894c0b752ab3c258721a1c639ade36d78ce5232bcca6b",
+      "size": 9594
     },
     {
       "path": "scripts/patch-installed-plugin-search.py",
@@ -315,6 +350,11 @@
       "path": "scripts/test-package-windows.py",
       "sha256": "7de9e0c814b8227f254c08980c201d47e7dd1fd9dc441db95a2593e0411875bf",
       "size": 9664
+    },
+    {
+      "path": "scripts/test-patch-git-dashboard.py",
+      "sha256": "451b01ff05ce478a8851f1fbb0c6771e5bf75fada018c5509d6e3b46d843b8ca",
+      "size": 10632
     },
     {
       "path": "scripts/test-patch-installed-plugin-search.py",

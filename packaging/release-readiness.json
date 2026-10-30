@@ -1,8 +1,23 @@
 {
-  "schema": 1,
-  "publicReleaseApprovedByAcceptance": false,
-  "requiredAcceptance": "Complete verified functional alignment with the GoLand reference, excluding GoForge product accounts, registration, activation and subscription gates.",
-  "status": "incomplete",
-  "reason": "The owner requires full alignment before any public release. Known functional gaps and Windows native acceptance remain outstanding.",
-  "evidence": []
+  "schema": 2,
+  "ownerAuthorizedPublicRelease": true,
+  "releaseTag": "v0.1.0",
+  "releaseScope": "early-usable-local-go-workflows",
+  "fullGoLandParityVerified": false,
+  "windowsInteractiveGuiVerified": false,
+  "decisionDate": "2026-10-30",
+  "reason": "The owner explicitly authorized public publication now as a usable version, superseding the former full-parity gate. Feature expansion remains frozen.",
+  "requiredChecks": [
+    "reviewed-source-export",
+    "platform-product-tests",
+    "windows-native-and-packaged-protocols",
+    "git-dashboard-repair",
+    "third-party-source-assets",
+    "macos-daily-native-workflow"
+  ],
+  "evidence": [
+    "docs/RELEASE-0.1.0.md",
+    "docs/KNOWN-LIMITATIONS.md"
+  ],
+  "publication": "Create a draft only after CI passes; attach and verify the tested macOS archive before publishing."
 }

@@ -310,6 +310,8 @@ def package(plugin_zip: Path, archive: bool, platform_home: Path | None = None, 
     patch_report = run(sys.executable, ROOT / "scripts/patch-lsp4ij-metadata.py", "--plugin-dir", contents / "plugins/lsp4ij")
     platform_search_patch = json.loads(run(sys.executable, ROOT / "scripts/patch-installed-plugin-search.py",
                                           "--platform-home", contents, "--javac", ROOT / ".tools/jdk/bin/javac"))
+    git_dashboard_patch = json.loads(run(sys.executable, ROOT / "scripts/patch-git-dashboard.py",
+                                        "--platform-home", contents, "--javac", ROOT / ".tools/jdk/bin/javac"))
     textmate_report = prepare_lsp_textmate(contents / "plugins/lsp4ij")
     # TextMate preparation intentionally verifies the metadata-only JAR. Apply
     # the separately pinned lifecycle repair afterwards, before signing.
@@ -338,6 +340,8 @@ def package(plugin_zip: Path, archive: bool, platform_home: Path | None = None, 
     shutil.copy2(ROOT / "scripts/patch-lsp4ij-lifecycle.py", licenses / "lsp4ij-0.21.0/patch-lsp4ij-lifecycle.py")
     shutil.copytree(ROOT / "patches/intellij-252-installed-search", licenses / "intellij-252-installed-search")
     shutil.copy2(ROOT / "scripts/patch-installed-plugin-search.py", licenses / "intellij-252-installed-search/patch-installed-plugin-search.py")
+    shutil.copytree(ROOT / "patches/intellij-252-git-dashboard", licenses / "intellij-252-git-dashboard")
+    shutil.copy2(ROOT / "scripts/patch-git-dashboard.py", licenses / "intellij-252-git-dashboard/patch-git-dashboard.py")
     shutil.copy2(go_license, licenses / "Go-LICENSE.txt")
     # Keep GoForge's grant separate from the original Community/runtime notices.
     shutil.copy2(ROOT / "LICENSE", contents / "Resources/GoForge-LICENSE.txt")
@@ -360,6 +364,7 @@ def package(plugin_zip: Path, archive: bool, platform_home: Path | None = None, 
         "lspTextMateResources": textmate_report,
         "lspLifecyclePatch": lifecycle_report,
         "installedPluginSearchPatch": platform_search_patch,
+        "gitDashboardPatch": git_dashboard_patch,
         "localDevelopmentSignature": "ad-hoc", "fullPlatformSourceBuild": False,
     }, indent=2) + "\n")
     marker = contents / "Resources/.toolbox-ignore"
@@ -401,6 +406,7 @@ def package(plugin_zip: Path, archive: bool, platform_home: Path | None = None, 
         "lspMetadataPatch": patch_report, "lspTextMateResources": textmate_report, "relocation": relocation,
         "lspLifecyclePatch": lifecycle_report,
         "installedPluginSearchPatch": platform_search_patch,
+        "gitDashboardPatch": git_dashboard_patch,
         "fullPlatformSourceBuild": False, "bitForBitReproducibleArchive": False, "guiAcceptance": "pending"}
     MANIFEST.write_text(json.dumps(manifest, indent=2) + "\n")
     # Freeze the signed input before announcing that the GUI may be started.

@@ -30,6 +30,12 @@ Docker, kubectl, OpenSSH, Git, Graphviz, C compilers and Apple developer tools a
 
 ## Changes and source materials
 
+The pinned Community Git branch dashboard has a separate local dispatcher repair,
+documented in [patches/intellij-252-git-dashboard](patches/intellij-252-git-dashboard/README.md).
+It keeps the original component lifecycle and Git operations while running
+model-dependent tree updates on the platform EDT. The Apache-2.0 transformation,
+helper, verification probe and provenance are included with packaged applications.
+
 Application packaging changes product metadata, branding, launcher naming/configuration and outer bundle signing. The public Community platform is assembled from its binary distribution, not represented as rebuilt entirely from this repository. Original platform `LICENSE.txt`, `NOTICE.txt`, `license/` reports and runtime legal notices must remain in a distributed application.
 
 LSP4IJ changes comprise 20 stable intention-description metadata entries and one explorer lifecycle listener class. The listener repair dispatches tree lookup/insertion/update on the EDT, preserves disposal and normal event behavior, and adds a provenance receipt; its original EPL-2.0/Apache-2.0 header is retained. Complete replacement source, probe, provenance, licenses and patch scripts are included. TextMate resources are prepared from the metadata-only JAR before the lifecycle replacement, with each stage recorded separately. Other original entries remain unchanged. No proprietary plugin or license/activation code is copied or bypassed.

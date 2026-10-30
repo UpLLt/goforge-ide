@@ -1,22 +1,14 @@
 # Public source and release scope / 公开源码与发行范围
 
-## Publication gate / 发布门槛
+## Publication decision / 发布决定
 
-The owner requires **verified full GoLand feature alignment before any public source repository or binary release**. That condition has not been met. Keep current documentation, source-export candidates and application packages internal; do not create a public GitHub repository, publish a preview release or upload the prepared assets as a substitute for completing alignment.
+On 2026-10-30 the owner authorized public publication of the current usable version as v0.1.0, replacing the former requirement to wait for complete GoLand alignment. This changes the publication decision, not the verified feature coverage. The application has no GoForge registration, login, activation or subscription gate.
 
-Original GoForge code and documentation are licensed under [Apache-2.0](../LICENSE), with [NOTICE](../NOTICE). Licensing preparation does not authorize publication before the gate is satisfied. This is the maintainer's release policy, not an amendment to Apache-2.0 or any third-party license.
+2026-10-30 维护者明确授权将当前版本作为 v0.1.0 可用版本公开发布，替代此前“完整对齐后才公开”的门槛。这不改变实际验收范围，不表示完整对齐 GoLand。应用无需 GoForge 注册、登录、激活或订阅。
 
-所有者要求**完整对齐 GoLand 并验证完成后，才公开源码仓库或二进制发行**。当前尚未达到该条件。文档、源码候选包与应用包继续内部保存，不创建公开 GitHub 仓库，不提前发布预览版，也不以已打包代替完成对齐。原创许可已确定为 Apache-2.0，但准备许可证不等于获得提前公开的授权；该门槛是发布策略，不修改 Apache 或第三方许可。
+The release workflow checks the explicit tag/scope in `packaging/release-readiness.json`, product tests, Windows native checks and packaged protocols, then creates a draft. Attach the tested macOS archive and its checksum, verify the assets and publish that draft. Keep platform-specific limitations in the bilingual [release notes](RELEASE-0.1.0.md).
 
-The prepared workflow also checks `packaging/release-readiness.json` before its publication step. The current state is incomplete and blocks publication. Passing build jobs or changing a flag is not evidence of full alignment; acceptance must be supported by actual feature and platform results before that state can be changed.
-
-准备中的工作流在发布前还会检查 `packaging/release-readiness.json`，当前未完成状态会阻止发布。构建通过或修改开关不能代替完整功能与平台验收证据。
-
-## Preparation only / 仅作准备
-
-The public repository is an allowlisted source export, not a copy of the developer's entire working directory. Binary releases are separate artifacts and require their own checksums, platform status and third-party materials.
-
-公开仓库使用允许清单导出，不复制开发机器的整个目录。二进制单独发布，需附校验值、平台验证状态和第三方材料。
+The repository is an allowlisted source export, not the developer's entire working directory. Binary releases carry their own checksums and corresponding third-party materials. / 仓库只公开允许清单内源码；二进制附独立校验值及对应第三方材料。
 
 ## Source export
 
@@ -58,4 +50,4 @@ Upload its source archives and `source-assets-manifest.json` alongside the match
 
 macOS development packages have an ad-hoc signature, not Developer ID notarization. The Windows launcher receives GoForge resources and is unsigned after removal of its invalidated upstream signature. Other upstream executables retaining their signatures do not confer a GoForge publisher signature on the distribution. Keep these facts visible. No platform-wide security bypass is part of installation.
 
-A development preview is not complete GoLand parity and is not an authorized public-release mode for this project. When the full-alignment gate has been met, publish the checks actually performed and any remaining platform-specific limitations accurately. Private failure logs and captured proprietary artifacts stay outside the public repository.
+A usable release does not establish complete GoLand parity. Publish the checks actually performed and the remaining platform-specific limitations accurately. Private failure logs and captured proprietary artifacts stay outside the public repository.

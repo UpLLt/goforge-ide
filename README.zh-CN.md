@@ -1,27 +1,19 @@
 # GoForge
 
-**独立 Go IDE，无需 GoForge 注册、登录、激活、订阅或付费解锁。**
+**无需注册、登录、激活或订阅的独立 Go IDE，已实现功能全部开放。**
 
-[English](README.md) · [安装指南](docs/INSTALL.md) · [功能用法](docs/USAGE.md) · [已知差距](docs/KNOWN-LIMITATIONS.md) · [第三方说明](THIRD-PARTY-NOTICES.md)
+[English](README.md) · [下载 v0.1.0](https://github.com/UpLLt/goforge-ide/releases/tag/v0.1.0) · [安装指南](docs/INSTALL.md) · [使用说明](docs/USAGE.md) · [已知限制](docs/KNOWN-LIMITATIONS.md)
 
-GoForge 使用原创代码、公开的 IntelliJ Community 平台、LSP4IJ、gopls 和 Delve。项目独立于 JetBrains，不包含专有 GoLand 插件。
+GoForge 使用原创代码及公开的 IntelliJ Community、LSP4IJ、gopls 和 Delve，独立于 JetBrains，不包含专有 GoLand 插件。v0.1.0 面向普通本地 Go 项目的日常开发；**尚未验证与 GoLand 完整等价**。外部数据库、SSH、容器和 Git 服务仍需要正常连接配置。
 
-**当前为内部开发构建**：已经实现多条实际工作流，但尚未证明与 GoLand 完整功能对齐。**必须验证完整对齐后，才能公开发布源码和二进制。** 准备安装包或确定许可证不代表满足发布门槛。连接 SSH、数据库、Docker、Git 托管等外部服务时，仍需要这些服务正常的配置和访问权限。
+## 安装与开始使用
 
-## 开始使用
+1. 在 [Releases](https://github.com/UpLLt/goforge-ide/releases/tag/v0.1.0) 下载对应系统的应用 ZIP，按同页 SHA-256 校验文件核对，完整解压。
+2. macOS Apple Silicon（13.5+）：打开 `GoForge.app`。Windows 10/11 x64：运行 `GoForge/bin/goforge64.exe`。
+3. 选择 **New Go Project…**，或打开带 `go.mod` 的项目目录，等待索引与 gopls 初始化。
+4. 使用生成的 **Run / Test / Debug** 配置；在 **Settings → GoForge** 配置工具，在 **Settings → Go Project** 配置构建参数。
 
-1. 开发阶段从源码构建或使用内部候选安装包；当前发布门槛下尚无公开 **Releases** 下载。按[安装指南](docs/INSTALL.md)校验、解压，留意平台验证状态。
-2. 选择 **New Go Project…** 新建应用或库，也可以打开含 `go.mod` 的项目目录。
-3. 选择预置 **Run / Test / Debug** 配置。单独运行测试时，先保存文件，再在顶层 Test/Example 内使用 **Run**；运行时子测试从已完成的测试树选择。详见[测试用法](docs/USAGE.md#run-named-go-tests--运行指定-go-测试)。
-4. **Settings → GoForge** 可设置工具路径；**Settings → Go Project** 可设置 build tags、GOOS、GOARCH。
-
-| 平台 | 包与验证情况 |
-| --- | --- |
-| macOS / Apple Silicon | macOS 13.5+；Full 28 包与 926 项产品测试通过，全部 141 个包内场景独立验证通过；交互界面未验收。ad-hoc 签名，尚无 Developer ID 公证。 |
-| Windows x64 | Full 28 第 18 次产品/原生/141 场景通过；当前安装包由 CI 生成，完整归档本机读回待完成。交互界面未验收、启动器无签名；见[Windows 安装状态](docs/INSTALL.md#windows-x64)。 |
-| Linux / 其他架构 | 暂无已验证的独立发行包。 |
-
-已准备的内部平台包均内置运行时、Go SDK、gopls、Delve、Node、Dev Containers CLI 和 JDBC 驱动。Docker、kubectl、Git、OpenSSH、Cgo 的 C 编译器及 macOS 调试前置工具使用系统安装。包校验值及“已准备”与“已公开发布”的区别见[安装指南](docs/INSTALL.md#prepared-package-identities)。
+包内含 Java 运行时、Go SDK、gopls、Delve、Node、Dev Containers CLI 和 JDBC 驱动。Git、Docker、kubectl、OpenSSH、Cgo 编译器及 macOS 调试前置工具按需另装。macOS 为 ad-hoc 签名、未公证；Windows 启动器未签名。Linux 和其他 CPU 架构暂无已验证独立发行包。
 
 ## 当前工作流
 
@@ -62,14 +54,10 @@ GRADLE_USER_HOME="$PWD/.gradle-user-home" ./gradlew \
 
 ## 验证范围
 
-**Full 28（Mac）：**926 项产品测试、独立构建/归档检查及全部 141 个包内重构场景通过。Mac 锁定，本轮没有 Full 28 交互式 IDE GUI 验收；Windows 结果单独记录如下。
+2026-10-30 在 macOS 原生界面走通普通 Go 项目的打开、编辑/跨文件补全、保存、运行、测试及失败恢复、断点调试、Git 差异/提交/分支、关闭重开。修复 Git 分支面板线程异常后，相关流程再次通过。插件保持已通过 926 项 macOS 产品测试及 141 个包内重构场景的 Full 28 字节。
 
-**Windows：**[第 18 次](https://github.com/UpLLt/goforge-ide/actions/runs/40895762939)通过 Full 28 产品测试、9 组原生及全部 141 个包内重构场景，CI 已生成当前内部安装包；完整归档尚未在本机独立下载读回。此前第 17 次保留独立整包审计，交互界面仍待验收。[详细证据及历史失败](docs/KNOWN-LIMITATIONS.md#verification-scope--验证范围)保留各自构建身份。
-
-**尚未验证与 GoLand 完整对齐。**完整验收为 **0/101**，表示整项验收数量，不是功能实现率。仓库保持私有，无公开 Release。包哈希与安装方式见[安装指南](docs/INSTALL.md#prepared-package-identities)，具体缺口与历史验证范围见[已知差距](docs/KNOWN-LIMITATIONS.md#verification-scope--验证范围)。
+Windows 发行包须通过同次 CI 的产品、启动器、工具链、Git 修复及包内协议检查。**Windows 桌面交互、大工程和长会话尚未完整验收。** 各次构建证据与差异见[发行说明](docs/RELEASE-0.1.0.md)及[已知限制](docs/KNOWN-LIMITATIONS.md)。v0.1.0 保留已测试的内部 `0.1.0-dev` / `0.1 Development` 版本文字，以发行包校验值区分本版。
 
 ## 许可
 
 原创 GoForge 代码与文档采用 [Apache-2.0](LICENSE)，归属说明见 [NOTICE](NOTICE)。已识别的第三方材料保留各自许可证：LSP4IJ 元数据补丁为 EPL-2.0，运行时和驱动还有各自条款。见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)。GoForge 的许可证不会替第三方授权或改变其条款；分发时应保留适用通知与对应源码材料。
-
-“完整对齐后才公开”是维护者的发布门槛，不是向 Apache 许可证附加新的限制。

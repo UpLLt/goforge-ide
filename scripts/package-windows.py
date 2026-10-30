@@ -282,6 +282,8 @@ def package(plugin_zip: Path, host_go: Path, javac: Path, archive=False, offline
         patch=run(sys.executable,ROOT/'scripts/patch-lsp4ij-metadata.py','--plugin-dir',stage/'plugins/lsp4ij')
         platform_search_patch=json.loads(run(sys.executable,ROOT/'scripts/patch-installed-plugin-search.py',
                                              '--platform-home',stage,'--javac',javac))
+        git_dashboard_patch=json.loads(run(sys.executable,ROOT/'scripts/patch-git-dashboard.py',
+                                           '--platform-home',stage,'--javac',javac))
         textmate=common.prepare_lsp_textmate(stage/'plugins/lsp4ij')
         # Resource preparation records the metadata-only input; the final JAR
         # identity is recorded independently by the lifecycle patch receipt.
@@ -302,6 +304,8 @@ def package(plugin_zip: Path, host_go: Path, javac: Path, archive=False, offline
         shutil.copy2(ROOT/'scripts/patch-lsp4ij-lifecycle.py',notices/'lsp4ij-0.21.0/patch-lsp4ij-lifecycle.py')
         shutil.copytree(ROOT/'patches/intellij-252-installed-search',notices/'intellij-252-installed-search')
         shutil.copy2(ROOT/'scripts/patch-installed-plugin-search.py',notices/'intellij-252-installed-search/patch-installed-plugin-search.py')
+        shutil.copytree(ROOT/'patches/intellij-252-git-dashboard',notices/'intellij-252-git-dashboard')
+        shutil.copy2(ROOT/'scripts/patch-git-dashboard.py',notices/'intellij-252-git-dashboard/patch-git-dashboard.py')
         # Keep GoForge's grant separate from the original Community/runtime notices.
         shutil.copy2(ROOT/'LICENSE',stage/'GoForge-LICENSE.txt')
         shutil.copy2(ROOT/'NOTICE',stage/'GoForge-NOTICE.txt')
@@ -321,6 +325,7 @@ def package(plugin_zip: Path, host_go: Path, javac: Path, archive=False, offline
                'pluginZipSha256':plugin_hash,'inputs':INPUTS,'launcher':launcher,'tools':info,'lspTextMate':textmate,
                'lspLifecyclePatch':lifecycle,
                'installedPluginSearchPatch':platform_search_patch,
+               'gitDashboardPatch':git_dashboard_patch,
                'packagerSha256':digest(Path(__file__)),'target':'windows-x64','authenticode':'unsigned derivative launcher',
                'thirdPartyNoticesSha256':digest(stage/'THIRD-PARTY-NOTICES.md'),
                'fullPlatformSourceBuild':False,'noAccountRequired':True}
@@ -331,6 +336,7 @@ def package(plugin_zip: Path, host_go: Path, javac: Path, archive=False, offline
                 'nativeRuntime':{'status':'pending','command':'python scripts/verify-windows-package.py --app build/windows/GoForge'},
                 'buildInputsSha256':digest(stage/'goforge-build-inputs.json'),'limitations':['No GoForge Authenticode certificate or MSI installer','Cross-assembly is not Windows runtime or UI acceptance']}
         result['lspLifecyclePatch']=lifecycle
+        result['gitDashboardPatch']=git_dashboard_patch
     if digest(plugin_zip)!=plugin_hash: raise RuntimeError('Plugin ZIP changed during assembly')
     if APP.exists(): shutil.rmtree(APP)
     stage.rename(APP)

@@ -51,6 +51,12 @@ This waits for the installed model before running the original search and does
 not suppress its assertions. It adapts the ordering fixed upstream in
 https://github.com/JetBrains/intellij-community/commit/bf1d84fac9258410c0e3312e9ea905f14b76a825.
 
+The Git branch dashboard also receives a narrowly scoped coroutine dispatcher
+repair in the pinned Community Git plugin. Its original component lifecycle,
+branch model and tree operations are retained; model-dependent tree updates run
+on the platform EDT dispatcher. The Apache-2.0 patch source, verification probe
+and provenance are included in `third-party/intellij-252-git-dashboard`.
+
 Go 1.26.4 and gopls 0.23.0 use BSD-style licenses; Delve 1.27.2 uses MIT.
 The complete Go SDK, including its source and license files, is bundled under
 `goforge-tools/go`. Tool module versions, sums and copied license notices are in

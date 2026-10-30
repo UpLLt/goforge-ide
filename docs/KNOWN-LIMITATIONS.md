@@ -1,12 +1,12 @@
 # Known limitations / 已知差距
 
-GoForge is an internal development build. Complete GoLand feature parity and a complete original-product comparison baseline have **not** been established. Test counts are not a completion percentage. GoForge has no account, activation or paid-feature gate; external services still use their own authorization.
+GoForge v0.1.0 is an early usable release. Complete GoLand feature parity and a complete original-product comparison baseline have **not** been established. Test counts are not a completion percentage. GoForge has no account, activation or paid-feature gate; external services still use their own authorization.
 
-GoForge 当前为内部开发构建，**尚未证明完整对齐 GoLand**，也未建立完整原产品对照基线。测试数量不是完成百分比。GoForge 不设注册、激活或付费功能门槛；外部服务仍使用各自权限。
+GoForge v0.1.0 为早期可用版本，**尚未证明完整对齐 GoLand**，也未建立完整原产品对照基线。测试数量不是完成百分比。GoForge 不设注册、激活或付费功能门槛；外部服务仍使用各自权限。
 
 | Area / 领域 | Remaining boundary / 当前边界 |
 | --- | --- |
-| Distribution / 发行 | Mac Full 28 archive/protocol checks passed. Windows Full 28 Run 18 CI/native/141 protocols passed and generated the current internal installer; whole-archive local readback is not performed for Run 18. Previous Run 17 has a full byte audit. Interactive GUI remains unverified; no notarized installer/updater or verified Linux/other-architecture distribution. / Mac Full 28 归档/协议通过；Windows Full 28 第 18 次 CI/原生/141 协议通过并生成当前内部包，本版本整包尚未本机独立读回，此前第 17 次保留完整字节审计。交互界面未验收，无已验证公证安装器/更新器或 Linux/其他架构发行。 |
+| Distribution / 发行 | macOS ordinary-project daily workflows passed on 2026-10-30 after the Git dashboard repair. Windows assets require release CI; interactive Windows GUI, notarization, a signed Windows launcher, automatic updates and Linux/other architectures remain unverified or unavailable. / Mac 普通项目日常流程及 Git 修复复测通过；Windows 发行须通过 CI，交互界面、公证、Windows 签名、自动更新及其他系统/架构仍未验收或未提供。 |
 | Go language / Go 语义 | Uses gopls; full inspections, completion, build tags, generics, workspace and large-project comparison coverage is incomplete. / 基于 gopls，检查规则、补全、构建标签、泛型、工作区与大工程完整差分覆盖未完成。 |
 | Editing / 编辑 | Basic comments/braces/Enter, save formatting and manual/save imports are implemented. Parenthesis/bracket continuation uses the nearest opening line and configured continuation width. General expression/switch indentation, full EditorConfig precedence, broader multi-caret whitespace, rearrangement/cleanup and closed-editor manual formatting remain limited. / 基础编辑、保存格式化及导入整理已实现；圆括号/方括号续行按最近起始行与续行宽度缩进；一般表达式/switch 缩进、EditorConfig 优先级、更广多光标空白、重排/cleanup 与无 Editor 手动格式化仍有限制。 |
 | Test selection / 测试选择 | Runtime subtests navigate to their containing top-level declaration; no static subtest-call discovery. Failed rerun is restricted to one mapped package and refuses build/process/selection failures or locally stopped runs. / 运行时子测试跳到所属顶层声明，不静态发现子测试调用；仅失败项重跑限同包可定位结果，不忽略其他失败或本地终止。 |
@@ -24,6 +24,12 @@ GoForge 当前为内部开发构建，**尚未证明完整对齐 GoLand**，也�
 See the [workflow guide](USAGE.md), [imports](USAGE.md#organize-imports-on-save--保存时整理导入), [benchmarks](USAGE.md#run-one-benchmark--运行单个基准测试), [remote sources](USAGE.md#remote-standard-library-sources--远端标准库源码), [test Stop](USAGE.md#stop-a-local-test-run--停止本地测试), and [Add Parameter](USAGE.md#add-one-parameter--新增一个参数) for operational boundaries. / 操作与边界见以上对应流程。
 
 ## Verification scope / 验证范围
+
+**Current daily-use check — 2026-10-30:** open, edit/cross-file completion, format/save, run, three tests and failure recovery, local debug, Git diff/commit/branch and normal reopen passed on macOS. The Git dashboard exception was repaired and retested; zero ERROR/SEVERE, ten platform warnings in the repaired session. Focused repair probes passed against both platform inputs on Mac; Windows-native execution is separately required by release CI. See [v0.1.0 notes](RELEASE-0.1.0.md). / 当前 Mac 日常流程与修复复测通过，Windows 原生结果以本次 CI 为准。
+
+## Historical build evidence / 历史构建证据
+
+The snapshots below preserve earlier failures and verification boundaries. Their private-only publication statements describe the earlier policy, superseded on 2026-10-30. / 以下保留历史失败与验收边界；其中私有发布门槛为当时政策，已由 2026-10-30 公开发布决定替代。
 
 **Current verified source — Full 28.** All 926 macOS-host JUnit tests passed (549 component, 377 platform; 121 XML, 398 frozen inputs), including two new private-method result transaction tests. Independent Mac build/archive and all 141 actual packaged refactoring cases passed, including 38 single-result cases. Windows [Run 18](https://github.com/UpLLt/goforge-ide/actions/runs/40895762939) passed the same product revision: 925 tests plus one existing POSIX-only skip, independent plugin readback, nine native groups and all 141 packaged cases. CI generated the current Full 28 Windows installer; its whole archive has not been independently downloaded/read back locally. Previous Full 27 Run 17 retains a complete local archive audit. No new Full 28 Mac GUI group ran while locked; Windows interactive GUI and full GoLand parity remain unverified. Earlier failures retain their separate histories; publication remains disabled.
 
